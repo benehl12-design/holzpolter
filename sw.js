@@ -1,0 +1,49 @@
+const TILE_CACHE = 'holzpolter-tiles-v1';
+const SAT_CACHE  = 'holzpolter-sat-v2';
+const MAX_OSM = 600; const MAX_SAT = 1200;
+
+self.addEventListener('install',  () => self.skipWaiting());
+self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+
+async function limitCache(name, max) {
+  const c = await caches.open(name);
+  const keys = await c.keys();
+  if (keys.length > max) await Promise.all(keys.slice(0, keys.length - max).map(k => c.delete(k)));
+}
+
+async function tileRespond(req, cacheName, max) {
+  const cache = await caches.open(cacheName);
+  const hit = await cache.match(req);
+  if (hit) { fetch(req,{mode:'cors'}).then(r=>{if(r&&r.ok)cache.put(req,r);}).catch(()=>{}); return hit; }
+  try {
+    const r = await fetch(req,{mode:'cors'});
+    if (r && r.ok) cache.put(req, r.clone()).then(()=>limitCache(cacheName,max));
+    return r;
+  } catch { return new Response('',{status:503}); }
+}
+
+self.addEventListener('fetch', e => {
+  const url = e.request.url;
+  if (!url.startsWith('http')) return;
+  if (url.includes('arcgisonline.com')) { e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT)); return; }
+  if (url.includes('tile.openstreetmap.org')) { e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM)); return; }
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
+
+self.addEventListener('message', e => {
+  if (!e.data || e.data.type !== 'CACHE_TILES') return;
+  const {urls, layer} = e.data;
+  const cacheName = layer === 'sat' ? SAT_CACHE : TILE_CACHE;
+  const max = layer === 'sat' ? MAX_SAT : MAX_OSM;
+  caches.open(cacheName).then(async cache => {
+    let done = 0;
+    for (let i = 0; i < urls.length; i += 6) {
+      await Promise.all(urls.slice(i, i+6).map(async url => {
+        try { if (!(await cache.match(url))) { const r = await fetch(url,{mode:'cors'}); if(r&&r.ok) await cache.put(url,r); } } catch {}
+        e.source.postMessage({type:'CACHE_PROGRESS', done: ++done, total: urls.length});
+      }));
+    }
+    await limitCache(cacheName, max);
+    e.source.postMessage({type:'CACHE_DONE', total: done});
+  });
+});
