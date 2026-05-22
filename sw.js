@@ -1,9 +1,20 @@
-const TILE_CACHE = 'holzpolter-tiles-v1';
-const SAT_CACHE  = 'holzpolter-sat-v2';
+const TILE_CACHE = 'lignum-tiles-v4';
+const SAT_CACHE  = 'lignum-sat-v4';
+const APP_VERSION = '3.1';
 const MAX_OSM = 600; const MAX_SAT = 1200;
 
 self.addEventListener('install',  () => self.skipWaiting());
-self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('message', e => { if(e.data?.type==='SKIP_WAITING') self.skipWaiting(); });
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k !== TILE_CACHE && k !== SAT_CACHE)
+            .map(k => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
 
 async function limitCache(name, max) {
   const c = await caches.open(name);
@@ -25,8 +36,21 @@ async function tileRespond(req, cacheName, max) {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
   if (!url.startsWith('http')) return;
-  if (url.includes('arcgisonline.com')) { e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT)); return; }
-  if (url.includes('tile.openstreetmap.org')) { e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM)); return; }
+
+  // Karten-Tiles: cachen
+  if (url.includes('arcgisonline.com') || url.includes('virtualearth.net')) {
+    e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT)); return;
+  }
+  if (url.includes('tile.openstreetmap.org')) {
+    e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM)); return;
+  }
+
+  // Supabase API: niemals cachen, immer direkt
+  if (url.includes('supabase.co')) {
+    e.respondWith(fetch(e.request)); return;
+  }
+
+  // App-Shell: Cache first, dann Network
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });
 
