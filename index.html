@@ -1,13 +1,15 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="app-version" content="3.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Holzpolter"/>
   <meta name="theme-color" content="#1a2e1a"/>
-  <title>Holzpolter GPS</title>
+  <title>Lignum</title>
   <link rel="manifest" href="manifest.json"/>
   <link rel="apple-touch-icon" href="icons/icon-192.png"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -418,9 +420,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .hnum{width:28px;height:28px;border-radius:50%;background:var(--green);color:#e8f5e4;font-size:12px;font-weight:700;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 .hstep-txt{flex:1;}.hstep-txt b{font-size:13px;color:var(--text);display:block;margin-bottom:2px;}
 .hstep-txt span{font-size:12px;color:var(--text2);line-height:1.5;}
-.hicon{display:inline-flex;align-items:center;gap:3px;background:var(--text);color:#fff;font-size:10px;padding:2px 8px;border-radius:6px;font-family:inherit;vertical-align:middle;font-weight:500;}
-.hicon.blue{background:var(--blue);}.hicon.green{background:var(--green);}.hicon.amber{background:var(--amber);}
-.htip{background:#f0f8f0;border-left:3px solid var(--green);padding:9px 13px;border-radius:0 8px 8px 0;font-size:12px;color:#2d6a27;margin:10px 0;line-height:1.5;}
+.hicon{display:inline-flex;align-items:center;gap:3px;background:#1d5c18;color:#fff!important;font-size:12px;padding:3px 10px;border-radius:6px;font-family:inherit;vertical-align:middle;font-weight:700;-webkit-text-fill-color:#fff;}
+.hicon.blue{background:#154f9a;color:#fff!important;-webkit-text-fill-color:#fff;}
+.hicon.green{background:#1d5c18;color:#fff!important;-webkit-text-fill-color:#fff;}
+.hicon.amber{background:#9a5c00;color:#fff!important;-webkit-text-fill-color:#fff;}
+.hicon.red{background:#8a1a1a;color:#fff!important;-webkit-text-fill-color:#fff;}
+.htip{background:#e8f5e4;border-left:3px solid #2d6a27;padding:9px 13px;border-radius:0 8px 8px 0;font-size:12px;color:#1a3a18;margin:10px 0;line-height:1.5;}
 .hbadge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;vertical-align:middle;}
 .hbadge.h{background:#ddeeff;color:#1a5fa8;}.hbadge.f{background:#d4edcc;color:#2d6a27;}
 .hidden{display:none!important;}
@@ -899,6 +904,82 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   background:#f0f8f0;border-top:1px solid rgba(45,90,39,.1);flex-shrink:0;
 }
 
+/* ── APPLE TOGGLE SWITCH ── */
+.toggle-switch{position:relative;display:inline-block;width:51px;height:31px;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:#48484a;border-radius:31px;transition:.25s ease;}
+.toggle-slider:before{position:absolute;content:"";height:27px;width:27px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.25s ease;box-shadow:0 3px 6px rgba(0,0,0,.4);}
+.toggle-switch.on .toggle-slider{background:#34c759;}
+.toggle-switch.on .toggle-slider:before{transform:translateX(20px);}
+
+/* ── TOAST NOTIFICATION ── */
+#toast{
+  position:fixed;bottom:max(90px,env(safe-area-inset-bottom,16px)+74px);left:50%;transform:translateX(-50%) translateY(20px);
+  background:rgba(30,60,28,.96);color:#c8e6c0;padding:11px 20px;border-radius:24px;
+  font-size:13px;font-weight:600;font-family:inherit;
+  border:1px solid rgba(100,200,80,.3);box-shadow:0 4px 20px rgba(0,0,0,.4);
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+  z-index:99999;white-space:nowrap;max-width:90vw;text-align:center;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── FAHRER ÜBERSICHT SCREEN ── */
+#driver-overview-screen{
+  position:fixed;inset:0;z-index:9200;
+  background:linear-gradient(175deg,#162818,#0f1f10);
+  display:none;flex-direction:column;overflow:hidden;
+}
+.dov-header{
+  padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));
+  background:rgba(0,0,0,.35);backdrop-filter:blur(10px);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.dov-back{background:none;border:none;color:#8ab882;font-size:22px;cursor:pointer;padding:0;}
+.dov-title{font-size:16px;font-weight:500;color:#c8e6c0;flex:1;}
+.dov-tabs{
+  display:flex;gap:0;padding:10px 12px;flex-shrink:0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.dov-tab{
+  flex:1;padding:8px;border-radius:8px;border:none;
+  background:transparent;color:#5a8a5a;font-size:13px;
+  font-family:inherit;cursor:pointer;transition:all .15s;font-weight:500;
+}
+.dov-tab.active{background:rgba(255,255,255,.08);color:#c8e6c0;}
+.dov-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;display:flex;flex-direction:column;gap:10px;padding-bottom:max(12px,env(safe-area-inset-bottom));}
+.dov-card{
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;overflow:hidden;
+}
+.dov-card-head{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.dov-driver-icon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.dov-driver-icon.h{background:rgba(26,95,168,.35);border:1.5px solid rgba(55,138,221,.3);}
+.dov-driver-icon.f{background:rgba(45,90,39,.35);border:1.5px solid rgba(74,154,64,.3);}
+.dov-driver-name{font-size:15px;font-weight:600;color:#c8e6c0;}
+.dov-driver-role{font-size:11px;color:#5a8a5a;margin-top:2px;}
+.dov-status-badge{
+  margin-left:auto;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;white-space:nowrap;
+}
+.dov-status-badge.active{background:rgba(74,170,74,.15);color:#4aaa4a;border:1px solid rgba(74,170,74,.25);}
+.dov-status-badge.offline{background:rgba(255,255,255,.06);color:#5a8a5a;border:1px solid rgba(255,255,255,.1);}
+.dov-stats{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid rgba(255,255,255,.06);}
+.dov-stat{padding:12px 8px;text-align:center;border-right:1px solid rgba(255,255,255,.06);}
+.dov-stat:last-child{border-right:none;}
+.dov-stat-val{font-size:18px;font-weight:600;color:#c8e6c0;line-height:1;}
+.dov-stat-lbl{font-size:10px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;}
+.dov-map-mini{width:100%;height:160px;display:block;background:#1a3a1a;}
+.dov-location{padding:10px 16px;font-size:12px;color:#5a8a5a;border-bottom:1px solid rgba(255,255,255,.06);}
+.dov-actions{display:flex;gap:8px;padding:10px 14px;}
+.dov-action-btn{
+  flex:1;padding:9px;border-radius:8px;font-size:12px;font-family:inherit;
+  cursor:pointer;font-weight:600;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.06);color:#8ab882;
+}
+.dov-empty{padding:40px 20px;text-align:center;color:#5a8a5a;font-size:14px;}
+
 /* ── DATEN VERWALTEN MODAL ── */
 #data-mgmt-overlay{
   position:fixed;inset:0;z-index:9500;
@@ -943,6 +1024,72 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .dmgmt-btn.danger .dmgmt-btn-title{font-weight:700;}
 
+/* ── APPLE TOGGLE SWITCH ── */
+.toggle-switch{position:relative;display:inline-block;width:51px;height:31px;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:#48484a;border-radius:31px;transition:.25s ease;}
+.toggle-slider:before{position:absolute;content:"";height:27px;width:27px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.25s ease;box-shadow:0 3px 6px rgba(0,0,0,.4);}
+.toggle-switch.on .toggle-slider{background:#34c759;}
+.toggle-switch.on .toggle-slider:before{transform:translateX(20px);}
+
+/* ── TOAST NOTIFICATION ── */
+#toast{
+  position:fixed;bottom:max(90px,env(safe-area-inset-bottom,16px)+74px);left:50%;transform:translateX(-50%) translateY(20px);
+  background:rgba(30,60,28,.96);color:#c8e6c0;padding:11px 20px;border-radius:24px;
+  font-size:13px;font-weight:600;font-family:inherit;
+  border:1px solid rgba(100,200,80,.3);box-shadow:0 4px 20px rgba(0,0,0,.4);
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+  z-index:99999;white-space:nowrap;max-width:90vw;text-align:center;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── FAHRER ÜBERSICHT SCREEN ── */
+
+.driver-overview-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;overflow:hidden;margin-bottom:2px;}
+.driver-overview-card.active-card{border-color:rgba(74,170,74,.3);background:rgba(74,170,74,.05);}
+.dov-card-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.05);}
+.dov-icon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.dov-icon.h{background:rgba(26,95,168,.35);}
+.dov-icon.f{background:rgba(45,90,39,.35);}
+.dov-name{font-size:15px;font-weight:600;color:#c8e6c0;}
+.dov-role{font-size:11px;color:#5a8a5a;margin-top:2px;}
+.dov-status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.dov-status-dot.on{background:#4aaa4a;}
+.dov-status-dot.off{background:#555;}
+.dov-status-label{font-size:11px;font-weight:600;}
+.dov-status-label.on{color:#4aaa4a;}
+.dov-status-label.off{color:#666;}
+
+.dov-stat-val{font-size:18px;font-weight:600;color:#c8e6c0;line-height:1;}
+.dov-stat-lbl{font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;}
+.dov-map-mini{height:130px;background:#1a3a2a;position:relative;cursor:pointer;border-top:1px solid rgba(255,255,255,.05);}
+.dov-no-location{height:50px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#4a6a4a;font-style:italic;border-top:1px solid rgba(255,255,255,.05);}
+.dov-last-seen{padding:8px 16px;font-size:11px;color:#4a6a4a;border-top:1px solid rgba(255,255,255,.04);display:flex;align-items:center;justify-content:space-between;}
+.dov-nav-btn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid rgba(26,95,168,.3);background:rgba(26,95,168,.15);color:#b5d4f4;cursor:pointer;font-family:inherit;}
+.adash-active-drivers{cursor:pointer;transition:background .15s;}
+.adash-active-drivers:active{background:rgba(255,255,255,.08);}
+/* ── FAHRER ÜBERSICHT ── */
+
+.dov-card.active-card{border-color:rgba(74,170,74,.3);background:rgba(74,170,74,.05);}
+.dov-card-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.05);}
+
+.dov-icon.h{background:rgba(26,95,168,.35);}
+.dov-icon.f{background:rgba(45,90,39,.35);}
+
+.dov-sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.dov-sdot.on{background:#4aaa4a;}
+.dov-sdot.off{background:#555;}
+.dov-slbl{font-size:11px;font-weight:600;}
+.dov-slbl.on{color:#4aaa4a;}
+.dov-slbl.off{color:#666;}
+
+.dov-stat-val{font-size:18px;font-weight:600;color:#c8e6c0;line-height:1;}
+.dov-stat-lbl{font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;}
+.dov-mapwrap{height:130px;background:#1a3a2a;position:relative;cursor:pointer;border-top:1px solid rgba(255,255,255,.05);}
+.dov-noloc{height:50px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#4a6a4a;font-style:italic;border-top:1px solid rgba(255,255,255,.05);}
+.dov-foot{padding:8px 16px;font-size:11px;color:#4a6a4a;border-top:1px solid rgba(255,255,255,.04);display:flex;align-items:center;justify-content:space-between;}
+.dov-navbtn{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid rgba(26,95,168,.3);background:rgba(26,95,168,.15);color:#b5d4f4;cursor:pointer;font-family:inherit;}
+.adash-active-drivers{cursor:pointer;transition:background .15s;}
+.adash-active-drivers:active{background:rgba(255,255,255,.08);}
 /* ── SETTINGS MODAL ── */
 #settings-overlay{position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;}
 #settings-sheet{background:linear-gradient(175deg,#1e3520,#121f12);border-radius:24px 24px 0 0;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:max(10px,env(safe-area-inset-bottom));}
@@ -981,14 +1128,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .delete-cancel-btn{flex:1;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#8ab882;font-size:14px;font-family:inherit;cursor:pointer;font-weight:500;}
 .delete-confirm-btn{flex:1;padding:12px;border-radius:10px;border:none;background:var(--red);color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;}
 </style>
+<script>
+// Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (reg) {
+      // Prüfe ob SW veraltet ist
+      fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
+        if (!txt.includes("APP_VERSION = '3.1'")) {
+          reg.unregister().then(() => location.reload());
+        }
+      }).catch(()=>{});
+    }
+  });
+}
+</script>
 </head>
 <body>
+
+<div style="display:none;" id="__stubs__">
+  <select id="area-select"><option value="">– Kein Gebiet –</option></select>
+  <button id="btn-add-fuhre"></button>
+  <button id="btn-area-new"></button>
+  <button id="btn-basemap"></button>
+  <button id="btn-cache"></button>
+  <button id="btn-gps"></button>
+  <button id="btn-grenzen"></button>
+  <button id="btn-switch-mode-stub" style="display:none;"></button>
+  <button id="btn-timer-history"></button>
+  <button id="btn-timer-start"></button>
+  <button id="btn-timer-start-menu"></button>
+  <button id="btn-timer-stop"></button>
+  <button id="btn-timer-stop-menu"></button>
+  <div id="dash-time-list"></div>
+  <div id="dov-update-time"></div>
+  <select id="fuhren-ablageort"></select>
+  <select id="fuhren-anzahl"></select>
+  <input id="fuhren-fm" type="text">
+  <input id="fuhren-info" type="text">
+  <input id="kraftstoff-heute" type="text">
+  <div id="sec-areas"></div>
+  <div id="sec-time"></div>
+  <input id="setting-fm-fuhre" type="text">
+  <input id="setting-verbrauch" type="text">
+  <div id="smenu-fuhren-panel"></div>
+  <div id="smenu-maschine-panel"></div>
+  <div id="smenu-sec-fuhren"></div>
+  <div id="smenu-sec-maschine"></div>
+  <div id="stat-time"></div>
+  <input id="timer-display" type="text">
+  <input id="timer-note" type="text">
+</div>
+
 <div id="app">
 
 <!-- ── LOGIN / REGISTRIERUNG ── -->
 <div id="auth-screen">
-  <h1>🌲 Holzpolter GPS</h1>
-  <p class="sub">GPS-App für Forstbetriebe</p>
+  <div style="margin-bottom:12px;">
+        <img src="icons/icon-192.png" style="width:80px;height:80px;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,.4);" alt="Lignum"/>
+      </div>
+      <h1><span style="font-size:36px;font-weight:800;letter-spacing:-1px;">Lignum</span></h1>
+  <p class="sub">The Digital Forestry Operator</p>
   <div id="auth-box">
     <div id="auth-tabs">
       <button class="atab on" onclick="authTab('login')">Anmelden</button>
@@ -1018,10 +1218,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 <!-- ── ADMIN DASHBOARD ── -->
 <div id="admin-dashboard">
   <div class="adash-header">
-    <span class="adash-logo">🌲</span>
+    <img src="icons/icon-192.png" style="width:34px;height:34px;border-radius:9px;" alt="Lignum"/>
     <div style="flex:1;min-width:0;">
-      <div class="adash-title">Holzpolter GPS</div>
-      <div class="adash-company" id="dash-company">Admin</div>
+      <div class="adash-title">Lignum</div>
+      <div class="adash-company" id="dash-company">The Digital Forestry Operator</div>
     </div>
     <button class="adash-user-btn" onclick="openSettings()" title="Einstellungen">👤</button>
     <button class="adash-logout-btn" onclick="doLogout()" style="margin-left:8px;">Abmelden</button>
@@ -1074,11 +1274,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     </div>
 
     <!-- Aktive Fahrer -->
-    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden;">
+    <div class="adash-active-drivers" onclick="openDriverOverview()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden;cursor:pointer;" onclick="openDriverOverview()">
       <div style="padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06);">
         <div style="width:7px;height:7px;border-radius:50%;background:#4aaa4a;animation:pulse 2s infinite;flex-shrink:0;"></div>
         <span style="font-size:11px;font-weight:600;color:#6a9a6a;text-transform:uppercase;letter-spacing:.06em;flex:1;">Aktive Fahrer</span>
         <span style="font-size:11px;color:#4a6a4a;" id="dash-driver-count"></span>
+        <span style="font-size:16px;color:#4a6a4a;">&#8250;</span>
       </div>
       <div id="dash-driver-list">
         <div style="padding:14px 16px;color:#5a8a5a;font-size:13px;">Wird geladen...</div>
@@ -1101,8 +1302,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
       </div>
       <span style="margin-left:auto;color:#8a5a5a;font-size:18px;">›</span>
     </button>
-
-
 
   </div>
 </div>
@@ -1177,10 +1376,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   <button onclick="hideDashSub()" style="background:none;border:none;color:#4a6a4a;font-size:13px;cursor:pointer;font-family:inherit;margin-top:4px;">← Zurück zum Dashboard</button>
 </div>
 
-
 <!-- ── FAHRER STARTSEITE ── -->
 <div id="driver-start">
-  <h1>🌲 Holzpolter GPS</h1>
+  <div style="margin-bottom:12px;">
+        <img src="icons/icon-192.png" style="width:80px;height:80px;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,.4);" alt="Lignum"/>
+      </div>
+      <h1><span style="font-size:36px;font-weight:800;letter-spacing:-1px;">Lignum</span></h1>
   <div class="driver-welcome" id="driver-welcome"></div>
   <button class="machine-card" id="driver-machine-btn" onclick="startDriverMode()">
     <span class="mc-icon" id="driver-machine-icon">🪵</span>
@@ -1191,7 +1392,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   </button>
   <button class="start-btn" onclick="startDriverMode()">▶ Starten</button>
   <button class="ds-logout" onclick="doLogout()">Abmelden</button>
-  <button onclick="document.getElementById('help-modal').style.display='flex';updatePwaInstallBtn();" style="background:none;border:none;color:#4a6044;font-size:11px;cursor:pointer;text-decoration:underline;font-family:inherit;">📖 Anleitung</button>
+  <button onclick="document.getElementById('help-modal').style.display='flex';setTimeout(updatePwaInstallBtn,50);;updatePwaInstallBtn();" style="background:none;border:none;color:#4a6044;font-size:11px;cursor:pointer;text-decoration:underline;font-family:inherit;">📖 Anleitung</button>
 </div>
 
 <!-- ── HAUPTAPP ── -->
@@ -1204,6 +1405,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   <h1 id="topbar-title">🪵 Harvester</h1>
   <span class="mode-badge harvester" id="mode-badge"></span>
   <div id="online-dot" title="Sync-Status"></div>
+
+  <!-- Modus wechseln Button -->
+  <button id="btn-switch-mode" title="Modus wechseln" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;padding:6px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;" aria-label="Modus wechseln">⇄</button>
 
   <!-- Kritische Schnellbuttons (immer sichtbar) -->
   <div class="topbar-quick">
@@ -1218,8 +1422,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
       <span class="qbtn-badge blue-badge" id="lkw-badge">0</span>
     </div>
     <!-- GPS immer sichtbar -->
-    <button class="qbtn blue" id="btn-gps">📍</button>
+    
     <!-- Strecke Start/Stop -->
+    <button id="btn-export" class="hidden"></button>
     <button class="qbtn" id="btn-track">⏺</button>
     <button class="qbtn red hidden" id="btn-stop">⏹</button>
     <!-- Polter hinzufügen -->
@@ -1228,36 +1433,74 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 
 </div>
 
+<div id="statusbar" class="hidden mode-harvester"><div id="gps-dot" class="off"></div><span id="gps-txt">GPS bereit</span><span id="km-txt" style="margin-left:auto;display:none;"></span></div>
+
 <!-- ── SLIDE-OVERLAY ── -->
+<div id="toast"></div>
+
 <div id="slide-overlay" onclick="closeSlideMenu()"></div>
 
 <!-- ── SLIDE-MENU VON LINKS ── -->
 <div id="slide-menu">
   <!-- Header -->
   <div class="slide-header">
-    <div class="slide-title">Holzpolter GPS</div>
-    <div class="slide-mode" id="slide-mode-title">🪵 Harvester-Modus</div>
+    <div class="slide-title">Lignum</div>
+    <div class="slide-mode" id="slide-mode-title">Modus</div>
     <span class="slide-mode-badge harvester" id="slide-mode-badge">Harvester</span>
   </div>
 
   <div class="slide-body">
 
-    <!-- Navigation -->
-    <div class="slide-section-title">Karte & Navigation</div>
-    <button class="slide-btn" id="smenu-gps" onclick="document.getElementById('btn-gps').click();closeSlideMenu()">
-      <div class="slide-btn-icon blue">📍</div>
-      <div class="slide-btn-info"><div class="slide-btn-label">GPS orten</div><div class="slide-btn-desc">Aktuellen Standort anzeigen</div></div>
-    </button>
+    <!-- GPS & Standort (Fahrer) -->
+    <div class="slide-section-title" id="smenu-sec-gps">GPS &amp; Standort</div>
+    <div id="smenu-gps-toggle" style="padding:10px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:#c8e6c0;">Standort übermitteln</div><div style="font-size:11px;color:#5a8a5a;margin-top:2px;" id="gps-toggle-desc">Aktiv</div></div>
+      <div id="gps-toggle-wrap" onclick="toggleGpsTracking()" style="width:51px;height:31px;border-radius:31px;background:#34c759;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+        <div id="gps-toggle-knob" style="width:27px;height:27px;border-radius:50%;background:#fff;position:absolute;top:2px;left:22px;transition:left .25s;box-shadow:0 2px 5px rgba(0,0,0,.4);"></div>
+      </div>
+    </div>
+
+    <!-- GPS & Standort (Admin) -->
+    <div class="slide-section-title" id="smenu-sec-admin-gps" style="display:none;">GPS &amp; Standort</div>
+    <div id="smenu-admin-gps-toggle" style="padding:10px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:#c8e6c0;">Fahrer-Positionen</div><div style="font-size:11px;color:#5a8a5a;margin-top:2px;" id="admin-gps-toggle-desc">Aktive Fahrer auf Karte</div></div>
+      <div id="admin-gps-toggle-wrap" onclick="toggleDriversOnMap()" style="width:51px;height:31px;border-radius:31px;background:#34c759;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+        <div id="admin-gps-toggle-knob" style="width:27px;height:27px;border-radius:50%;background:#fff;position:absolute;top:2px;left:22px;transition:left .25s;box-shadow:0 2px 5px rgba(0,0,0,.4);"></div>
+      </div>
+    </div>
+    <div id="smenu-admin-own-gps-toggle" style="padding:10px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:#c8e6c0;">Mein Standort</div><div style="font-size:11px;color:#5a8a5a;margin-top:2px;" id="admin-own-gps-desc">Eigene Position anzeigen</div></div>
+      <div id="admin-own-gps-wrap" onclick="toggleAdminOwnGps()" style="width:51px;height:31px;border-radius:31px;background:#48484a;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+        <div id="admin-own-gps-knob" style="width:27px;height:27px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .25s;box-shadow:0 2px 5px rgba(0,0,0,.4);"></div>
+      </div>
+    </div>
+
+    <!-- Karte -->
+    <div class="slide-section-title" id="smenu-karte-nav">Karte</div>
     <button class="slide-btn" id="smenu-basemap" onclick="document.getElementById('btn-basemap').click();closeSlideMenu()">
       <div class="slide-btn-icon blue">🗺</div>
       <div class="slide-btn-info"><div class="slide-btn-label">Kartenansicht</div><div class="slide-btn-desc">Satellit / Straße wechseln</div></div>
     </button>
     <button class="slide-btn" id="smenu-grenzen" onclick="document.getElementById('btn-grenzen').click();closeSlideMenu()">
       <div class="slide-btn-icon green">📐</div>
-      <div class="slide-btn-info"><div class="slide-btn-label">Grundstücksgrenzen</div><div class="slide-btn-desc">GeoJSON laden & anzeigen</div></div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Grundstücksgrenzen</div><div class="slide-btn-desc">GeoJSON-Grenzen laden</div></div>
+    </button>
+    <button class="slide-btn" id="smenu-offline" onclick="document.getElementById('btn-cache').click();closeSlideMenu()">
+      <div class="slide-btn-icon amber">⬇</div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Offline cachen</div><div class="slide-btn-desc">Karte für Offlinebetrieb speichern</div></div>
     </button>
 
-    <!-- Harvester-Aktionen -->
+    <!-- Einschlagsgebiet -->
+    <div class="slide-section-title">Einschlagsgebiet</div>
+    <div style="padding:6px 12px;display:flex;align-items:center;gap:8px;">
+      <select id="area-select-menu" onchange="document.getElementById('area-select').value=this.value;currentAreaId=this.value||null;renderLkwSidebar();applyMarkerFilter();updateFuhrenSelect();syncAreaSelectMenu();"
+        style="flex:1;font-size:13px;padding:9px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;">
+        <option value="">– Kein Gebiet –</option>
+      </select>
+      <button onclick="openNewAreaDialog();closeSlideMenu();" style="padding:9px 12px;border-radius:9px;border:none;background:rgba(45,90,39,.4);color:#a0d89a;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;white-space:nowrap;">+ Neu</button>
+    </div>
+
+    <!-- Harvester -->
     <div class="slide-section-title" id="smenu-sec-harvester">Harvester</div>
     <button class="slide-btn" id="smenu-track" onclick="document.getElementById('btn-track').click();closeSlideMenu()">
       <div class="slide-btn-icon red">⏺</div>
@@ -1265,7 +1508,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     </button>
     <button class="slide-btn" id="smenu-stop" onclick="document.getElementById('btn-stop').click();closeSlideMenu()">
       <div class="slide-btn-icon red">⏹</div>
-      <div class="slide-btn-info"><div class="slide-btn-label">Aufzeichnung stoppen</div><div class="slide-btn-desc">Track beenden & speichern</div></div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Aufzeichnung stoppen</div><div class="slide-btn-desc">Track beenden &amp; speichern</div></div>
     </button>
     <button class="slide-btn" id="smenu-add" onclick="document.getElementById('btn-add').click();closeSlideMenu()">
       <div class="slide-btn-icon green">＋</div>
@@ -1276,7 +1519,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
       <div class="slide-btn-info"><div class="slide-btn-label">GPX exportieren</div><div class="slide-btn-desc">Strecke als Datei speichern</div></div>
     </button>
 
-    <!-- Forwarder-Aktionen -->
+    <!-- Forwarder -->
     <div class="slide-section-title" id="smenu-sec-forwarder">Forwarder</div>
     <button class="slide-btn" id="smenu-arbeit" onclick="document.getElementById('btn-arbeit').click();closeSlideMenu()">
       <div class="slide-btn-icon green">📋</div>
@@ -1287,17 +1530,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
       <div class="slide-btn-info"><div class="slide-btn-label">LKW-Koordinaten</div><div class="slide-btn-desc">Polterplätze für LKW teilen</div></div>
     </button>
 
-    <!-- Einschlagsgebiet -->
-    <div class="slide-section-title">Einschlagsgebiet</div>
-    <div style="padding:8px 12px;display:flex;align-items:center;gap:8px;">
-      <select id="area-select-menu" onchange="document.getElementById('area-select').value=this.value;currentAreaId=this.value||null;"
-        style="flex:1;font-size:13px;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;">
-        <option value="">– Kein Gebiet –</option>
-      </select>
-      <button onclick="openNewAreaDialog();closeSlideMenu();"
-        style="padding:9px 12px;border-radius:9px;border:none;background:rgba(45,90,39,.4);color:#a0d89a;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;white-space:nowrap;">
-        + Neu
-      </button>
+    <!-- Maschine -->
+    <div class="slide-section-title" id="smenu-sec-machine">Maschine</div>
+    <div style="padding:0 12px 6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.06);">
+        <span style="font-size:12px;color:#8ab882;">Fm pro Fuhre</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button onclick="document.getElementById('fm-minus').click()" style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:16px;cursor:pointer;">−</button>
+          <span id="fm-display-menu" style="font-size:15px;font-weight:600;color:#c8e6c0;min-width:32px;text-align:center;">12</span>
+          <button onclick="document.getElementById('fm-plus').click()" style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:16px;cursor:pointer;">+</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;">
+        <span style="font-size:12px;color:#8ab882;">Verbrauch (L/h)</span>
+        <input type="number" id="verbrauch-menu" min="0" max="99" step="0.5" value="0"
+          oninput="document.getElementById('verbrauch-input').value=this.value;saveVerbrauch();"
+          style="width:64px;font-size:14px;font-weight:600;color:#c8e6c0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:5px 8px;text-align:center;font-family:inherit;">
+      </div>
     </div>
 
     <!-- Stoppuhr -->
@@ -1305,152 +1554,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     <div style="padding:8px 12px;display:flex;align-items:center;gap:8px;">
       <span id="timer-display-menu" style="font-size:22px;font-weight:600;color:#b5d4f4;font-variant-numeric:tabular-nums;min-width:85px;letter-spacing:.02em;">00:00:00</span>
       <input type="text" id="timer-note-menu" placeholder="Notiz..." autocorrect="off"
-        style="flex:1;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;min-width:0;"/>
+        style="flex:1;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;">
     </div>
-    <div style="padding:0 12px 10px;display:flex;gap:8px;">
-      <button id="btn-timer-start-menu"
-        onclick="syncTimerNote();document.getElementById('btn-timer-start').click();"
-        style="flex:1;padding:10px;border-radius:9px;border:none;background:rgba(45,90,39,.5);color:#a0d89a;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">
-        ▶ Start
-      </button>
-      <button id="btn-timer-stop-menu" class="hidden"
-        onclick="document.getElementById('btn-timer-stop').click();"
-        style="flex:1;padding:10px;border-radius:9px;border:none;background:rgba(163,32,32,.5);color:#f5a0a0;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;animation:pulse 1.2s infinite;">
-        ⏹ Stopp
-      </button>
-      <button onclick="document.getElementById('btn-timer-history').click();closeSlideMenu();"
-        style="padding:10px 14px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#8ab882;font-size:13px;font-family:inherit;cursor:pointer;">
-        📋
-      </button>
+    <div style="padding:0 12px 8px;display:flex;gap:8px;">
+      <button id="timer-start-menu" onclick="document.getElementById('btn-timer-start').click()" style="flex:1;padding:10px;border-radius:9px;border:none;background:#2d6a27;color:#e8f5e4;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">▶ Start</button>
+      <button id="timer-stop-menu" onclick="document.getElementById('btn-timer-stop').click()" style="flex:1;padding:10px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:#8ab882;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">⏹ Stopp</button>
     </div>
 
-    <!-- Maschineneinstellungen (nur Forwarder) -->
-    <div class="slide-section-title" id="smenu-sec-maschine">Maschineneinstellungen</div>
-    <div id="smenu-maschine-panel" style="padding:8px 12px 12px;display:flex;flex-direction:column;gap:10px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <label style="font-size:12px;color:#5a8a5a;min-width:120px;">Fm pro Fuhre:</label>
-        <input type="number" id="setting-fm-fuhre" value="12" min="1" max="100" step="0.5"
-          style="width:80px;font-size:14px;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"
-          onchange="saveMaschineSettings()"/>
-        <span style="font-size:11px;color:#5a8a5a;">Fm</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <label style="font-size:12px;color:#5a8a5a;min-width:120px;">⛽ Verbrauch/h:</label>
-        <input type="number" id="setting-verbrauch" value="0" min="0" max="100" step="0.5"
-          style="width:80px;font-size:14px;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"
-          onchange="saveMaschineSettings()"/>
-        <span style="font-size:11px;color:#5a8a5a;">L/h</span>
-      </div>
-      <div style="background:rgba(255,255,255,.04);border-radius:9px;padding:10px 12px;font-size:12px;color:#8ab882;">
-        ⛽ Heute verbraucht: <span id="kraftstoff-heute" style="font-weight:600;color:#f5c870;">0.0 L</span>
-      </div>
-    </div>
-
-    <!-- Fuhren-Zähler (nur Forwarder) -->
-    <div class="slide-section-title" id="smenu-sec-fuhren">Fuhren</div>
-    <div id="smenu-fuhren-panel" style="padding:8px 12px 12px;">
-      <div style="font-size:12px;color:#5a8a5a;margin-bottom:8px;">Ablageort wählen und Fuhren zählen:</div>
-      <select id="fuhren-ablageort" style="width:100%;font-size:13px;padding:9px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;margin-bottom:10px;">
-        <option value="">-- Ablageort wählen --</option>
-      </select>
-      <div id="fuhren-info" style="background:rgba(255,255,255,.04);border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#c8e6c0;display:none;">
-        <div>🚜 <span id="fuhren-anzahl">0</span> Fuhren · <span id="fuhren-fm">0</span> Fm gesamt</div>
-      </div>
-      <button onclick="addFuhre()" id="btn-add-fuhre"
-        style="width:100%;padding:12px;border-radius:9px;border:none;background:rgba(45,90,39,.5);color:#a0d89a;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">
-        + 1 Fuhre hinzufügen
-      </button>
-    </div>
-
-    <!-- App -->
-    <div class="slide-section-title">App</div>
-    <button class="slide-btn" id="smenu-cache" onclick="document.getElementById('btn-cache').click();closeSlideMenu()">
-      <div class="slide-btn-icon amber">⬇</div>
-      <div class="slide-btn-info"><div class="slide-btn-label">Offline-Cache</div><div class="slide-btn-desc">Karte für Offline speichern</div></div>
+    <!-- Einstellungen -->
+    <div class="slide-section-title">Einstellungen</div>
+    <button class="slide-btn" onclick="closeSlideMenu();openSettings()">
+      <div class="slide-btn-icon">⚙️</div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Profil &amp; Firma</div><div class="slide-btn-desc">Name, Standort, Einstellungen</div></div>
     </button>
-    <button class="slide-btn" id="smenu-help" onclick="document.getElementById('help-modal').style.display='flex';closeSlideMenu();initPWAHints()">
-      <div class="slide-btn-icon gray">📖</div>
-      <div class="slide-btn-info"><div class="slide-btn-label">Anleitung</div><div class="slide-btn-desc">Alle Funktionen erklärt</div></div>
+    <button class="slide-btn" onclick="closeSlideMenu();const m=document.getElementById('help-modal');if(m){m.style.display='flex';if(typeof updatePwaInstallBtn==='function')setTimeout(updatePwaInstallBtn,50);}">
+      <div class="slide-btn-icon blue">📖</div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Anleitung</div><div class="slide-btn-desc">Hilfe &amp; Bedienungsanleitung</div></div>
+    </button>
+    <button class="slide-btn" onclick="doLogout();closeSlideMenu()">
+      <div class="slide-btn-icon red">🚪</div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Abmelden</div><div class="slide-btn-desc">Vom Konto abmelden</div></div>
     </button>
 
-  </div><!-- /slide-body -->
-
-  <!-- Footer: Modus wechseln -->
-  <div class="slide-footer">
-    <button class="slide-footer-btn" id="smenu-switch" onclick="document.getElementById('btn-switch-mode').click();closeSlideMenu()">
-      <span style="font-size:18px;">⇄</span>
-      <div>
-        <div style="font-size:13px;font-weight:500;color:#c8e6c0;">Modus wechseln</div>
-        <div style="font-size:11px;color:#5a8a5a;">Zurück zur Startseite</div>
-      </div>
-    </button>
-  </div>
-
-</div><!-- /slide-menu -->
-
-<!-- Versteckte Buttons für JS-Kompatibilität -->
-<button id="btn-grenzen" class="hidden"></button>
-<button id="btn-cache"   class="hidden"></button>
-<button id="btn-export"  class="hidden"></button>
-<button id="btn-basemap" class="hidden"></button>
-<button id="btn-switch-mode" class="hidden"></button>
-
-<div id="statusbar" class="hidden mode-harvester">
-  <div id="gps-dot"></div>
-  <span id="gps-txt">GPS bereit</span>
-  <span id="km-txt"></span>
-</div>
-
-<!-- EINSCHLAGSGEBIET BAR -->
-<div id="area-bar" class="hidden">
-  <label>📍 Einschlagsgebiet:</label>
-  <select id="area-select"><option value="">– Kein Gebiet –</option></select>
-  <button id="btn-area-new">+ Neu</button>
-</div>
-
-<!-- STOPPUHR BAR -->
-<div id="timer-bar" class="hidden">
-  <span id="timer-display">00:00:00</span>
-  <input type="text" id="timer-note" placeholder="Notiz (optional)" autocorrect="off"/>
-  <button id="btn-timer-start">▶ Start</button>
-  <button id="btn-timer-stop" class="hidden">⏹ Stop</button>
-  <button id="btn-timer-history">📋</button>
-</div>
-
-<div id="still-bar" class="hidden">
-  🌲 Stillstand — Polter anlegen in <span id="still-n">20</span>s
-  <button class="btn" id="btn-still-cancel" style="margin-left:auto;height:28px;padding:0 10px;font-size:11px;">Abbrechen</button>
-</div>
-
-<div id="map" class="hidden"></div>
-
-<!-- POLTER PANEL -->
-<div id="panel" class="hidden">
-  <div id="panel-head">Neuer Polter <span class="auto-chip hidden" id="auto-chip">Auto</span></div>
-  <div id="typ-row">
-    <label>Typ</label>
-    <select id="f-typ" style="display:none;">
-      <option value="harvester">🪵 Holz abgelegt</option>
-      <option value="ruecke">🚜 Polterplatz</option>
-      <option value="notiz">📋 Notiz</option>
-    </select>
-    <div id="typ-fixed" style="display:none;padding:8px 10px;border-radius:6px;border:1px solid rgba(0,0,0,.15);background:#f5f7f4;color:#1a2e1a;font-size:15px;margin-bottom:9px;">🪵 Polterplatz</div>
-  </div>
-  <label>Holzmenge (Fm)</label>
-  <input type="number" inputmode="decimal" id="f-menge" placeholder="z.B. 12" min="0"/>
-  <label>Baumart</label>
-  <div class="art-grid">
-    <button type="button" class="art-chip" data-art="Fichte"><span class="ci">🌲</span><span class="cn">Fichte</span><span class="cs">Nadelholz</span></button>
-    <button type="button" class="art-chip" data-art="Kiefer"><span class="ci">🌲</span><span class="cn">Kiefer</span><span class="cs">Nadelholz</span></button>
-    <button type="button" class="art-chip" data-art="Birke"><span class="ci">🌳</span><span class="cn">Birke</span><span class="cs">Laubholz</span></button>
-    <button type="button" class="art-chip" data-art="Sonstige"><span class="ci">🌿</span><span class="cn">Sonstige</span><span class="cs">Freitext ↓</span></button>
-  </div>
-  <input type="text" id="f-art" placeholder="Baumart eingeben..." autocomplete="off" autocorrect="off" style="display:none;"/>
-  <label>Notiz</label>
-  <textarea id="f-notiz" placeholder="z.B. nah am Rückeweg" autocorrect="off"></textarea>
-  <div class="panel-row">
-    <button class="pbtn save" id="btn-save">Speichern</button>
-    <button class="pbtn cancel" id="btn-cancel">Abbrechen</button>
   </div>
 </div>
 
@@ -1492,8 +1617,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     </div>
     <div id="art-filter" style="display:flex;gap:5px;flex-wrap:wrap;padding:4px 10px;border-bottom:1px solid rgba(45,90,39,.08);background:#f8faf7;">
       <button class="af-chip on" data-filter="alle">Alle</button>
-      <button class="af-chip" data-filter="Fichte">🌲 Fichte</button>
-      <button class="af-chip" data-filter="Kiefer">🌲 Kiefer</button>
+      <button class="af-chip" data-filter="Fichte">Fichte</button>
+      <button class="af-chip" data-filter="Kiefer">Kiefer</button>
       <button class="af-chip" data-filter="Birke">🌳 Birke</button>
       <button class="af-chip" data-filter="Sonstige">🌿 Sonstige</button>
     </div>
@@ -1505,6 +1630,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
       <button class="ldel" id="btn-clear-polter" style="min-height:24px;font-size:10px;">Löschen</button>
     </div>
     <div id="log-polter" style="overflow-y:auto;max-height:80px;-webkit-overflow-scrolling:touch;"><div class="lrow" style="color:#aaa;font-style:italic;">Noch keine Polterplätze.</div></div>
+  </div>
+</div>
+
+<div id="still-bar" class="hidden">
+  Stillstand — Polter anlegen in <span id="still-n">20</span>s
+  <button class="btn" id="btn-still-cancel" style="margin-left:auto;height:28px;padding:0 10px;font-size:11px;">Abbrechen</button>
+</div>
+
+<div id="map" class="hidden"></div>
+
+<!-- POLTER PANEL -->
+<div id="panel" class="hidden">
+  <div id="panel-head">Neuer Polter <span class="auto-chip hidden" id="auto-chip">Auto</span></div>
+  <div id="typ-row">
+    <label>Typ</label>
+    <select id="f-typ" style="display:none;">
+      <option value="harvester">🪵 Holz abgelegt</option>
+      <option value="ruecke">🚜 Polterplatz</option>
+      <option value="notiz">📋 Notiz</option>
+    </select>
+    <div id="typ-fixed" style="display:none;padding:8px 10px;border-radius:6px;border:1px solid rgba(0,0,0,.15);background:#f5f7f4;color:#1a2e1a;font-size:15px;margin-bottom:9px;">🪵 Polterplatz</div>
+  </div>
+  <label>Holzmenge (Fm)</label>
+  <input type="number" inputmode="decimal" id="f-menge" placeholder="z.B. 12" min="0"/>
+  <label>Baumart</label>
+  <div class="art-grid">
+    <button type="button" class="art-chip" data-art="Fichte"><span class="ci">🌲</span><span class="cn">Fichte</span><span class="cs">Nadelholz</span></button>
+    <button type="button" class="art-chip" data-art="Kiefer"><span class="ci">🌲</span><span class="cn">Kiefer</span><span class="cs">Nadelholz</span></button>
+    <button type="button" class="art-chip" data-art="Birke"><span class="ci">🌳</span><span class="cn">Birke</span><span class="cs">Laubholz</span></button>
+    <button type="button" class="art-chip" data-art="Sonstige"><span class="ci">🌿</span><span class="cn">Sonstige</span><span class="cs">Freitext ↓</span></button>
+  </div>
+  <input type="text" id="f-art" placeholder="Baumart eingeben..." autocomplete="off" autocorrect="off" style="display:none;"/>
+  <label>Notiz</label>
+  <textarea id="f-notiz" placeholder="z.B. nah am Rückeweg" autocorrect="off"></textarea>
+  <div class="panel-row">
+    <button class="pbtn save" id="btn-save">Speichern</button>
+    <button class="pbtn cancel" id="btn-cancel">Abbrechen</button>
   </div>
 </div>
 
@@ -1552,7 +1714,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     </div>
   </div>
 
-  <!-- ── DATEN VERWALTEN MODAL ── -->
+  <!-- ── FAHRER ÜBERSICHT SCREEN ── -->
+  <div id="driver-overview-screen">
+    <div class="dov-header">
+      <button class="dov-back" onclick="closeDriverOverview()">&#8592;</button>
+      <div class="dov-title">&#128119; Fahrer &#220;bersicht</div>
+      <button onclick="loadDriverOverview()" style="background:none;border:none;color:#5a8a5a;font-size:20px;cursor:pointer;">&#8635;</button>
+    </div>
+    <div class="dov-body" id="dov-body">
+      <div style="display:flex;gap:8px;">
+        <button id="dov-tab-all"    onclick="setDovTab('all')"    style="flex:1;padding:9px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.1);color:#c8e6c0;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;">Alle</button>
+        <button id="dov-tab-active" onclick="setDovTab('active')" style="flex:1;padding:9px;border-radius:10px;border:1px solid rgba(74,170,74,.2);background:rgba(74,170,74,.08);color:#4aaa4a;font-size:12px;font-family:inherit;cursor:pointer;">&#128994; Aktiv</button>
+        <button id="dov-tab-off"    onclick="setDovTab('off')"    style="flex:1;padding:9px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#5a8a5a;font-size:12px;font-family:inherit;cursor:pointer;">&#9899; Offline</button>
+      </div>
+      <div id="dov-list">
+        <div style="padding:24px;text-align:center;color:#5a8a5a;font-size:13px;">Wird geladen...</div>
+      </div>
+    </div>
+  </div>
+
+    <!-- ── DATEN VERWALTEN MODAL ── -->
   <div id="data-mgmt-overlay" style="display:none;" onclick="if(event.target===this)closeDataMgmt()">
     <div id="data-mgmt-sheet">
       <div class="dmgmt-header">
@@ -1652,7 +1833,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
         <!-- App -->
         <div class="settings-section">
           <div class="settings-section-title">App</div>
-          <div class="settings-row" onclick="document.getElementById('help-modal').style.display='flex';closeSettings();initPWAHints()">
+          <div class="settings-row" onclick="document.getElementById('help-modal').style.display='flex';setTimeout(updatePwaInstallBtn,50);;closeSettings();initPWAHints()">
             <div class="settings-icon blue">📖</div>
             <div class="settings-row-info">
               <div class="settings-row-title">Anleitung</div>
@@ -1751,8 +1932,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   <div id="sidebar-head"><h2>🪵 Einzusammeln im Bestand</h2><button id="sidebar-close">×</button></div>
   <div id="sidebar-filter">
     <button class="af-chip on" data-sf="alle">Alle</button>
-    <button class="af-chip" data-sf="Fichte">🌲 Fichte</button>
-    <button class="af-chip" data-sf="Kiefer">🌲 Kiefer</button>
+    <button class="af-chip" data-sf="Fichte">Fichte</button>
+    <button class="af-chip" data-sf="Kiefer">Kiefer</button>
     <button class="af-chip" data-sf="Birke">🌳 Birke</button>
     <button class="af-chip" data-sf="Sonstige">🌿 Sonstige</button>
   </div>
@@ -1790,7 +1971,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 <!-- ANLEITUNG -->
 <div id="help-modal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div id="help-sheet">
-    <div id="help-header"><h2>📖 Anleitung — Holzpolter GPS</h2><button id="help-close" onclick="document.getElementById('help-modal').style.display='none'">×</button></div>
+    <div id="help-header"><h2>📖 Anleitung — Lignum</h2><button id="help-close" onclick="document.getElementById('help-modal').style.display='none'">×</button></div>
     <div id="help-tabs">
       <button class="htab on" data-tab="start" onclick="helpTab(this)">🚀 Start</button>
       <button class="htab" data-tab="harvester" onclick="helpTab(this)">🪵 Harvester</button>
@@ -1799,7 +1980,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     </div>
     <div id="help-body">
       <div class="hpage on" id="hpage-start">
-        <h3>Willkommen bei Holzpolter GPS</h3>
+        <h3>Willkommen bei Lignum</h3>
         <p>Diese App verbindet Harvester- und Forwarder-Fahrer in Echtzeit. Alle Markierungen eines Betriebs sind sofort für alle Fahrer des Betriebs sichtbar.</p>
         <div class="htip">💡 Die App funktioniert auch ohne Mobilfunknetz — lade vorher die Karte über <b>⬇ Offline</b> herunter. Neue Markierungen werden beim nächsten Netzwerkzugang synchronisiert.</div>
         <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Anmelden</b><span>Mit E-Mail und Passwort anmelden. Neues Unternehmen? Auf <b>Registrieren</b> tippen — damit erstellen Sie ein Admin-Konto für Ihren Betrieb.</span></div></div>
@@ -1809,42 +1990,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
           <div class="hnum">4</div>
           <div class="hstep-txt">
             <b>Als App installieren</b>
-            <span>Für das beste Erlebnis die App auf dem Home-Bildschirm installieren — dann läuft sie wie eine native App, auch offline.</span>
-            <div style="margin-top:10px;">
-              <!-- iOS/Safari -->
-              <div id="pwa-ios-hint" style="display:none;background:#f0f8ff;border:1px solid #b5d4f4;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
-                <div style="font-size:12px;font-weight:600;color:#1a5fa8;margin-bottom:8px;">📱 iPhone / iPad (Safari)</div>
-                <div style="font-size:13px;color:#1a2e1a;line-height:1.6;">
-                  1. Tippe unten auf <b>⬆ Teilen</b><br>
-                  2. Scrolle und tippe <b>„Zum Home-Bildschirm"</b><br>
-                  3. Tippe <b>„Hinzufügen"</b>
+            <span>Installiere die App direkt auf deinem Homescreen — läuft dann wie eine native App, auch offline.</span>
+            <!-- PWA Install — wird automatisch befüllt -->
+            <div id="pwa-install-hint" style="font-size:13px;color:#2a4a2a;margin-top:6px;line-height:1.6;"></div>
+            <div id="pwa-install-btn-wrap" style="margin-top:10px;"></div>
+
+            <!-- iOS immer zeigen (wird durch updatePwaInstallBtn gefüllt) -->
+            <div id="pwa-ios-box" style="display:none;margin-top:10px;background:#e8f2ff;border:1.5px solid #93bef0;border-radius:14px;overflow:hidden;">
+              <div style="padding:12px 16px;background:#c8dff8;border-bottom:1px solid #93bef0;">
+                <span style="font-size:13px;font-weight:700;color:#0d3b7a;">📱 iPhone / iPad — Safari</span>
+              </div>
+              <div style="padding:14px 16px;font-size:13px;color:#1a2e4a;line-height:1.9;">
+                <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">
+                  <span style="background:#1a5fa8;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;">1</span>
+                  <span>Tippe in Safari unten auf das <b>Teilen-Symbol ⬆</b></span>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">
+                  <span style="background:#1a5fa8;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;">2</span>
+                  <span>Scrolle nach unten und tippe auf <b>„Zum Home-Bildschirm"</b></span>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:10px;">
+                  <span style="background:#1a5fa8;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;">3</span>
+                  <span>Tippe oben rechts auf <b>„Hinzufügen"</b> — fertig!</span>
                 </div>
               </div>
-              <!-- Android/Chrome -->
-              <div id="pwa-android-hint" style="display:none;background:#f0f8f0;border:1px solid #a0d89a;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
-                <div style="font-size:12px;font-weight:600;color:#2d6a27;margin-bottom:8px;">🤖 Android (Chrome)</div>
-                <button id="pwa-install-btn" onclick="triggerPWAInstall()" style="width:100%;padding:12px;border-radius:9px;border:none;background:#2d6a27;color:#e8f5e4;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;display:none;">
-                  📲 Jetzt installieren
+            </div>
+
+            <!-- Android -->
+            <div id="pwa-android-box" style="display:none;margin-top:10px;background:#eaf5e8;border:1.5px solid #7ec87a;border-radius:14px;overflow:hidden;">
+              <div style="padding:12px 16px;background:#c8e8c4;border-bottom:1px solid #7ec87a;">
+                <span style="font-size:13px;font-weight:700;color:#1a4018;">🤖 Android — Chrome</span>
+              </div>
+              <div style="padding:14px 16px;">
+                <button id="pwa-install-btn" onclick="triggerInstall()" style="width:100%;padding:13px;border-radius:10px;border:none;background:#2d6a27;color:#e8f5e4;font-size:15px;font-family:inherit;cursor:pointer;font-weight:700;display:block;margin-bottom:12px;">
+                  📲 Jetzt als App installieren
                 </button>
-                <div id="pwa-android-manual" style="font-size:13px;color:#1a2e1a;line-height:1.6;">
-                  1. Tippe auf <b>⋮ Menü</b> (oben rechts)<br>
-                  2. Tippe <b>„App installieren"</b> oder <b>„Zum Startbildschirm"</b>
+                <div id="pwa-android-manual" style="font-size:13px;color:#1a3a18;line-height:1.9;">
+                  <i>Falls der Button nicht erscheint:</i><br>
+                  <div style="display:flex;align-items:flex-start;gap:8px;margin-top:6px;">
+                    <span style="font-weight:700;flex-shrink:0;color:#1a3a18;">1.</span>
+                    <span style="color:#1a3a18;">Tippe oben rechts auf <b>⋮ Menü</b></span>
+                  </div>
+                  <div style="display:flex;align-items:flex-start;gap:8px;">
+                    <span style="font-weight:700;flex-shrink:0;color:#1a3a18;">2.</span>
+                    <span style="color:#1a3a18;">Tippe auf <b>„App installieren"</b></span>
+                  </div>
                 </div>
               </div>
-              <!-- Bereits installiert -->
-              <div id="pwa-installed-hint" style="display:none;background:#d4edcc;border:1px solid rgba(74,154,64,.3);border-radius:10px;padding:12px 14px;">
-                <div style="font-size:13px;color:#2d6a27;font-weight:600;">✓ App bereits installiert</div>
-              </div>
-              <span id="pwa-install-hint"></span>
-              <div id="pwa-install-btn-wrap" style="margin-top:4px;"></div>
+            </div>
+
+            <!-- Bereits installiert -->
+            <div id="pwa-installed-box" style="display:none;margin-top:10px;background:#d4edcc;border:1.5px solid rgba(74,154,64,.4);border-radius:14px;padding:14px 16px;font-size:14px;color:#1a4018;font-weight:500;">
+              ✅ App ist bereits installiert und läuft im Vollbild-Modus.
             </div>
           </div>
         </div>
       </div>
+      </div>
       <div class="hpage" id="hpage-harvester">
         <h3>Harvester-Modus</h3>
         <p>Der Harvester markiert jeden Ablageort. Die Markierungen erscheinen sofort auf dem Gerät des Forwarders.</p>
-        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Strecke aufzeichnen</b><span>Tippe <span class="hicon" style="background:#a32020">⏺ Strecke</span> — die Fahrstrecke wird aufgezeichnet. Stoppen mit ⏹ Stopp.</span></div></div>
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Strecke aufzeichnen</b><span>Tippe <span class="hicon" style="background:#a32020;color:#fff!important;-webkit-text-fill-color:#fff">⏺ Strecke</span> — die Fahrstrecke wird aufgezeichnet. Stoppen mit ⏹ Stopp.</span></div></div>
         <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Auto-Erkennung</b><span>Bei 20 Sekunden Stillstand öffnet sich der Polter-Dialog automatisch.</span></div></div>
         <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Manuell markieren</b><span>Tippe auf <span class="hicon">＋ Polter</span> oder direkt auf die Karte → Baumart wählen → Speichern.</span></div></div>
         <div class="htip">💡 Markierungen werden sofort an alle Forwarder-Geräte des Betriebs gesendet.</div>
@@ -1882,7 +2088,6 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 // PWA Install-Erkennung
 // PWA Install → siehe updatePwaInstallBtn() weiter unten
-
 
 // ── AUTH STATE ────────────────────────────────────────────────────
 let currentUser = null;
@@ -1949,6 +2154,12 @@ async function dbFetch(path, options = {}) {
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.message || err.hint || resp.status);
+  }
+
+  // PATCH/DELETE geben 204 No Content zurück → kein JSON parsen
+  if (resp.status === 204 || method === 'PATCH' || method === 'DELETE') {
+    const text = await resp.text().catch(() => '');
+    return text ? JSON.parse(text) : true;
   }
 
   const text = await resp.text();
@@ -2081,11 +2292,21 @@ async function doLogin() {
 }
 
 async function doLogout() {
-  await sb.auth.signOut();
+  // Alle Intervalle & Timer stoppen
+  if (typeof refreshTimer !== 'undefined' && refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+  if (typeof driverUpdateInterval !== 'undefined' && driverUpdateInterval) { clearInterval(driverUpdateInterval); driverUpdateInterval = null; }
+  if (typeof _offlineCheckInterval !== 'undefined' && _offlineCheckInterval) { clearInterval(_offlineCheckInterval); _offlineCheckInterval = null; }
+  if (typeof kraftstoffInterval !== 'undefined' && kraftstoffInterval) { clearInterval(kraftstoffInterval); kraftstoffInterval = null; }
+  if (typeof timerItv !== 'undefined' && timerItv) { clearInterval(timerItv); timerItv = null; }
+  if (typeof stillItv !== 'undefined' && stillItv) { clearInterval(stillItv); stillItv = null; }
+  // GPS stoppen
+  if (typeof stopBgGps === 'function') stopBgGps();
+  
+  try { await sb.auth.signOut(); } catch(e) { console.warn('signOut:', e); }
   currentUser = null; currentProfile = null; accessToken = null; refreshToken = null;
   try { localStorage.removeItem('hp_access'); localStorage.removeItem('hp_refresh');
         localStorage.removeItem('hp_user'); localStorage.removeItem('hp_profile'); } catch {}
-  if (realtimeChannel) { sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  if (realtimeChannel) { try { sb.removeChannel(realtimeChannel); } catch{} realtimeChannel = null; }
   hideAllScreens();
   document.getElementById('auth-screen').style.display = 'flex';
 }
@@ -2222,6 +2443,453 @@ async function doShareSelected(method) {
   }
 }
 
+// ── ADMIN EIGENER STANDORT ────────────────────────────────────────
+
+function toggleAdminOwnGps() {
+  adminOwnGpsEnabled = !adminOwnGpsEnabled;
+  const wrap = document.getElementById('admin-own-gps-wrap');
+  const knob = document.getElementById('admin-own-gps-knob');
+  const desc = document.getElementById('admin-own-gps-desc');
+  if (wrap) wrap.style.background = adminOwnGpsEnabled ? '#34c759' : '#48484a';
+  if (knob) knob.style.left = adminOwnGpsEnabled ? '22px' : '2px';
+  if (desc) desc.textContent = adminOwnGpsEnabled ? 'Eigene Position aktiv' : 'Eigene Position auf Karte zeigen';
+
+  if (adminOwnGpsEnabled) {
+    startAdminOwnGps();
+  } else {
+    stopAdminOwnGps();
+  }
+}
+
+function startAdminOwnGps() {
+  if (!navigator.geolocation) return;
+  if (adminOwnGpsWatchId !== null) return;
+  adminOwnGpsWatchId = navigator.geolocation.watchPosition(pos => {
+    const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+    if (acc > 80) return;
+    // Marker auf Karte setzen/aktualisieren
+    const ll = L.latLng(lat, lng);
+    if (adminOwnMarker) {
+      adminOwnMarker.setLatLng(ll);
+      if (adminOwnCircle) adminOwnCircle.setLatLng(ll).setRadius(acc);
+    } else {
+      adminOwnCircle = L.circle(ll, { radius: acc, color: '#1a5fa8', fillColor: '#1a5fa8', fillOpacity: 0.15, weight: 1 }).addTo(map);
+      adminOwnMarker = L.marker(ll, {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
+          iconSize: [16, 16], iconAnchor: [8, 8]
+        })
+      }).addTo(map).bindPopup('<b>Mein Standort</b><br>Admin');
+    }
+    map.panTo(ll);
+  }, err => console.warn('Admin GPS:', err),
+  { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+}
+
+function stopAdminOwnGps() {
+  if (adminOwnGpsWatchId !== null) {
+    navigator.geolocation.clearWatch(adminOwnGpsWatchId);
+    adminOwnGpsWatchId = null;
+  }
+  if (adminOwnMarker) { try { map.removeLayer(adminOwnMarker); } catch {} adminOwnMarker = null; }
+  if (adminOwnCircle) { try { map.removeLayer(adminOwnCircle); } catch {} adminOwnCircle = null; }
+}
+
+// ── FAHRER MARKER AUF KARTE (ADMIN) ──────────────────────────────
+
+function toggleDriversOnMap() {
+  driversOnMapEnabled = !driversOnMapEnabled;
+  const wrap = document.getElementById('admin-gps-toggle-wrap');
+  const knob = document.getElementById('admin-gps-toggle-knob');
+  const desc = document.getElementById('admin-gps-toggle-desc');
+  if (wrap) wrap.style.background = driversOnMapEnabled ? '#34c759' : '#48484a';
+  if (knob) knob.style.left = driversOnMapEnabled ? '22px' : '2px';
+  if (desc) desc.textContent = driversOnMapEnabled ? 'Aktive Fahrer auf Karte zeigen' : 'Ausgeblendet';
+  if (driversOnMapEnabled) {
+    loadDriversOnMap();
+  } else {
+    removeAllDriverMarkers();
+  }
+}
+
+function removeAllDriverMarkers() {
+  Object.values(driverMapMarkers).forEach(m => { try { map.removeLayer(m); } catch {} });
+  driverMapMarkers = {};
+}
+
+async function loadDriversOnMap() {
+  if (!driversOnMapEnabled || !currentProfile || currentProfile.role !== 'admin') return;
+  try {
+    const drivers = await dbFetch(
+      'profiles?company_id=eq.' + currentProfile.company_id +
+      '&role=neq.admin&select=id,name,role,last_lat,last_lng,last_seen,is_active'
+    );
+    updateDriverMarkersOnMap(drivers || []);
+  } catch(e) { console.warn('loadDriversOnMap:', e); }
+}
+
+function updateDriverMarkersOnMap(drivers) {
+  if (!driversOnMapEnabled) return;
+  const now = Date.now();
+  // Bestehende Marker entfernen die nicht mehr vorhanden
+  Object.keys(driverMapMarkers).forEach(id => {
+    if (!drivers.find(d => d.id === id)) {
+      try { map.removeLayer(driverMapMarkers[id]); } catch {}
+      delete driverMapMarkers[id];
+    }
+  });
+  drivers.forEach(d => {
+    if (!d.last_lat || !d.last_lng) return;
+    const lastSeen = d.last_seen ? new Date(d.last_seen) : null;
+    const isActive = lastSeen && (now - lastSeen.getTime()) < 15 * 60 * 1000 && d.is_active;
+    const isH = d.role === 'harvester';
+    const emoji = isH ? '🪵' : '🚜';
+    const color = isActive ? '#34c759' : '#888';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:${color};border:2px solid #fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);">${emoji}</div>`,
+      iconSize: [32, 32], iconAnchor: [16, 16]
+    });
+    if (driverMapMarkers[d.id]) {
+      driverMapMarkers[d.id].setLatLng([d.last_lat, d.last_lng]);
+      driverMapMarkers[d.id].setIcon(icon);
+    } else {
+      const marker = L.marker([d.last_lat, d.last_lng], { icon })
+        .bindPopup(`<b>${d.name}</b><br>${isH ? 'Harvester' : 'Forwarder'}<br>${isActive ? '🟢 Aktiv' : '⚫ Offline'}`)
+        .addTo(map);
+      driverMapMarkers[d.id] = marker;
+    }
+  });
+}
+
+// ── FAHRER ÜBERSICHT ─────────────────────────────────────────────
+let dovTab = 'all';
+
+// ── ADMIN EIGENER STANDORT ────────────────────────────────────────
+let adminOwnGpsEnabled = false;
+let adminOwnGpsWatchId = null;
+let adminOwnMarker = null;
+let adminOwnCircle = null;
+
+function toggleAdminOwnGps() {
+  adminOwnGpsEnabled = !adminOwnGpsEnabled;
+  const wrap = document.getElementById('admin-own-gps-wrap');
+  const knob = document.getElementById('admin-own-gps-knob');
+  const desc = document.getElementById('admin-own-gps-desc');
+  if (wrap) wrap.style.background = adminOwnGpsEnabled ? '#34c759' : '#48484a';
+  if (knob) knob.style.left = adminOwnGpsEnabled ? '22px' : '2px';
+  if (desc) desc.textContent = adminOwnGpsEnabled ? 'Eigene Position aktiv' : 'Eigene Position auf Karte zeigen';
+
+  if (adminOwnGpsEnabled) {
+    startAdminOwnGps();
+  } else {
+    stopAdminOwnGps();
+  }
+}
+
+function startAdminOwnGps() {
+  if (!navigator.geolocation) return;
+  if (adminOwnGpsWatchId !== null) return;
+  adminOwnGpsWatchId = navigator.geolocation.watchPosition(pos => {
+    const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+    if (acc > 80) return;
+    // Marker auf Karte setzen/aktualisieren
+    const ll = L.latLng(lat, lng);
+    if (adminOwnMarker) {
+      adminOwnMarker.setLatLng(ll);
+      if (adminOwnCircle) adminOwnCircle.setLatLng(ll).setRadius(acc);
+    } else {
+      adminOwnCircle = L.circle(ll, { radius: acc, color: '#1a5fa8', fillColor: '#1a5fa8', fillOpacity: 0.15, weight: 1 }).addTo(map);
+      adminOwnMarker = L.marker(ll, {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
+          iconSize: [16, 16], iconAnchor: [8, 8]
+        })
+      }).addTo(map).bindPopup('<b>Mein Standort</b><br>Admin');
+    }
+    map.panTo(ll);
+  }, err => console.warn('Admin GPS:', err),
+  { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+}
+
+function stopAdminOwnGps() {
+  if (adminOwnGpsWatchId !== null) {
+    navigator.geolocation.clearWatch(adminOwnGpsWatchId);
+    adminOwnGpsWatchId = null;
+  }
+  if (adminOwnMarker) { try { map.removeLayer(adminOwnMarker); } catch {} adminOwnMarker = null; }
+  if (adminOwnCircle) { try { map.removeLayer(adminOwnCircle); } catch {} adminOwnCircle = null; }
+}
+
+// ── FAHRER MARKER AUF KARTE (ADMIN) ──────────────────────────────
+let driverMapMarkers = {}; // {id: L.marker}
+let driversOnMapEnabled = true;
+let driverUpdateInterval = null;
+
+function toggleDriversOnMap() {
+  driversOnMapEnabled = !driversOnMapEnabled;
+  const wrap = document.getElementById('admin-gps-toggle-wrap');
+  const knob = document.getElementById('admin-gps-toggle-knob');
+  const desc = document.getElementById('admin-gps-toggle-desc');
+  if (wrap) wrap.style.background = driversOnMapEnabled ? '#34c759' : '#48484a';
+  if (knob) knob.style.left = driversOnMapEnabled ? '22px' : '2px';
+  if (desc) desc.textContent = driversOnMapEnabled ? 'Aktive Fahrer auf Karte zeigen' : 'Ausgeblendet';
+  if (driversOnMapEnabled) {
+    loadDriversOnMap();
+  } else {
+    removeAllDriverMarkers();
+  }
+}
+
+function removeAllDriverMarkers() {
+  Object.values(driverMapMarkers).forEach(m => { try { map.removeLayer(m); } catch {} });
+  driverMapMarkers = {};
+}
+
+async function loadDriversOnMap() {
+  if (!driversOnMapEnabled || !currentProfile || currentProfile.role !== 'admin') return;
+  try {
+    const drivers = await dbFetch(
+      'profiles?company_id=eq.' + currentProfile.company_id +
+      '&role=neq.admin&select=id,name,role,last_lat,last_lng,last_seen,is_active'
+    );
+    updateDriverMarkersOnMap(drivers || []);
+  } catch(e) { console.warn('loadDriversOnMap:', e); }
+}
+
+function updateDriverMarkersOnMap(drivers) {
+  if (!driversOnMapEnabled) return;
+  const now = Date.now();
+  // Bestehende Marker entfernen die nicht mehr vorhanden
+  Object.keys(driverMapMarkers).forEach(id => {
+    if (!drivers.find(d => d.id === id)) {
+      try { map.removeLayer(driverMapMarkers[id]); } catch {}
+      delete driverMapMarkers[id];
+    }
+  });
+  drivers.forEach(d => {
+    if (!d.last_lat || !d.last_lng) return;
+    const lastSeen = d.last_seen ? new Date(d.last_seen) : null;
+    const isActive = lastSeen && (now - lastSeen.getTime()) < 15 * 60 * 1000 && d.is_active;
+    const isH = d.role === 'harvester';
+    const emoji = isH ? '🪵' : '🚜';
+    const color = isActive ? '#34c759' : '#888';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:${color};border:2px solid #fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);">${emoji}</div>`,
+      iconSize: [32, 32], iconAnchor: [16, 16]
+    });
+    if (driverMapMarkers[d.id]) {
+      driverMapMarkers[d.id].setLatLng([d.last_lat, d.last_lng]);
+      driverMapMarkers[d.id].setIcon(icon);
+    } else {
+      const marker = L.marker([d.last_lat, d.last_lng], { icon })
+        .bindPopup(`<b>${d.name}</b><br>${isH ? 'Harvester' : 'Forwarder'}<br>${isActive ? '🟢 Aktiv' : '⚫ Offline'}`)
+        .addTo(map);
+      driverMapMarkers[d.id] = marker;
+    }
+  });
+}
+
+// ── FAHRER ÜBERSICHT ─────────────────────────────────────────────
+let dovCurrentTab = 'all';
+let dovAllDrivers = [];
+let dovMaps = {};
+
+// Auto-Offline Heartbeat: alle 5 Min prüfen ob Fahrer noch aktiv
+// (für den Fall dass iOS beforeunload nicht feuert)
+let _offlineCheckInterval = null;
+
+async function startOfflineCheck() {
+  if (_offlineCheckInterval) return;
+  _offlineCheckInterval = setInterval(async () => {
+    try {
+      await dbFetch('rpc/auto_set_drivers_offline', { method: 'POST', prefer: 'return=minimal', body: {} });
+      // Fahrer-Übersicht neu laden wenn offen
+      if (document.getElementById('driver-overview-screen').style.display === 'flex') {
+        await loadDriverOverview();
+      }
+    } catch {}
+  }, 5 * 60 * 1000); // alle 5 Minuten
+}
+
+async function openDriverOverview() {
+  document.getElementById('driver-overview-screen').style.display = 'flex';
+  await loadDriverOverview();
+}
+
+function closeDriverOverview() {
+  document.getElementById('driver-overview-screen').style.display = 'none';
+  // Mini-Maps aufräumen
+  Object.values(dovMaps).forEach(m => { try { m.remove(); } catch {} });
+  dovMaps = {};
+}
+
+function setDovTab(tab, btn) {
+  dovCurrentTab = tab;
+  document.querySelectorAll('.dov-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderDriverOverview(dovAllDrivers);
+}
+
+async function loadDriverOverview() {
+  const body = document.getElementById('dov-body');
+  if (!body) return;
+  body.innerHTML = '<div class="dov-empty">Wird geladen...</div>';
+
+  try {
+    if (!currentProfile) { body.innerHTML='<div class="dov-empty" style="color:#e05555;">Bitte neu einloggen.</div>'; return; }
+
+    body.innerHTML = '<div class="dov-empty">Wird geladen...</div>';
+    const drivers = await dbFetch(
+      'profiles?company_id=eq.' + currentProfile.company_id +
+      '&select=id,name,role,last_lat,last_lng,last_seen,is_active,kraftstoff_total&order=name'
+    );
+
+    const driverList = (drivers || []).filter(d => d.role !== 'admin');
+
+    const allMarkers = await dbFetch(
+      'markers?company_id=eq.' + currentProfile.company_id + '&select=created_by,typ,done,fuhren,fm_pro_fuhre'
+    ) || [];
+
+    const timeEntries = await dbFetch(
+      'time_entries?company_id=eq.' + currentProfile.company_id + '&select=profile_id,duration_seconds'
+    ) || [];
+
+    // Daten zusammenführen
+    dovAllDrivers = driverList.map(d => {
+      const dMarkers = allMarkers.filter(m => m.created_by === d.id);
+      const polter   = dMarkers.filter(m => m.typ === 'harvester').length;
+      const done     = dMarkers.filter(m => m.typ === 'harvester' && m.done).length;
+      const fuhren   = dMarkers.filter(m => m.typ === 'ruecke').reduce((s, m) => s + (m.fuhren || 0), 0);
+      const fm       = dMarkers.filter(m => m.typ === 'ruecke').reduce((s, m) => s + ((m.fuhren || 0) * (m.fm_pro_fuhre || 12)), 0);
+      const dTime    = timeEntries.filter(t => t.profile_id === d.id);
+      const totalSec = dTime.reduce((s, t) => s + (t.duration_seconds || 0), 0);
+
+      // Aktiv: is_active Flag UND last_seen < 15 Minuten
+      const lastSeen = d.last_seen ? new Date(d.last_seen) : null;
+      const recentSeen = lastSeen && (Date.now() - lastSeen.getTime()) < 15 * 60 * 1000;
+      const isActive = d.is_active && recentSeen;
+
+      return { ...d, polter, done, fuhren, fm, totalSec, isActive };
+    });
+
+    // Update-Zeit
+    const upd = document.getElementById('dov-update-time');
+    if (upd) upd.textContent = 'Aktualisiert ' + new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+
+    renderDriverOverview(dovAllDrivers);
+  } catch(e) {
+    console.warn('Driver Overview:', e.message);
+    document.getElementById('dov-body').innerHTML =
+      '<div class="dov-empty" style="color:#e05555;">Fehler beim Laden: ' + e.message + '<br><br><button onclick="loadDriverOverview()" style="padding:10px 20px;border-radius:9px;border:none;background:#2d6a27;color:#e8f5e4;font-size:13px;font-family:inherit;cursor:pointer;">↻ Erneut versuchen</button></div>';
+  }
+}
+
+function renderDriverOverview(drivers) {
+  const body = document.getElementById('dov-body');
+
+  // Filter
+  let filtered = drivers;
+  if (dovCurrentTab === 'active')  filtered = drivers.filter(d => d.isActive);
+  if (dovCurrentTab === 'offline') filtered = drivers.filter(d => !d.isActive);
+
+  // Sortieren: Aktive zuerst
+  filtered.sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0));
+
+  if (!filtered.length) {
+    body.innerHTML = '<div class="dov-empty">Keine Fahrer' +
+      (dovCurrentTab !== 'all' ? ' in dieser Kategorie' : ' angelegt') + '.</div>';
+    return;
+  }
+
+  // Alte Maps entfernen
+  Object.values(dovMaps).forEach(m => { try { m.remove(); } catch {} });
+  dovMaps = {};
+
+  let html = '';
+  filtered.forEach(d => {
+    const isH = d.role === 'harvester';
+    const statusText = d.isActive ? 'Aktiv' : (d.last_seen ?
+      'Vor ' + getTimeAgo(new Date(d.last_seen)) : 'Nie gesehen');
+    const mapId = 'dov-map-' + d.id;
+    const hasLocation = d.last_lat && d.last_lng;
+    const totalH = (d.totalSec / 3600).toFixed(1);
+
+    html += '<div class="dov-card">' +
+      '<div class="dov-card-head">' +
+        '<div class="dov-driver-icon ' + (isH ? 'h' : 'f') + '">' + (isH ? '🪵' : '🚜') + '</div>' +
+        '<div>' +
+          '<div class="dov-driver-name">' + d.name + '</div>' +
+          '<div class="dov-driver-role">' + (isH ? 'Harvester-Fahrer' : 'Forwarder-Fahrer') + '</div>' +
+        '</div>' +
+        '<span class="dov-status-badge ' + (d.isActive ? 'active' : 'offline') + '">' + statusText + '</span>' +
+      '</div>' +
+
+      '<div class="dov-stats">' +
+        '<div class="dov-stat"><div class="dov-stat-val">' + d.polter + '</div><div class="dov-stat-lbl">Polter</div></div>' +
+        '<div class="dov-stat"><div class="dov-stat-val">' + d.done + '</div><div class="dov-stat-lbl">Einges.</div></div>' +
+        '<div class="dov-stat"><div class="dov-stat-val">' + totalH + '</div><div class="dov-stat-lbl">Zeit</div></div>' +
+      '</div>' +
+
+      (hasLocation ?
+        '<div id="' + mapId + '" class="dov-map-mini"></div>' +
+        '<div class="dov-location">📍 ' + d.last_lat.toFixed(5) + ', ' + d.last_lng.toFixed(5) + '</div>'
+      : '<div style="padding:14px 16px;font-size:12px;color:#4a6a4a;">📍 Kein Standort bekannt</div>') +
+
+      '<div class="dov-actions">' +
+        (hasLocation ?
+          '<button class="dov-action-btn" onclick="jumpToDriverOnMap(' + d.last_lat + ',' + d.last_lng + ')">🗺 Auf Karte</button>' +
+          '<a href="https://maps.google.com/?q=' + d.last_lat + ',' + d.last_lng + '" target="_blank" class="dov-action-btn" style="text-align:center;text-decoration:none;display:block;padding:9px;">🧭 Navigation</a>'
+        : '') +
+      '</div>' +
+    '</div>';
+  });
+
+  body.innerHTML = html;
+
+  // Mini-Maps initialisieren
+  setTimeout(() => {
+    filtered.forEach(d => {
+      if (!d.last_lat || !d.last_lng) return;
+      const mapId = 'dov-map-' + d.id;
+      const el = document.getElementById(mapId);
+      if (!el || dovMaps[d.id]) return;
+      try {
+        const m = L.map(el, {
+          zoomControl:false, attributionControl:false,
+          dragging:false, touchZoom:false, doubleClickZoom:false,
+          scrollWheelZoom:false, keyboard:false, tap:false
+        });
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(m);
+        m.setView([d.last_lat, d.last_lng], 15);
+        L.circleMarker([d.last_lat, d.last_lng], {
+          radius:8, fillColor: d.isActive ? '#4aaa4a' : '#888',
+          fillOpacity:1, color:'#fff', weight:2
+        }).addTo(m);
+        setTimeout(() => { try { m.invalidateSize(); } catch {} }, 800);
+        dovMaps[d.id] = m;
+      } catch(e) { console.warn('Mini-Map:', e); }
+    });
+  }, 100);
+}
+
+function getTimeAgo(date) {
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 60) return mins + ' Min.';
+  const h = Math.floor(mins / 60);
+  if (h < 24) return h + ' Std.';
+  return Math.floor(h / 24) + ' Tag(en)';
+}
+
+function jumpToDriverOnMap(lat, lng) {
+  closeDriverOverview();
+  showDashMap();
+  setTimeout(() => { map.setView([lat, lng], 16); }, 500);
+}
+
 // ── DATEN VERWALTEN MODAL ────────────────────────────────────────
 function openDataMgmt() {
   document.getElementById('data-mgmt-overlay').style.display = 'flex';
@@ -2250,7 +2918,7 @@ async function setCompanyLocationFromGPS() {
 
 // Karte: Langer Klick setzt Firmenstandort (nur für Admin)
 let locationSetMode = false;
-function enableLocationSetMode() {
+async function enableLocationSetMode() {
   locationSetMode = true;
   closeSlideMenu();
   alert('Tippe auf die Karte um den Firmenstandort zu setzen.');
@@ -2412,6 +3080,18 @@ async function loadMaschineSettings() {
   } catch(e) { console.warn('Maschineneinstellungen laden:', e); }
 }
 
+function initPWAHints() { /* PWA hints in Anleitung integriert */ }
+async function saveVerbrauch() {
+  const el = document.getElementById('verbrauch-menu');
+  if (!el || !currentUser) return;
+  verbrauchProStunde = parseFloat(el.value) || 0;
+  try {
+    await dbFetch('profiles?id=eq.'+currentUser.id, {
+      method:'PATCH', prefer:'return=minimal',
+      body:{ verbrauch_pro_stunde: verbrauchProStunde }
+    });
+  } catch(e) { console.warn('saveVerbrauch:', e); }
+}
 async function saveMaschineSettings() {
   const fmEl = document.getElementById('setting-fm-fuhre');
   const vbEl = document.getElementById('setting-verbrauch');
@@ -2435,7 +3115,7 @@ function updateMaschineUI() {
 
 // Kraftstoff-Verbrauch im Hintergrund mitzählen wenn Timer läuft
 let kraftstoffInterval = null;
-function startKraftstoffTracking() {
+async function startKraftstoffTracking() {
   if (kraftstoffInterval) return;
   if (verbrauchProStunde <= 0) return;
   kraftstoffInterval = setInterval(async () => {
@@ -2505,6 +3185,7 @@ async function addFuhre() {
 
 // ── SLIDE-MENU ──────────────────────────────────────────────────
 function openSlideMenu() {
+  updateGpsToggleUI();
   document.getElementById('slide-menu').classList.add('open');
   document.getElementById('slide-overlay').classList.add('open');
   updateSlideMenuMode();
@@ -2558,9 +3239,13 @@ function syncAreaSelectMenu() {
   const origSel = document.getElementById('area-select');
   const menuSel = document.getElementById('area-select-menu');
   if (!origSel || !menuSel) return;
-  // Optionen übertragen
-  menuSel.innerHTML = origSel.innerHTML;
-  menuSel.value = origSel.value;
+  // Optionen übertragen - nur wenn areas geladen sind
+  if (areas && areas.length > 0) {
+    menuSel.innerHTML = origSel.innerHTML;
+  } else {
+    menuSel.innerHTML = '<option value="">– Kein Gebiet –</option>';
+  }
+  menuSel.value = origSel.value || '';
 }
 
 function updateSlideMenuMode() {
@@ -2689,10 +3374,10 @@ function hideAllScreens() {
   hideMainApp();
 }
 
-function showModeScreen() {
+async function showModeScreen() {
   hideAllScreens();
   if (currentProfile?.role === 'admin') {
-    showAdminDashboard();
+    await showAdminDashboard();
   } else {
     showDriverStart();
   }
@@ -2702,17 +3387,19 @@ function showModeScreen() {
 async function showAdminDashboard() {
   hideAllScreens();
   document.getElementById('admin-dashboard').classList.add('active');
-  document.getElementById('dash-company').textContent =
-    (currentProfile?.name || '') + ' · Admin';
+  const compEl = document.getElementById('dash-company');
+  if (compEl) compEl.textContent = (currentProfile?.name || '') + ' · Admin';
 
-  // Firmenstandort laden
-  await loadCompanyLocation();
+  // Firmenstandort laden (best-effort)
+  try { await loadCompanyLocation(); } catch(e) { console.warn('loadCompanyLocation:', e); }
 
   // Karten-Vorschau initialisieren (Satellit)
-  initAdminMapPreview();
+  try { initAdminMapPreview(); } catch(e) { console.warn('initAdminMapPreview:', e); }
 
-  // Statistiken und Fahrerliste laden
-  await Promise.all([loadDashStats(), loadDashDrivers()]);
+  // Statistiken und Fahrerliste parallel laden — Fehler einzeln behandeln
+  try {
+    await Promise.allSettled([loadDashStats(), loadDashDrivers()]);
+  } catch(e) { console.warn('Dashboard load:', e); }
 }
 
 async function loadCompanyLocation() {
@@ -2747,8 +3434,15 @@ function initAdminMapPreview() {
   const container = document.getElementById('admin-map-preview');
   if (!container) return;
 
-  // Sofort statisches Satellitenbild zeigen (kein weißes Flackern)
-  showStaticSatellite(container);
+  // Warten bis Container Größe hat, dann statisches Bild zeigen
+  const tryShow = () => {
+    if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+      showStaticSatellite(container);
+    } else {
+      setTimeout(tryShow, 100);
+    }
+  };
+  tryShow();
 
   // Dann echte Leaflet-Karte laden sobald Container Größe hat
   if (adminPreviewMap) {
@@ -2825,12 +3519,24 @@ function showStaticSatellite(container, overrideLat, overrideLon) {
     for (let dx = 0; dx < cols; dx++) {
       const tx = cx - Math.floor(cols/2) + dx;
       const ty = cy - Math.floor(rows/2) + dy;
-      const quad = tileToQuadKey(tx, ty, z);
-      const url  = `https://t.ssl.ak.tiles.virtualearth.net/tiles/a${quad}.jpeg?g=1`;
+      const url  = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${ty}/${tx}`;
+      
       const img  = document.createElement('img');
-      img.src    = url;
-      img.style.cssText = `position:absolute;left:${dx*S}px;top:${dy*S}px;width:${S}px;height:${S}px;display:block;`;
+      img.alt = '';
+      img.crossOrigin = 'anonymous';
+      img.style.cssText = `position:absolute;left:${dx*S}px;top:${dy*S}px;width:${S}px;height:${S}px;display:block;background:#2a4a2a;`;
       img.loading = 'eager';
+      img.onerror = function() { 
+        this.style.background='#1a3a2a'; 
+        this.style.opacity='0.3';
+        // Versuche ohne crossOrigin nochmal
+        if (!this.dataset.retried) {
+          this.dataset.retried = '1';
+          this.removeAttribute('crossorigin');
+          this.src = url + '?retry=1';
+        }
+      };
+      img.src = url;
       wrap.appendChild(img);
     }
   }
@@ -2968,6 +3674,27 @@ async function loadDriversTimeEntries() {
 }
 
 // Gebiete als Karten-Kacheln laden
+
+async function deleteArea(areaId) {
+  if (!confirm('Einschlagsgebiet wirklich löschen? Polter und Strecken bleiben erhalten.')) return;
+  try {
+    await dbFetch('areas?id=eq.' + areaId, { 
+      method: 'DELETE', prefer: 'return=minimal' 
+    });
+    // Aus lokaler Liste entfernen
+    areas = areas.filter(a => a.id !== areaId);
+    if (currentAreaId === areaId) {
+      currentAreaId = null;
+      document.getElementById('area-select').value = '';
+      syncAreaSelectMenu();
+    }
+    // Ansicht neu laden
+    await loadAreasOverviewCards();
+    showToast('🗑 Gebiet gelöscht');
+  } catch(e) {
+    showToast('Fehler: ' + e.message);
+  }
+}
 async function loadAreasOverviewCards() {
   const el = document.getElementById('areas-overview-list');
   if (!el) return;
@@ -3007,7 +3734,7 @@ async function loadAreasOverviewCards() {
           </div>
           <div style="display:flex;gap:8px;">
             <button onclick="showDashMap()" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:12px;font-family:inherit;cursor:pointer;">🗺 Karte</button>
-            <button onclick="confirmDeleteAll('markers')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(163,32,32,.3);background:rgba(163,32,32,.08);color:#f5a0a0;font-size:12px;font-family:inherit;cursor:pointer;">🗑 Löschen</button>
+            <button onclick="deleteArea('${a.id}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(163,32,32,.3);background:rgba(163,32,32,.08);color:#f5a0a0;font-size:12px;font-family:inherit;cursor:pointer;">🗑 Löschen</button>
           </div>
         </div>
       </div>`;
@@ -3115,7 +3842,6 @@ function startDriverMode() {
 }
 
 // ── ADMIN PANEL ───────────────────────────────────────────────────
-
 
 async function loadDrivers() {
   const el = document.getElementById('driver-list');
@@ -3324,7 +4050,7 @@ let currentMode=null;
 
 const TRACK_COLORS=['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
 const GPS_ERR={1:'Zugriff verweigert',2:'Kein GPS-Signal',3:'Zeitüberschreitung'};
-const GPS_OPTS={enableHighAccuracy:true,timeout:20000,maximumAge:0};
+const GPS_OPTS={enableHighAccuracy:true,timeout:30000,maximumAge:0};
 
 function mkIcon(e,bg,br){return L.divIcon({className:'',html:`<div style="background:${bg};border:2.5px solid ${br};border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 6px rgba(0,0,0,.25);">${e}</div>`,iconSize:[32,32],iconAnchor:[16,16]});}
 function mkIconDone(){return L.divIcon({className:'',html:'<div style="background:#bbb;border:2.5px solid #999;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.5;">✓</div>',iconSize:[28,28],iconAnchor:[14,14]});}
@@ -3339,9 +4065,55 @@ function setTxt(t){document.getElementById('gps-txt').textContent=t;}
 function setOnline(s){document.getElementById('online-dot').className=s;}
 
 // ── KALMAN ────────────────────────────────────────────────────────
-class KalmanGPS{constructor(){this.lat=null;this.lng=null;this.v=-1;this.ts=null;}
-  process(lat,lng,acc,ts){if(acc>60&&this.v>=0)return{lat:this.lat,lng:this.lng};if(this.v<0){this.lat=lat;this.lng=lng;this.v=acc*acc;this.ts=ts;return{lat,lng};}const dt=Math.max((ts-this.ts)/1000,.1);this.ts=ts;this.v+=dt*3;const K=this.v/(this.v+Math.max(acc,4)**2);this.lat+=K*(lat-this.lat);this.lng+=K*(lng-this.lng);this.v=(1-K)*this.v;return{lat:this.lat,lng:this.lng};}
-  reset(){this.v=-1;}}
+class KalmanGPS{
+  constructor(){
+    this.lat=null;this.lng=null;this.v=-1;this.ts=null;
+    this.samples=[];   // Init-Samples
+    this.best=[];      // Gleitender Puffer der 5 besten Messungen
+  }
+  process(lat,lng,acc,ts){
+    // Messungen >30m ignorieren wenn bereits initialisiert
+    if(acc>30&&this.v>=0)return{lat:this.lat,lng:this.lng};
+
+    // Init-Phase: 5 Samples sammeln, gewichtetes Mittel bilden
+    if(this.v<0){
+      this.samples.push({lat,lng,acc,ts});
+      // Fortschritt: aktuelle beste Schätzung zurückgeben
+      this.lat=lat;this.lng=lng;this.v=acc*acc;this.ts=ts;
+      if(this.samples.length<5)return{lat,lng};
+      // 5 Samples gesammelt → gewichtetes Mittel (1/acc² Gewichtung)
+      let wLat=0,wLng=0,wSum=0;
+      this.samples.forEach(s=>{const w=1/(s.acc*s.acc);wLat+=s.lat*w;wLng+=s.lng*w;wSum+=w;});
+      this.lat=wLat/wSum;this.lng=wLng/wSum;
+      this.v=Math.min(...this.samples.map(s=>s.acc))**2;
+      this.ts=ts;this.samples=[];
+      return{lat:this.lat,lng:this.lng};
+    }
+
+    const dt=Math.max((ts-this.ts)/1000,.1);this.ts=ts;
+
+    // Q=0.3: sehr stabiler Filter, nur echte Bewegungen durchlassen
+    this.v+=dt*0.3;
+    const measVar=Math.max(acc,1.5)**2;
+    const K=this.v/(this.v+measVar);
+    this.lat+=K*(lat-this.lat);
+    this.lng+=K*(lng-this.lng);
+    this.v=(1-K)*this.v;
+
+    // Puffer der letzten 5 besten Messungen für zusätzliche Glättung
+    this.best.push({lat:this.lat,lng:this.lng,acc,ts});
+    if(this.best.length>5)this.best.shift();
+
+    // Wenn alle Puffer-Messungen gut sind → gewichtetes Mittel
+    if(this.best.length===5&&this.best.every(b=>b.acc<10)){
+      let wLat=0,wLng=0,wSum=0;
+      this.best.forEach(b=>{const w=1/(b.acc*b.acc);wLat+=b.lat*w;wLng+=b.lng*w;wSum+=w;});
+      return{lat:wLat/wSum,lng:wLng/wSum};
+    }
+
+    return{lat:this.lat,lng:this.lng};
+  }
+  reset(){this.v=-1;this.samples=[];this.best=[];}}
 const kalman=new KalmanGPS();
 
 // ── STILLSTAND ────────────────────────────────────────────────────
@@ -3485,16 +4257,150 @@ function startRealtime() {
         const idx = markers.findIndex(m => m.id === payload.old.id);
         if (idx >= 0) { map.removeLayer(markers[idx].layer); markers.splice(idx, 1); renderLog(); renderSidebar(); renderLkwSidebar(); }
       })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        // Fahrer-Position live aktualisieren
+        const d = payload.new;
+        // Fahrer-Übersicht
+        if (dovAllDrivers && dovAllDrivers.length > 0) {
+          const i = dovAllDrivers.findIndex(dr => dr.id === d.id);
+          if (i >= 0) { dovAllDrivers[i] = { ...dovAllDrivers[i], ...d }; renderDriverOverview(dovAllDrivers); }
+        }
+        // Fahrer-Marker auf Karte (Admin)
+        if (driversOnMapEnabled && d.last_lat && d.last_lng) {
+          updateDriverMarkersOnMap([d]);
+        }
+      })
     .subscribe();
+}
+
+// ── GPS HINTERGRUND-TRACKING ─────────────────────────────────────
+let gpsTrackingEnabled = true; // Standard: GPS an
+
+function toggleGpsTracking() {
+  gpsTrackingEnabled = !gpsTrackingEnabled;
+  updateGpsToggleUI();
+  if (gpsTrackingEnabled) {
+    _lastLocationUpdate = 0;
+    setDot('off');
+    setTxt('GPS wird gestartet...');
+    // Permission anfragen dann BgGps starten
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          // Erste Position sofort senden (umgeht den 15s Cooldown)
+          _lastLocationUpdate = 0;
+          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
+          startBgGps();
+          setDot('ok');
+          setTxt('GPS aktiv (±' + Math.round(pos.coords.accuracy) + 'm)');
+          showToast('✓ GPS aktiviert');
+        },
+        err => {
+          // GPS Fehler - Toggle zurücksetzen
+          gpsTrackingEnabled = false;
+          updateGpsToggleUI();
+          const msg = err.code === 1 ? 'GPS-Zugriff verweigert' : 'GPS nicht verfügbar';
+          showToast('⚠️ ' + msg);
+          setTxt(msg);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      gpsTrackingEnabled = false;
+      updateGpsToggleUI();
+      showToast('⚠️ GPS nicht verfügbar');
+    }
+  } else {
+    stopBgGps();
+    setDriverOffline();
+    // GPS Punkt und Kreis von der Karte entfernen
+    try { if(typeof uMarker!=='undefined'&&uMarker){map.removeLayer(uMarker);uMarker=null;} } catch{}
+    try { if(typeof uCircle!=='undefined'&&uCircle){map.removeLayer(uCircle);uCircle=null;} } catch{}
+    // Statusbar aktualisieren
+    if(typeof setDot==='function') setDot('off');
+    if(typeof setTxt==='function') setTxt('GPS ausgeschaltet');
+  }
+}
+
+function updateGpsToggleUI() {
+  const wrap = document.getElementById('gps-toggle-wrap');
+  const knob = document.getElementById('gps-toggle-knob');
+  const desc = document.getElementById('gps-toggle-desc');
+  if (wrap) wrap.style.background = gpsTrackingEnabled ? '#34c759' : '#48484a';
+  if (knob) knob.style.left = gpsTrackingEnabled ? '22px' : '2px';
+  if (desc) desc.textContent = gpsTrackingEnabled ? 'Aktiv' : 'Ausgeschaltet';
+}
+
+// ── GPS HINTERGRUND-TRACKING ─────────────────────────────────────
+// Immer aktiv wenn Fahrer eingeloggt ist (nicht nur bei Strecke)
+let bgGpsWatchId = null;
+
+function startBgGps() {
+  if (bgGpsWatchId !== null) return;
+  if (!navigator.geolocation) return;
+  // GPS blockieren nur wenn Admin im Admin-Dashboard-Modus (nicht als Fahrer)
+  if (currentMode === 'admin') return;
+  bgGpsWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      if (accuracy > 100) return; // Nur >100m ignorieren
+      updateDriverLocation(latitude, longitude);
+    },
+    err => console.warn('BG-GPS:', err.message),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+  );
+}
+
+function stopBgGps() {
+  if (bgGpsWatchId !== null) {
+    navigator.geolocation.clearWatch(bgGpsWatchId);
+    bgGpsWatchId = null;
+  }
 }
 
 // ── MODUS STARTEN ─────────────────────────────────────────────────
 function startMode(mode) {
   currentMode = mode;
-  // mode-screen entfernt
-  const isH     = mode === 'harvester';
-  const isAdmin  = mode === 'admin';
+  if (mode !== 'admin') {
+    startBgGps();
+    setTimeout(updateGpsToggleUI, 100); // Toggle-Status setzen
+  }
+  if (mode === 'admin') {
+    startOfflineCheck();
+    // Admin: Fahrer-Toggle anzeigen
+    const adminGpsSec = document.getElementById('smenu-sec-admin-gps');
+    const adminGpsToggle = document.getElementById('smenu-admin-gps-toggle');
+    const adminOwnToggle = document.getElementById('smenu-admin-own-gps-toggle');
+    if (adminGpsSec) adminGpsSec.style.display = '';
+    if (adminGpsToggle) adminGpsToggle.style.display = 'flex';
+    if (adminOwnToggle) adminOwnToggle.style.display = 'flex';
+    // Fahrer alle 30 Sek. auf Karte aktualisieren
+    if (driverUpdateInterval) clearInterval(driverUpdateInterval);
+    driverUpdateInterval = setInterval(loadDriversOnMap, 30000);
+    setTimeout(loadDriversOnMap, 1000);
+  }
+
+  // Mode-Variablen ZUERST definieren (sie werden überall genutzt)
+  const isH       = mode === 'harvester';
+  const isAdmin   = mode === 'admin';
   const isForward = mode === 'ruecke';
+
+  // GPS Toggle nur für Fahrer zeigen
+  const gpsSection = document.getElementById('smenu-sec-gps');
+  const gpsToggle  = document.getElementById('smenu-gps-toggle');
+  const showGps = !isAdmin;
+  if (gpsSection) gpsSection.style.display = showGps ? '' : 'none';
+  if (gpsToggle)  gpsToggle.style.display  = showGps ? '' : 'none';
+
+  // Admin GPS Toggles nur für Admin zeigen
+  const adminGpsSec2   = document.getElementById('smenu-sec-admin-gps');
+  const adminGpsTgl2   = document.getElementById('smenu-admin-gps-toggle');
+  const adminOwnTgl2   = document.getElementById('smenu-admin-own-gps-toggle');
+  if (adminGpsSec2)  adminGpsSec2.style.display  = isAdmin ? '' : 'none';
+  if (adminGpsTgl2)  adminGpsTgl2.style.display  = isAdmin ? 'flex' : 'none';
+  if (adminOwnTgl2)  adminOwnTgl2.style.display  = isAdmin ? 'flex' : 'none';
 
   const topbar    = document.getElementById('topbar');
   const statusbar = document.getElementById('statusbar');
@@ -3525,17 +4431,17 @@ function startMode(mode) {
   }
 
   // Admin: GPS ja, Strecke/Polter/Export nein (nur lesen)
-  document.getElementById('btn-track').classList.toggle('hidden', isAdmin);
-  document.getElementById('btn-add').classList.toggle('hidden', isAdmin);
-  document.getElementById('btn-export').classList.toggle('hidden', isAdmin);
+  const _bt=document.getElementById('btn-track');if(_bt)_bt.classList.toggle('hidden',isAdmin);
+  const _ba=document.getElementById('btn-add');if(_ba)_ba.classList.toggle('hidden',isAdmin);
+  const _be=document.getElementById('btn-export');if(_be)_be.classList.toggle('hidden',isAdmin);
 
   // Log-Ansicht
   document.getElementById('log-harvester').style.display = (isH || isAdmin) ? 'block' : 'none';
   document.getElementById('log-forwarder').style.display = isForward ? 'block' : 'none';
 
   // Sidebar-Buttons: nur Forwarder und Admin (Admin kann LKW-Liste sehen)
-  document.getElementById('btn-arbeit-wrap').classList.toggle('hidden', isH);
-  document.getElementById('btn-lkw-wrap').classList.toggle('hidden', isH);
+  const _baw=document.getElementById('btn-arbeit-wrap');if(_baw)_baw.classList.toggle('hidden',isH);
+  const _blw=document.getElementById('btn-lkw-wrap');if(_blw)_blw.classList.toggle('hidden',isH);
 
   if (isH) {
     if(typeof closeSidebar==='function') closeSidebar();
@@ -3599,11 +4505,51 @@ function autoZoomToWork() {
     }, () => {
       // 2. Kein GPS → auf Marker zoomen
       zoomToMarkers();
-    }, { timeout: 5000, enableHighAccuracy: false });
+    }, { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
   } else {
     zoomToMarkers();
   }
 }
+
+let _lastLocationUpdate = 0;
+async function updateDriverLocation(lat, lng) {
+  if (!gpsTrackingEnabled) return; // GPS vom Nutzer deaktiviert
+  const now = Date.now();
+  if (now - _lastLocationUpdate < 15000) return;
+  _lastLocationUpdate = now;
+  if (!currentUser || !currentProfile) return;
+  try {
+    await dbFetch('profiles?id=eq.' + currentUser.id, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { last_lat: lat, last_lng: lng, last_seen: new Date().toISOString(), is_active: true }
+    });
+    // Nach erstem erfolgreichen Update Marker auf der eigenen Karte zeigen
+    if (typeof map !== 'undefined' && map && typeof L !== 'undefined') {
+      try {
+        const ll = L.latLng(lat, lng);
+        if (typeof updateUM === 'function') {
+          updateUM(ll, 10, 'ok');
+        }
+      } catch{}
+    }
+  } catch(e) {
+    console.warn('GPS Update Error:', e);
+    if (typeof showToast === 'function') {
+      showToast('⚠️ GPS-Server-Fehler: ' + (e.message || 'Unbekannt'));
+    }
+  }
+}
+async function setDriverOffline() {
+  if (!currentUser) return;
+  try { await dbFetch('profiles?id=eq.' + currentUser.id, { method: 'PATCH', prefer: 'return=minimal', body: { is_active: false } }); } catch {}
+}
+window.addEventListener('beforeunload', setDriverOffline);
+
+// Auto-Offline: Supabase prüft periodisch ob Fahrer noch aktiv
+// Fahrer gilt als offline wenn last_seen > 10 Minuten her
+// Das passiert bereits durch is_active=false beim beforeunload
+// Zusätzlich: Seite wird periodic neu geprüft durch loadDriverOverview
 
 function zoomToMarkers() {
   if (markers && markers.length > 0) {
@@ -3638,7 +4584,39 @@ document.getElementById('btn-switch-mode').addEventListener('click', () => {
 });
 
 // ── GPS ───────────────────────────────────────────────────────────
-document.getElementById('btn-gps').addEventListener('click',()=>{setTxt('Orten...');navigator.geolocation.getCurrentPosition(pos=>{const ll=L.latLng(pos.coords.latitude,pos.coords.longitude);map.setView(ll,16);updateUM(ll,pos.coords.accuracy,'ok');setTxt('±'+Math.round(pos.coords.accuracy)+'m');},err=>setTxt(GPS_ERR[err.code]||'GPS Fehler'),GPS_OPTS);});
+document.getElementById('btn-gps').addEventListener('click', () => {
+  if (!gpsTrackingEnabled) {
+    setTxt('GPS ist ausgeschaltet');
+    return;
+  }
+  setTxt('GPS wird ermittelt...');
+  // 3 Messungen sammeln, beste nehmen
+  const readings = [];
+  const watchId = navigator.geolocation.watchPosition(pos => {
+    readings.push(pos.coords);
+    setTxt('GPS ±' + Math.round(pos.coords.accuracy) + 'm (' + readings.length + '/3)');
+    if (readings.length >= 5 || pos.coords.accuracy <= 3) {
+      navigator.geolocation.clearWatch(watchId);
+      // Genaueste Messung verwenden
+      const best = readings.reduce((a, b) => a.accuracy <= b.accuracy ? a : b);
+      const ll = L.latLng(best.latitude, best.longitude);
+      map.setView(ll, 17);
+      updateUM(ll, best.accuracy, 'ok');
+      setTxt('±' + Math.round(best.accuracy) + 'm');
+    }
+  }, err => { setTxt(GPS_ERR[err.code] || 'GPS Fehler'); }, GPS_OPTS);
+  // Timeout nach 20 Sek
+  setTimeout(() => {
+    navigator.geolocation.clearWatch(watchId);
+    if (readings.length > 0) {
+      const best = readings.reduce((a, b) => a.accuracy <= b.accuracy ? a : b);
+      const ll = L.latLng(best.latitude, best.longitude);
+      map.setView(ll, 17);
+      updateUM(ll, best.accuracy, 'ok');
+      setTxt('±' + Math.round(best.accuracy) + 'm');
+    }
+  }, 20000);
+});
 
 // ── STRECKE ───────────────────────────────────────────────────────
 document.getElementById('btn-track').addEventListener('click',()=>{
@@ -3651,8 +4629,9 @@ document.getElementById('btn-track').addEventListener('click',()=>{
   setTxt('Aufzeichnung läuft...');setDot('trk');
   watchId=navigator.geolocation.watchPosition(pos=>{
     const{latitude:rLat,longitude:rLng,accuracy:acc,speed:spd}=pos.coords;
+    updateDriverLocation(rLat, rLng);
     const ts=pos.timestamp||Date.now();
-    if(acc>25){setTxt('GPS schwach (±'+Math.round(acc)+'m)...');return;}
+    if(acc>15){setTxt('GPS schwach (±'+Math.round(acc)+'m)...');return;}
     const f=kalman.process(rLat,rLng,acc,ts);
     trackLine.push([f.lat,f.lng]);trackPoly.addLatLng([f.lat,f.lng]);
     const ll=L.latLng(f.lat,f.lng);
@@ -3686,7 +4665,7 @@ document.getElementById('btn-stop').addEventListener('click', async () => {
   }
   document.getElementById('btn-stop').classList.add('hidden');
   document.getElementById('btn-track').classList.remove('hidden');
-  setDot('ok');setTxt('GPS bereit');trackLine=[];trackPoly=null;renderLog();
+  setDot('ok');setTxt('GPS ±'+Math.round(ac)+'m');trackLine=[];trackPoly=null;renderLog();
 });
 
 // ── MARKER LÖSCHEN ────────────────────────────────────────────────
@@ -3928,7 +4907,6 @@ function renderLkwSidebar(){
   }).join('');
 }
 
-
 // ── KARTE SPRUNG ────────────────────────────────────────────────────
 function jumpToMarker(id) {
   const m = markers.find(x => x.id === id);
@@ -3956,12 +4934,18 @@ async function loadAreas() {
   }
 }
 
-function renderAreaSelect() {
+function renderAreaSelect(selectId) {
   const sel = document.getElementById('area-select');
-  const prev = sel.value;
+  if (!sel) return;
+  const targetId = selectId || sel.value || currentAreaId || '';
   sel.innerHTML = '<option value="">– Kein Gebiet –</option>' +
     areas.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-  sel.value = prev || '';
+  // Gewünschtes Gebiet setzen wenn vorhanden
+  if (targetId && sel.querySelector(`option[value="${targetId}"]`)) {
+    sel.value = targetId;
+  } else {
+    sel.value = '';
+  }
   currentAreaId = sel.value || null;
   syncAreaSelectMenu();
 }
@@ -3985,6 +4969,17 @@ function closeAreaPanel() {
   document.getElementById('area-overlay').classList.add('hidden');
 }
 
+// ── TOAST NOTIFICATION (funktioniert überall) ─────────────────────
+let _toastTimer = null;
+function showToast(msg, duration) {
+  duration = duration || 3000;
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.classList.remove('show'); }, duration);
+}
 async function saveArea() {
   const name = document.getElementById('area-name-input').value.trim();
   if (!name) return;
@@ -3995,11 +4990,15 @@ async function saveArea() {
   }).catch(e => { alert('Fehler: '+e.message); return null; });
   if (saved && saved[0]) {
     areas.push(saved[0]);
-    renderAreaSelect();
-    document.getElementById('area-select').value = saved[0].id;
+    // ID direkt übergeben damit die Auswahl korrekt gesetzt wird
+    renderAreaSelect(saved[0].id);
     currentAreaId = saved[0].id;
+    closeAreaPanel();
+    // Feedback in Statusbar
+    showToast('✓ Gebiet "' + saved[0].name + '" angelegt');
+  } else {
+    closeAreaPanel();
   }
-  closeAreaPanel();
 }
 
 // ── ZEITERFASSUNG / STOPPUHR ──────────────────────────────────────
@@ -4239,24 +5238,39 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function updatePwaInstallBtn() {
-  const hint = document.getElementById('pwa-install-hint');
-  const wrap = document.getElementById('pwa-install-btn-wrap');
-  if (!hint || !wrap) return;
+  const hint     = document.getElementById('pwa-install-hint');
+  const wrap     = document.getElementById('pwa-install-btn-wrap');
+  const iosBox   = document.getElementById('pwa-ios-box');
+  const droidBox = document.getElementById('pwa-android-box');
+  const doneBox  = document.getElementById('pwa-installed-box');
+
   const isStandalone = window.matchMedia('(display-mode:standalone)').matches || window.navigator.standalone;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (iosBox)   iosBox.style.display   = 'none';
+  if (droidBox) droidBox.style.display = 'none';
+  if (doneBox)  doneBox.style.display  = 'none';
+  if (hint)     hint.textContent       = '';
+  if (wrap)     wrap.innerHTML         = '';
+
   if (isStandalone) {
-    hint.textContent = '✓ App ist bereits installiert und läuft im Vollbild.';
-    hint.style.color = '#2d6a27'; wrap.innerHTML = '';
+    if (doneBox) doneBox.style.display = 'block';
+  } else if (isIOS) {
+    if (hint) hint.textContent = 'Tippe auf das Teilen-Symbol und dann auf „Zum Home-Bildschirm":';
+    if (iosBox) iosBox.style.display = 'block';
   } else if (deferredInstallPrompt) {
-    hint.textContent = 'Installiere die App für den besten Vollbild-Betrieb.';
-    wrap.innerHTML = '<button onclick="triggerInstall()" style="margin-top:8px;padding:11px 20px;border-radius:10px;border:none;background:#2d6a27;color:#e8f5e4;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📲 Jetzt als App installieren</button>';
-  } else if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-    hint.innerHTML = 'Tippe in Safari auf <b>Teilen ↑</b>, dann auf <b>„Zum Home-Bildschirm"</b>. Die App läuft dann ohne Browser-Leiste im Vollbild.';
-    wrap.innerHTML = '<div style="background:#f0f8f0;border-radius:10px;padding:12px 14px;font-size:13px;color:#1a3a1a;margin-top:8px;line-height:1.7;"><b>Schritt für Schritt:</b><br>1. Unten in Safari <b>Teilen ↑</b> antippen<br>2. Nach unten scrollen<br>3. <b>„Zum Home-Bildschirm"</b> antippen<br>4. Bestätigen → App erscheint auf dem Homescreen</div>';
+    if (hint) hint.textContent = 'Ein Klick und die App ist installiert:';
+    if (droidBox) droidBox.style.display = 'block';
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'block';
   } else {
-    hint.textContent = 'Öffne diese Seite in Safari (iPhone) oder Chrome (Android) um die App zu installieren.';
-    wrap.innerHTML = '';
+    if (hint) hint.textContent = 'Öffne diese Seite in Chrome (Android) oder Safari (iPhone):';
+    if (droidBox) droidBox.style.display = 'block';
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'none';
   }
 }
+
 async function triggerInstall() {
   if (!deferredInstallPrompt) return;
   deferredInstallPrompt.prompt();
@@ -4270,7 +5284,19 @@ function helpTab(btn){document.querySelectorAll('.htab').forEach(t=>t.classList.
 // ── SERVICE WORKER ────────────────────────────────────────────────
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js')
-    .then(()=>{document.getElementById('sw-dot').className='ok';document.getElementById('sw-txt').textContent='✓ Offline-Cache aktiv';})
+    .then(reg=>{
+      document.getElementById('sw-dot').className='ok';
+      document.getElementById('sw-txt').textContent='✓ Offline-Cache aktiv';
+      reg.addEventListener('updatefound',()=>{
+        const nw=reg.installing;
+        nw.addEventListener('statechange',()=>{
+          if(nw.state==='installed'&&navigator.serviceWorker.controller){
+            nw.postMessage({type:'SKIP_WAITING'});
+            setTimeout(()=>window.location.reload(),500);
+          }
+        });
+      });
+    })
     .catch(()=>{document.getElementById('sw-txt').textContent='ℹ Karte bereit';});
 }
 
@@ -4324,7 +5350,29 @@ if('serviceWorker' in navigator){
 
   // Keine gespeicherte Session → Login anzeigen
   document.getElementById('auth-screen').style.display = 'flex';
+
+// ── SETTINGS und HELP Listener (für Slide-Menü Buttons) ───────────
+const _btnSettings = document.getElementById('btn-settings');
+if (_btnSettings) {
+  _btnSettings.addEventListener('click', () => {
+    if (typeof openSettings === 'function') openSettings();
+  });
+}
+const _btnHelp = document.getElementById('btn-help');
+if (_btnHelp) {
+  _btnHelp.addEventListener('click', () => {
+    const modal = document.getElementById('help-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      if (typeof updatePwaInstallBtn === 'function') {
+        setTimeout(updatePwaInstallBtn, 50);
+      }
+    }
+  });
+}
+
 })();
 </script>
+
 </body>
 </html>
