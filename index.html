@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -793,6 +792,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   border:1px solid rgba(74,170,74,.25);
   white-space:nowrap;flex-shrink:0;font-weight:600;
 }
+.adash-driver-status.offline{background:rgba(140,140,140,.15);color:#888;border-color:rgba(140,140,140,.3);}
 
 /* Als Fahrer Button */
 .adash-work-btn{
@@ -2857,19 +2857,49 @@ function renderDriverOverview(drivers) {
       const mapId = 'dov-map-' + d.id;
       const el = document.getElementById(mapId);
       if (!el || dovMaps[d.id]) return;
+      // Warten bis Container Größe hat
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) {
+        // Karte später nochmal versuchen wenn DOM bereit
+        setTimeout(() => {
+          if (dovMaps[d.id] || el.offsetWidth === 0) return;
+          try {
+            const m2 = L.map(el, {
+              zoomControl:false, attributionControl:false,
+              dragging:false, touchZoom:false, doubleClickZoom:false,
+              scrollWheelZoom:false, keyboard:false, tap:false, maxZoom:18
+            });
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:18}).addTo(m2);
+            m2.setView([d.last_lat, d.last_lng], 15);
+            L.circleMarker([d.last_lat, d.last_lng], {
+              radius:8, fillColor: d.isActive ? '#4aaa4a' : '#888',
+              fillOpacity:1, color:'#fff', weight:2
+            }).addTo(m2);
+            requestAnimationFrame(() => { try { m2.invalidateSize(); } catch{} });
+            setTimeout(() => { try { m2.invalidateSize(); } catch{} }, 200);
+            dovMaps[d.id] = m2;
+          } catch(e) { console.warn('Mini-Map retry:', e); }
+        }, 500);
+        return;
+      }
       try {
         const m = L.map(el, {
           zoomControl:false, attributionControl:false,
           dragging:false, touchZoom:false, doubleClickZoom:false,
-          scrollWheelZoom:false, keyboard:false, tap:false
+          scrollWheelZoom:false, keyboard:false, tap:false,
+          maxZoom:18
         });
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(m);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom:18
+        }).addTo(m);
         m.setView([d.last_lat, d.last_lng], 15);
         L.circleMarker([d.last_lat, d.last_lng], {
           radius:8, fillColor: d.isActive ? '#4aaa4a' : '#888',
           fillOpacity:1, color:'#fff', weight:2
         }).addTo(m);
-        setTimeout(() => { try { m.invalidateSize(); } catch {} }, 800);
+        // Mehrfach invalidateSize aufrufen damit Tiles sicher laden
+        requestAnimationFrame(() => { try { m.invalidateSize(); } catch{} });
+        setTimeout(() => { try { m.invalidateSize(); } catch {} }, 100);
+        setTimeout(() => { try { m.invalidateSize(); } catch {} }, 500);
         dovMaps[d.id] = m;
       } catch(e) { console.warn('Mini-Map:', e); }
     });
@@ -3614,7 +3644,7 @@ async function loadDashDrivers() {
           <div class="adash-driver-name">${d.name}</div>
           <div class="adash-driver-role">${d.role==='harvester'?'Harvester-Fahrer':'Forwarder-Fahrer'}</div>
         </div>
-        <span class="adash-driver-status">Aktiv</span>
+        <span class="adash-driver-status ${d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime() < 15*60*1000) ? '' : 'offline'}">${d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime() < 15*60*1000) ? 'Aktiv' : 'Offline'}</span>
       </div>`).join('');
   } catch {
     el1.innerHTML = '<div style="padding:16px;color:#e05555;font-size:13px;">Fehler beim Laden.</div>';
