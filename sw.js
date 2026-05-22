@@ -1,6 +1,6 @@
-const TILE_CACHE = 'lignum-tiles-v4';
-const SAT_CACHE  = 'lignum-sat-v4';
-const APP_VERSION = '3.1';
+const TILE_CACHE = 'lignum-tiles-v5';
+const SAT_CACHE  = 'lignum-sat-v5';
+const APP_VERSION = '3.2';
 const MAX_OSM = 600; const MAX_SAT = 1200;
 
 self.addEventListener('install',  () => self.skipWaiting());
@@ -36,6 +36,9 @@ async function tileRespond(req, cacheName, max) {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
   if (!url.startsWith('http')) return;
+  
+  // CDN-Scripts (jsPDF, html2canvas etc.) direkt durchreichen
+  if (url.includes('jsdelivr.net') || url.includes('cdnjs.cloudflare.com') || url.includes('unpkg.com')) return;
 
   // Karten-Tiles: cachen
   if (url.includes('arcgisonline.com') || url.includes('virtualearth.net')) {
