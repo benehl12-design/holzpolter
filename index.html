@@ -1135,7 +1135,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '3.1'")) {
+        if (!txt.includes("APP_VERSION = '3.2'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3983,7 +3983,13 @@ const BASE = { crossOrigin:true, keepBuffer:8, updateWhenIdle:false, updateWhenZ
 const LAYERS = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { ...BASE, maxZoom:22, maxNativeZoom:19, attribution:'© OpenStreetMap' }),
   sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { ...BASE, maxZoom:MAX_ESRI, maxNativeZoom:MAX_ESRI, attribution:'© Esri' }),
-  satLabel: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { ...BASE, maxZoom:MAX_ESRI, maxNativeZoom:MAX_ESRI, attribution:'', opacity:.9 })
+  satLabel: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { ...BASE, maxZoom:MAX_ESRI, maxNativeZoom:MAX_ESRI, attribution:'', opacity:.9 }),
+  // Lantmäteriet "Min karta" – Topografisk webbkarta (braucht eigenen Token!)
+  // Token holen: https://opendata.lantmateriet.se → Konto erstellen → "Topografisk webbkarta" abonnieren
+  // Dann hier LANTMATERIET_TOKEN ersetzen
+  minkarta: L.tileLayer('https://api.lantmateriet.se/open/topowebb-ccby/v1/wmts/token/LANTMATERIET_TOKEN/1.0.0/topowebb/default/3857/{z}/{y}/{x}.png', { ...BASE, maxZoom:17, maxNativeZoom:17, attribution:'© Lantmäteriet' }),
+  // OpenTopoMap als Alternative (kein Token nötig, weltweit)
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { ...BASE, subdomains:'abc', maxZoom:17, maxNativeZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)' })
 };
 const BingLayer = L.TileLayer.extend({
   getTileUrl(c) {
@@ -5245,8 +5251,31 @@ document.getElementById('btn-cache').addEventListener('click',async()=>{
 // ── BASEMAP ───────────────────────────────────────────────────────
 document.getElementById('btn-basemap').addEventListener('click',()=>{
   const btn=document.getElementById('btn-basemap');
-  if(currentBasemap==='osm'){map.removeLayer(LAYERS.osm);bingActive=false;LAYERS.sat.addTo(map);LAYERS.satLabel.addTo(map);currentBasemap='sat';btn.textContent='🗺 Karte';btn.style.background='#5a3a1a';btn.style.borderColor='#8a6030';updateSatLayer();setTimeout(prefetchTiles,200);}
-  else{[LAYERS.sat,LAYERS.satLabel,bingLayer].forEach(l=>{if(map.hasLayer(l))map.removeLayer(l);});bingActive=false;LAYERS.osm.addTo(map);currentBasemap='osm';btn.textContent='🛰 Satellit';btn.style.background='rgba(255,255,255,0.1)';btn.style.borderColor='rgba(255,255,255,0.18)';}
+  // Prüfe ob Lantmäteriet-Token gesetzt ist
+  const hasLantmateriet = !LAYERS.minkarta._url.includes('LANTMATERIET_TOKEN');
+  if(currentBasemap==='osm'){
+    map.removeLayer(LAYERS.osm);bingActive=false;
+    LAYERS.sat.addTo(map);LAYERS.satLabel.addTo(map);
+    currentBasemap='sat';btn.textContent='⛰️ Topo';
+    btn.style.background='#5a3a1a';btn.style.borderColor='#8a6030';
+    updateSatLayer();setTimeout(prefetchTiles,200);
+  }
+  else if(currentBasemap==='sat'){
+    [LAYERS.sat,LAYERS.satLabel,bingLayer].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});
+    bingActive=false;
+    LAYERS.topo.addTo(map);
+    currentBasemap='topo';
+    btn.textContent = hasLantmateriet ? '🇸🇪 Min Karta' : '🛣 Straße';
+    btn.style.background='#2a5a2a';btn.style.borderColor='#4a8a4a';
+  }
+  else if(currentBasemap==='topo' && hasLantmateriet){
+    map.removeLayer(LAYERS.topo);
+    LAYERS.minkarta.addTo(map);
+    currentBasemap='minkarta';
+    btn.textContent='🛣 Straße';
+    btn.style.background='#1a4a5a';btn.style.borderColor='#3070a0';
+  }
+  else{[LAYERS.sat,LAYERS.satLabel,LAYERS.topo,LAYERS.minkarta,bingLayer].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});bingActive=false;LAYERS.osm.addTo(map);currentBasemap='osm';btn.textContent='🛰 Satellit';btn.style.background='rgba(255,255,255,0.1)';btn.style.borderColor='rgba(255,255,255,0.18)';}
   markers.forEach(m=>{try{m.layer.bringToFront();}catch{}});
 });
 
