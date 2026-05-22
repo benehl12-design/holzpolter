@@ -10,7 +10,12 @@
   <meta name="theme-color" content="#1a2e1a"/>
   <title>Lignum</title>
   <link rel="manifest" href="manifest.json"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/>
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png"/>
+  <link rel="shortcut icon" href="icon-192.png"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png"/>
+  <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
 :root{
@@ -5340,6 +5345,16 @@ if('serviceWorker' in navigator){
 
 // ── INIT ──────────────────────────────────────────────────────────
 (async () => {
+  // SOFORT: Export-Funktionen ans window binden (function hoisting greift)
+  try {
+    window.openExportPanel = openExportPanel;
+    window.closeExportPanel = closeExportPanel;
+    window.runCsvExport = runCsvExport;
+    window.openPdfExportPanel = openPdfExportPanel;
+    window.closePdfExportPanel = closePdfExportPanel;
+    window.runPdfExport = runPdfExport;
+  } catch(e) { console.warn('Export binding:', e); }
+
   try {
     const storedAccess  = localStorage.getItem('hp_access');
     const storedRefresh = localStorage.getItem('hp_refresh');
@@ -5749,7 +5764,7 @@ window.runPdfExport = runPdfExport;
 
 
 <!-- ── CSV EXPORT PANEL ────────────────────────────────────────── -->
-<div id="export-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9950;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeExportPanel()">
+<div id="export-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9950;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)this.style.display='none'">
   <div style="background:#1a2e1a;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;">
     <h2 style="margin:0 0 4px;color:#c8e6c0;font-size:20px;font-weight:600;">📊 Daten exportieren</h2>
     <p style="margin:0 0 18px;color:#8ab882;font-size:13px;">Wähle die Daten und den Zeitraum.</p>
@@ -5797,14 +5812,14 @@ window.runPdfExport = runPdfExport;
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button onclick="closeExportPanel()" style="flex:1;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:14px;font-family:inherit;cursor:pointer;">Abbrechen</button>
-      <button onclick="runCsvExport()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#2d6a27;color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📥 Herunterladen</button>
+      <button onclick="document.getElementById('export-overlay').style.display='none'" style="flex:1;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:14px;font-family:inherit;cursor:pointer;">Abbrechen</button>
+      <button onclick="if(typeof runCsvExport==='function'){runCsvExport()}else{alert('Bitte App komplett laden und nochmal versuchen.')}" style="flex:2;padding:11px;border-radius:9px;border:none;background:#2d6a27;color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📥 Herunterladen</button>
     </div>
   </div>
 </div>
 
 <!-- ── PDF EXPORT PANEL ────────────────────────────────────────── -->
-<div id="pdf-export-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9950;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closePdfExportPanel()">
+<div id="pdf-export-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9950;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)this.style.display='none'">
   <div style="background:#1a2e1a;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;">
     <h2 style="margin:0 0 4px;color:#c8e6c0;font-size:20px;font-weight:600;">📄 Karte als PDF</h2>
     <p style="margin:0 0 18px;color:#8ab882;font-size:13px;">Karte mit Rückegassen und Poltern – für den Kunden.</p>
@@ -5841,8 +5856,8 @@ window.runPdfExport = runPdfExport;
     </div>
 
     <div style="display:flex;gap:10px;">
-      <button onclick="closePdfExportPanel()" style="flex:1;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:14px;font-family:inherit;cursor:pointer;">Abbrechen</button>
-      <button onclick="runPdfExport()" id="pdf-export-btn" style="flex:2;padding:11px;border-radius:9px;border:none;background:#2d6a27;color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📥 PDF erstellen</button>
+      <button onclick="document.getElementById('pdf-export-overlay').style.display='none'" style="flex:1;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:14px;font-family:inherit;cursor:pointer;">Abbrechen</button>
+      <button onclick="if(typeof runPdfExport==='function'){runPdfExport()}else{alert('Bitte App komplett laden und nochmal versuchen.')}" id="pdf-export-btn" style="flex:2;padding:11px;border-radius:9px;border:none;background:#2d6a27;color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📥 PDF erstellen</button>
     </div>
   </div>
 </div>
