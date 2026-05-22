@@ -1143,6 +1143,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -1519,7 +1521,8 @@ if ('serviceWorker' in navigator) {
       <div class="slide-btn-info"><div class="slide-btn-label">GPX exportieren</div><div class="slide-btn-desc">Strecke als Datei speichern</div></div>
     </button>
 
-    <!-- Forwarder -->
+    <!-- Forwarder (nur für Fahrer) -->
+    <div id="smenu-sec-forwarder-wrap">
     <div class="slide-section-title" id="smenu-sec-forwarder">Forwarder</div>
     <button class="slide-btn" id="smenu-arbeit" onclick="document.getElementById('btn-arbeit').click();closeSlideMenu()">
       <div class="slide-btn-icon green">📋</div>
@@ -1529,8 +1532,10 @@ if ('serviceWorker' in navigator) {
       <div class="slide-btn-icon blue">🚛</div>
       <div class="slide-btn-info"><div class="slide-btn-label">LKW-Koordinaten</div><div class="slide-btn-desc">Polterplätze für LKW teilen</div></div>
     </button>
+    </div>
 
-    <!-- Maschine -->
+    <!-- Maschine (nur für Fahrer) -->
+    <div id="smenu-sec-maschine-wrap">
     <div class="slide-section-title" id="smenu-sec-machine">Maschine</div>
     <div style="padding:0 12px 6px;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.06);">
@@ -1548,8 +1553,10 @@ if ('serviceWorker' in navigator) {
           style="width:64px;font-size:14px;font-weight:600;color:#c8e6c0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:5px 8px;text-align:center;font-family:inherit;">
       </div>
     </div>
+    </div>
 
-    <!-- Stoppuhr -->
+    <!-- Stoppuhr (nur für Fahrer) -->
+    <div id="smenu-sec-stoppuhr">
     <div class="slide-section-title">Stoppuhr</div>
     <div style="padding:8px 12px;display:flex;align-items:center;gap:8px;">
       <span id="timer-display-menu" style="font-size:22px;font-weight:600;color:#b5d4f4;font-variant-numeric:tabular-nums;min-width:85px;letter-spacing:.02em;">00:00:00</span>
@@ -1559,6 +1566,7 @@ if ('serviceWorker' in navigator) {
     <div style="padding:0 12px 8px;display:flex;gap:8px;">
       <button id="timer-start-menu" onclick="document.getElementById('btn-timer-start').click()" style="flex:1;padding:10px;border-radius:9px;border:none;background:#2d6a27;color:#e8f5e4;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">▶ Start</button>
       <button id="timer-stop-menu" onclick="document.getElementById('btn-timer-stop').click()" style="flex:1;padding:10px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:#8ab882;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">⏹ Stopp</button>
+    </div>
     </div>
 
     <!-- Einstellungen -->
@@ -1853,36 +1861,20 @@ if ('serviceWorker' in navigator) {
 
         <!-- Admin-Bereich (nur für Admins) -->
         <div class="settings-section" id="settings-admin-section">
-          <div class="settings-section-title">Administration</div>
-          <div class="settings-row" onclick="closeSettings();openDriversScreen()">
-            <div class="settings-icon green">👷</div>
+          <div class="settings-section-title">Export</div>
+          <div class="settings-row" onclick="openExportPanel()">
+            <div class="settings-icon green">📊</div>
             <div class="settings-row-info">
-              <div class="settings-row-title">Fahrer verwalten</div>
-              <div class="settings-row-desc">Konten anlegen & löschen</div>
+              <div class="settings-row-title">Daten exportieren (CSV)</div>
+              <div class="settings-row-desc">Auswahl: Polter, Strecken, Zeiten, Fahrer</div>
             </div>
             <span class="settings-row-arrow">›</span>
           </div>
-          <div class="settings-row" onclick="closeSettings();openAreasScreen()">
-            <div class="settings-icon green">📍</div>
+          <div class="settings-row" onclick="openPdfExportPanel()">
+            <div class="settings-icon blue">📄</div>
             <div class="settings-row-info">
-              <div class="settings-row-title">Einschlagsgebiete</div>
-              <div class="settings-row-desc">Gebiete und Statistiken</div>
-            </div>
-            <span class="settings-row-arrow">›</span>
-          </div>
-          <div class="settings-row" onclick="closeSettings();showDashWork()">
-            <div class="settings-icon blue">🚜</div>
-            <div class="settings-row-info">
-              <div class="settings-row-title">Als Fahrer arbeiten</div>
-              <div class="settings-row-desc">Harvester oder Forwarder starten</div>
-            </div>
-            <span class="settings-row-arrow">›</span>
-          </div>
-          <div class="settings-row" onclick="closeSettings();showDashMap()">
-            <div class="settings-icon blue">🗺</div>
-            <div class="settings-row-info">
-              <div class="settings-row-title">Karte öffnen</div>
-              <div class="settings-row-desc">Alle Polter & Strecken</div>
+              <div class="settings-row-title">Karte als PDF</div>
+              <div class="settings-row-desc">Rückegassen & Polter für Kunden</div>
             </div>
             <span class="settings-row-arrow">›</span>
           </div>
@@ -3983,13 +3975,7 @@ const BASE = { crossOrigin:true, keepBuffer:8, updateWhenIdle:false, updateWhenZ
 const LAYERS = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { ...BASE, maxZoom:22, maxNativeZoom:19, attribution:'© OpenStreetMap' }),
   sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { ...BASE, maxZoom:MAX_ESRI, maxNativeZoom:MAX_ESRI, attribution:'© Esri' }),
-  satLabel: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { ...BASE, maxZoom:MAX_ESRI, maxNativeZoom:MAX_ESRI, attribution:'', opacity:.9 }),
-  // Lantmäteriet "Min karta" – Topografisk webbkarta (braucht eigenen Token!)
-  // Token holen: https://opendata.lantmateriet.se → Konto erstellen → "Topografisk webbkarta" abonnieren
-  // Dann hier LANTMATERIET_TOKEN ersetzen
-  minkarta: L.tileLayer('https://api.lantmateriet.se/open/topowebb-ccby/v1/wmts/token/LANTMATERIET_TOKEN/1.0.0/topowebb/default/3857/{z}/{y}/{x}.png', { ...BASE, maxZoom:17, maxNativeZoom:17, attribution:'© Lantmäteriet' }),
-  // OpenTopoMap als Alternative (kein Token nötig, weltweit)
-  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { ...BASE, subdomains:'abc', maxZoom:17, maxNativeZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)' })
+  satLabel: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { ...BASE, maxZoom:MAX_ESRI, maxNativeZoom:MAX_ESRI, attribution:'', opacity:.9 })
 };
 const BingLayer = L.TileLayer.extend({
   getTileUrl(c) {
@@ -4437,6 +4423,22 @@ function startMode(mode) {
   if (adminGpsSec2)  adminGpsSec2.style.display  = isAdmin ? '' : 'none';
   if (adminGpsTgl2)  adminGpsTgl2.style.display  = isAdmin ? 'flex' : 'none';
   if (adminOwnTgl2)  adminOwnTgl2.style.display  = isAdmin ? 'flex' : 'none';
+
+  // Stoppuhr nur für Fahrer (nicht im Admin-Dashboard-Modus)
+  const stoppuhrSec = document.getElementById('smenu-sec-stoppuhr');
+  if (stoppuhrSec) stoppuhrSec.style.display = isAdmin ? 'none' : '';
+
+  // Maschine-Einstellungen nur für Fahrer
+  const maschineSec = document.getElementById('smenu-sec-maschine-wrap');
+  if (maschineSec) maschineSec.style.display = isAdmin ? 'none' : '';
+
+  // Harvester-Sektion nur für Harvester-Fahrer (Admin im Admin-Modus oder Forwarder: ausblenden)
+  const harvSec = document.getElementById('smenu-sec-harvester-wrap');
+  if (harvSec) harvSec.style.display = isH ? '' : 'none';
+
+  // Forwarder-Sektion nur für Forwarder-Fahrer
+  const fwSec = document.getElementById('smenu-sec-forwarder-wrap');
+  if (fwSec) fwSec.style.display = isForward ? '' : 'none';
 
   const topbar    = document.getElementById('topbar');
   const statusbar = document.getElementById('statusbar');
@@ -5251,31 +5253,8 @@ document.getElementById('btn-cache').addEventListener('click',async()=>{
 // ── BASEMAP ───────────────────────────────────────────────────────
 document.getElementById('btn-basemap').addEventListener('click',()=>{
   const btn=document.getElementById('btn-basemap');
-  // Prüfe ob Lantmäteriet-Token gesetzt ist
-  const hasLantmateriet = !LAYERS.minkarta._url.includes('LANTMATERIET_TOKEN');
-  if(currentBasemap==='osm'){
-    map.removeLayer(LAYERS.osm);bingActive=false;
-    LAYERS.sat.addTo(map);LAYERS.satLabel.addTo(map);
-    currentBasemap='sat';btn.textContent='⛰️ Topo';
-    btn.style.background='#5a3a1a';btn.style.borderColor='#8a6030';
-    updateSatLayer();setTimeout(prefetchTiles,200);
-  }
-  else if(currentBasemap==='sat'){
-    [LAYERS.sat,LAYERS.satLabel,bingLayer].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});
-    bingActive=false;
-    LAYERS.topo.addTo(map);
-    currentBasemap='topo';
-    btn.textContent = hasLantmateriet ? '🇸🇪 Min Karta' : '🛣 Straße';
-    btn.style.background='#2a5a2a';btn.style.borderColor='#4a8a4a';
-  }
-  else if(currentBasemap==='topo' && hasLantmateriet){
-    map.removeLayer(LAYERS.topo);
-    LAYERS.minkarta.addTo(map);
-    currentBasemap='minkarta';
-    btn.textContent='🛣 Straße';
-    btn.style.background='#1a4a5a';btn.style.borderColor='#3070a0';
-  }
-  else{[LAYERS.sat,LAYERS.satLabel,LAYERS.topo,LAYERS.minkarta,bingLayer].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});bingActive=false;LAYERS.osm.addTo(map);currentBasemap='osm';btn.textContent='🛰 Satellit';btn.style.background='rgba(255,255,255,0.1)';btn.style.borderColor='rgba(255,255,255,0.18)';}
+  if(currentBasemap==='osm'){map.removeLayer(LAYERS.osm);bingActive=false;LAYERS.sat.addTo(map);LAYERS.satLabel.addTo(map);currentBasemap='sat';btn.textContent='🗺 Karte';btn.style.background='#5a3a1a';btn.style.borderColor='#8a6030';updateSatLayer();setTimeout(prefetchTiles,200);}
+  else{[LAYERS.sat,LAYERS.satLabel,bingLayer].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});bingActive=false;LAYERS.osm.addTo(map);currentBasemap='osm';btn.textContent='🛰 Satellit';btn.style.background='rgba(255,255,255,0.1)';btn.style.borderColor='rgba(255,255,255,0.18)';}
   markers.forEach(m=>{try{m.layer.bringToFront();}catch{}});
 });
 
@@ -5430,8 +5409,437 @@ if (_btnHelp) {
   });
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// CSV EXPORT
+// ══════════════════════════════════════════════════════════════
+async function openExportPanel() {
+  const ovl = document.getElementById('export-overlay');
+  if (!ovl) return;
+  ovl.style.display = 'flex';
+  // Fahrer-Liste füllen
+  try {
+    const drivers = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&select=id,name,role&order=name');
+    const sel = document.getElementById('exp-driver');
+    sel.innerHTML = '<option value="">Alle Fahrer</option>' +
+      (drivers || []).filter(d => d.role !== 'admin')
+        .map(d => `<option value="${d.id}">${d.name} (${d.role==='harvester'?'H':'F'})</option>`).join('');
+  } catch(e) { console.warn('Driver list:', e); }
+}
+
+function closeExportPanel() {
+  const ovl = document.getElementById('export-overlay');
+  if (ovl) ovl.style.display = 'none';
+}
+
+function csvEscape(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+  // BOM für Excel UTF-8
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+async function runCsvExport() {
+  const expPolter = document.getElementById('exp-polter').checked;
+  const expFuhren = document.getElementById('exp-fuhren').checked;
+  const expTracks = document.getElementById('exp-tracks').checked;
+  const expTime = document.getElementById('exp-time').checked;
+  const expAreas = document.getElementById('exp-areas').checked;
+  const period = document.getElementById('exp-period').value;
+  const driverId = document.getElementById('exp-driver').value;
+
+  if (!expPolter && !expFuhren && !expTracks && !expTime && !expAreas) {
+    showToast('⚠️ Bitte mindestens eine Datenart auswählen');
+    return;
+  }
+
+  // Zeitfilter
+  let timeFilter = '';
+  if (period !== 'all') {
+    const cutoff = new Date(Date.now() - parseInt(period) * 86400000).toISOString();
+    timeFilter = '&created_at=gte.' + encodeURIComponent(cutoff);
+  }
+  const driverFilter = driverId ? '&created_by=eq.' + driverId : '';
+  const today = new Date().toISOString().slice(0,10);
+
+  try {
+    // Fahrer-Map für Namen
+    const drivers = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&select=id,name');
+    const dName = {};
+    (drivers||[]).forEach(d => { dName[d.id] = d.name; });
+
+    // Gebiete-Map für Namen
+    const areas = await dbFetch('areas?company_id=eq.'+currentProfile.company_id+'&select=id,name');
+    const aName = {};
+    (areas||[]).forEach(a => { aName[a.id] = a.name; });
+
+    let exported = 0;
+
+    if (expPolter || expFuhren) {
+      const markers = await dbFetch('markers?company_id=eq.'+currentProfile.company_id+timeFilter+driverFilter+'&order=created_at.desc');
+      if (expPolter) {
+        const polters = (markers||[]).filter(m => m.typ === 'harvester');
+        const rows = [['Datum','Fahrer','Gebiet','Lat','Lng','Art','Eingesammelt','Notiz']];
+        polters.forEach(m => rows.push([
+          new Date(m.created_at).toLocaleString('de-DE'),
+          dName[m.created_by]||'',
+          aName[m.area_id]||'',
+          m.lat, m.lng,
+          m.art||'',
+          m.done?'Ja':'Nein',
+          m.note||''
+        ]));
+        downloadCSV('polter_'+today+'.csv', rows);
+        exported++;
+      }
+      if (expFuhren) {
+        const fuhren = (markers||[]).filter(m => m.typ === 'ruecke');
+        const rows = [['Datum','Fahrer','Gebiet','Lat','Lng','Fuhren','Fm pro Fuhre','Gesamt Fm']];
+        fuhren.forEach(m => rows.push([
+          new Date(m.created_at).toLocaleString('de-DE'),
+          dName[m.created_by]||'',
+          aName[m.area_id]||'',
+          m.lat, m.lng,
+          m.fuhren||0,
+          m.fm_pro_fuhre||0,
+          (m.fuhren||0) * (m.fm_pro_fuhre||0)
+        ]));
+        downloadCSV('fuhren_'+today+'.csv', rows);
+        exported++;
+      }
+    }
+
+    if (expTracks) {
+      const tracks = await dbFetch('tracks?company_id=eq.'+currentProfile.company_id+timeFilter+driverFilter+'&order=created_at.desc');
+      const rows = [['Datum','Fahrer','Gebiet','Distanz (m)','Punkte']];
+      (tracks||[]).forEach(t => rows.push([
+        new Date(t.created_at).toLocaleString('de-DE'),
+        dName[t.created_by]||'',
+        aName[t.area_id]||'',
+        Math.round(t.distance_m||0),
+        (t.points||[]).length
+      ]));
+      downloadCSV('strecken_'+today+'.csv', rows);
+      exported++;
+    }
+
+    if (expTime) {
+      const profFilter = driverId ? '&profile_id=eq.' + driverId : '';
+      const entries = await dbFetch('time_entries?company_id=eq.'+currentProfile.company_id+timeFilter.replace('created_at','started_at')+profFilter+'&order=started_at.desc');
+      const rows = [['Datum','Fahrer','Dauer (h)','Notiz']];
+      (entries||[]).forEach(e => rows.push([
+        new Date(e.started_at).toLocaleString('de-DE'),
+        dName[e.profile_id]||'',
+        ((e.duration_seconds||0)/3600).toFixed(2),
+        e.note||''
+      ]));
+      downloadCSV('zeiten_'+today+'.csv', rows);
+      exported++;
+    }
+
+    if (expAreas) {
+      const rows = [['Name','Erstellt am']];
+      (areas||[]).forEach(a => rows.push([
+        a.name,
+        new Date(a.created_at).toLocaleString('de-DE')
+      ]));
+      downloadCSV('gebiete_'+today+'.csv', rows);
+      exported++;
+    }
+
+    closeExportPanel();
+    showToast('✓ ' + exported + ' CSV-Datei' + (exported>1?'en':'') + ' heruntergeladen');
+  } catch(e) {
+    console.error('Export Error:', e);
+    showToast('⚠️ Export-Fehler: ' + (e.message || 'Unbekannt'));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// PDF EXPORT (Karte mit Rückegassen & Polter)
+// ══════════════════════════════════════════════════════════════
+async function openPdfExportPanel() {
+  const ovl = document.getElementById('pdf-export-overlay');
+  if (!ovl) return;
+  ovl.style.display = 'flex';
+  // Gebiete-Liste füllen
+  try {
+    const areas = await dbFetch('areas?company_id=eq.'+currentProfile.company_id+'&select=id,name&order=name');
+    const sel = document.getElementById('pdf-area');
+    sel.innerHTML = '<option value="">Alle Gebiete</option>' +
+      (areas||[]).map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  } catch(e) { console.warn('Area list:', e); }
+}
+
+function closePdfExportPanel() {
+  const ovl = document.getElementById('pdf-export-overlay');
+  if (ovl) ovl.style.display = 'none';
+}
+
+async function runPdfExport() {
+  const btn = document.getElementById('pdf-export-btn');
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Karte wird vorbereitet...';
+  btn.disabled = true;
+
+  const areaId = document.getElementById('pdf-area').value;
+  const showTracks = document.getElementById('pdf-tracks').checked;
+  const showPolter = document.getElementById('pdf-polter').checked;
+  const showAreas = document.getElementById('pdf-areas').checked;
+  const basemap = document.getElementById('pdf-basemap').value;
+
+  try {
+    // Daten holen
+    const areaFilter = areaId ? '&area_id=eq.' + areaId : '';
+    const markersData = showPolter ? (await dbFetch('markers?company_id=eq.'+currentProfile.company_id+areaFilter)) || [] : [];
+    const tracksData = showTracks ? (await dbFetch('tracks?company_id=eq.'+currentProfile.company_id+areaFilter)) || [] : [];
+
+    if (markersData.length === 0 && tracksData.length === 0) {
+      showToast('⚠️ Keine Daten zum Anzeigen');
+      btn.textContent = orig; btn.disabled = false;
+      return;
+    }
+
+    // Off-screen Karte erstellen (1200x900 für gute PDF-Qualität)
+    const pdfMapEl = document.createElement('div');
+    pdfMapEl.id = 'pdf-map-temp';
+    pdfMapEl.style.cssText = 'position:fixed;left:-9999px;top:0;width:1200px;height:900px;';
+    document.body.appendChild(pdfMapEl);
+
+    const pdfMap = L.map(pdfMapEl, {
+      zoomControl: false, attributionControl: false,
+      preferCanvas: true
+    });
+
+    const tileUrl = basemap === 'sat' 
+      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const tileLayer = L.tileLayer(tileUrl, {maxZoom:18, crossOrigin:'anonymous'}).addTo(pdfMap);
+
+    // Bounds berechnen
+    const allPts = [];
+    markersData.forEach(m => allPts.push([m.lat, m.lng]));
+    tracksData.forEach(t => (t.points||[]).forEach(p => allPts.push([p.lat||p[0], p.lng||p[1]])));
+    
+    if (allPts.length === 0) {
+      pdfMap.setView([62.0, 15.0], 8);
+    } else {
+      const bounds = L.latLngBounds(allPts);
+      pdfMap.fitBounds(bounds, {padding:[40,40]});
+    }
+
+    // Tracks zeichnen
+    tracksData.forEach(t => {
+      const pts = (t.points||[]).map(p => [p.lat||p[0], p.lng||p[1]]).filter(p => p[0] && p[1]);
+      if (pts.length > 1) {
+        L.polyline(pts, {color:'#ff3333', weight:3, opacity:.9}).addTo(pdfMap);
+      }
+    });
+
+    // Polter zeichnen
+    markersData.forEach(m => {
+      if (m.typ === 'harvester') {
+        L.circleMarker([m.lat, m.lng], {
+          radius:7, fillColor:'#ffaa00', color:'#fff', weight:2, fillOpacity:1
+        }).addTo(pdfMap);
+      } else if (m.typ === 'ruecke') {
+        L.circleMarker([m.lat, m.lng], {
+          radius:7, fillColor:'#33ff33', color:'#fff', weight:2, fillOpacity:1
+        }).addTo(pdfMap);
+      }
+    });
+
+    // Auf Tiles warten
+    await new Promise(resolve => {
+      let loaded = false;
+      tileLayer.on('load', () => { if(!loaded){loaded=true; setTimeout(resolve, 800);} });
+      setTimeout(() => { if(!loaded){loaded=true; resolve();} }, 6000); // Fallback
+    });
+
+    // Snapshot mit html2canvas
+    const canvas = await html2canvas(pdfMapEl, {
+      useCORS: true, allowTaint: true, logging: false,
+      width: 1200, height: 900, scale: 1
+    });
+
+    // PDF erstellen (A4 Querformat)
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    
+    // Seite 1: Header + Karte
+    pdf.setFontSize(18);
+    pdf.setTextColor(45, 90, 39);
+    pdf.text('Lignum – Rückegassen & Polter', 15, 15);
+    
+    pdf.setFontSize(10);
+    pdf.setTextColor(100, 100, 100);
+    const areaName = areaId ? (document.getElementById('pdf-area').selectedOptions[0].text) : 'Alle Gebiete';
+    pdf.text('Gebiet: ' + areaName + '   •   Stand: ' + new Date().toLocaleDateString('de-DE'), 15, 21);
+    pdf.text('Firma: ' + (currentProfile?.name || ''), 15, 26);
+
+    // Karte einfügen
+    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+    pdf.addImage(imgData, 'JPEG', 15, 32, 267, 165);
+
+    // Legende
+    let ly = 202;
+    pdf.setFontSize(9);
+    pdf.setTextColor(60, 60, 60);
+    if (tracksData.length > 0) {
+      pdf.setFillColor(255, 51, 51);
+      pdf.rect(15, ly-3, 4, 1.5, 'F');
+      pdf.text('Rückegassen (' + tracksData.length + ' Strecken)', 22, ly);
+    }
+    if (markersData.filter(m=>m.typ==='harvester').length > 0) {
+      pdf.setFillColor(255, 170, 0);
+      pdf.circle(80, ly-1, 1.5, 'F');
+      pdf.text('Polter (' + markersData.filter(m=>m.typ==='harvester').length + ')', 84, ly);
+    }
+    if (markersData.filter(m=>m.typ==='ruecke').length > 0) {
+      pdf.setFillColor(51, 255, 51);
+      pdf.circle(140, ly-1, 1.5, 'F');
+      pdf.text('Eingesammelt (' + markersData.filter(m=>m.typ==='ruecke').length + ')', 144, ly);
+    }
+
+    // PDF speichern
+    const today = new Date().toISOString().slice(0,10);
+    pdf.save('lignum_karte_' + today + '.pdf');
+
+    // Cleanup
+    pdfMap.remove();
+    pdfMapEl.remove();
+
+    closePdfExportPanel();
+    showToast('✓ PDF erstellt');
+  } catch(e) {
+    console.error('PDF Export:', e);
+    showToast('⚠️ PDF-Fehler: ' + (e.message || 'Unbekannt'));
+    // Cleanup falls Fehler
+    const tmp = document.getElementById('pdf-map-temp');
+    if (tmp) tmp.remove();
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
+
 })();
 </script>
+
+
+<!-- ── CSV EXPORT PANEL ────────────────────────────────────────── -->
+<div id="export-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9950;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeExportPanel()">
+  <div style="background:#1a2e1a;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;">
+    <h2 style="margin:0 0 4px;color:#c8e6c0;font-size:20px;font-weight:600;">📊 Daten exportieren</h2>
+    <p style="margin:0 0 18px;color:#8ab882;font-size:13px;">Wähle die Daten und den Zeitraum.</p>
+
+    <div style="margin-bottom:16px;">
+      <div style="color:#c8e6c0;font-size:13px;font-weight:600;margin-bottom:8px;">Welche Daten?</div>
+      <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;cursor:pointer;">
+        <input type="checkbox" id="exp-polter" checked style="width:18px;height:18px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">🪵 Polter (Harvester-Markierungen)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;cursor:pointer;">
+        <input type="checkbox" id="exp-fuhren" checked style="width:18px;height:18px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">🚜 Fuhren (Forwarder-Eingesammelt)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;cursor:pointer;">
+        <input type="checkbox" id="exp-tracks" style="width:18px;height:18px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">🛣 Strecken (GPS-Tracks)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;cursor:pointer;">
+        <input type="checkbox" id="exp-time" style="width:18px;height:18px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">⏱ Zeiteinträge</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;cursor:pointer;">
+        <input type="checkbox" id="exp-areas" style="width:18px;height:18px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">📍 Einschlagsgebiete</span>
+      </label>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="color:#c8e6c0;font-size:13px;font-weight:600;margin-bottom:8px;">Zeitraum</div>
+      <select id="exp-period" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.06);color:#c8e6c0;border:1px solid rgba(255,255,255,.12);border-radius:8px;font-family:inherit;font-size:14px;">
+        <option value="all">Alles</option>
+        <option value="7">Letzte 7 Tage</option>
+        <option value="30">Letzte 30 Tage</option>
+        <option value="90">Letzte 90 Tage</option>
+        <option value="365">Letztes Jahr</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="color:#c8e6c0;font-size:13px;font-weight:600;margin-bottom:8px;">Fahrer (optional)</div>
+      <select id="exp-driver" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.06);color:#c8e6c0;border:1px solid rgba(255,255,255,.12);border-radius:8px;font-family:inherit;font-size:14px;">
+        <option value="">Alle Fahrer</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeExportPanel()" style="flex:1;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:14px;font-family:inherit;cursor:pointer;">Abbrechen</button>
+      <button onclick="runCsvExport()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#2d6a27;color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📥 Herunterladen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PDF EXPORT PANEL ────────────────────────────────────────── -->
+<div id="pdf-export-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9950;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closePdfExportPanel()">
+  <div style="background:#1a2e1a;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;">
+    <h2 style="margin:0 0 4px;color:#c8e6c0;font-size:20px;font-weight:600;">📄 Karte als PDF</h2>
+    <p style="margin:0 0 18px;color:#8ab882;font-size:13px;">Karte mit Rückegassen und Poltern – für den Kunden.</p>
+
+    <div style="margin-bottom:14px;">
+      <div style="color:#c8e6c0;font-size:13px;font-weight:600;margin-bottom:8px;">Einschlagsgebiet</div>
+      <select id="pdf-area" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.06);color:#c8e6c0;border:1px solid rgba(255,255,255,.12);border-radius:8px;font-family:inherit;font-size:14px;">
+        <option value="">Alle Gebiete</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div style="color:#c8e6c0;font-size:13px;font-weight:600;margin-bottom:8px;">Anzeigen</div>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:5px;cursor:pointer;">
+        <input type="checkbox" id="pdf-tracks" checked style="width:17px;height:17px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">Rückegassen (Strecken)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:5px;cursor:pointer;">
+        <input type="checkbox" id="pdf-polter" checked style="width:17px;height:17px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">Polter (Markierungen)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;cursor:pointer;">
+        <input type="checkbox" id="pdf-areas" checked style="width:17px;height:17px;accent-color:#2d6a27;">
+        <span style="color:#c8e6c0;font-size:14px;">Gebietsgrenzen</span>
+      </label>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="color:#c8e6c0;font-size:13px;font-weight:600;margin-bottom:8px;">Karte</div>
+      <select id="pdf-basemap" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.06);color:#c8e6c0;border:1px solid rgba(255,255,255,.12);border-radius:8px;font-family:inherit;font-size:14px;">
+        <option value="sat">Satellit</option>
+        <option value="osm">Straßenkarte</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button onclick="closePdfExportPanel()" style="flex:1;padding:11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:14px;font-family:inherit;cursor:pointer;">Abbrechen</button>
+      <button onclick="runPdfExport()" id="pdf-export-btn" style="flex:2;padding:11px;border-radius:9px;border:none;background:#2d6a27;color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">📥 PDF erstellen</button>
+    </div>
+  </div>
+</div>
+
 
 </body>
 </html>
