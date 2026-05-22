@@ -5736,6 +5736,13 @@ async function runPdfExport() {
   }
 }
 
+// Globale Exports für onclick-Handler im HTML
+window.openExportPanel = openExportPanel;
+window.closeExportPanel = closeExportPanel;
+window.runCsvExport = runCsvExport;
+window.openPdfExportPanel = openPdfExportPanel;
+window.closePdfExportPanel = closePdfExportPanel;
+window.runPdfExport = runPdfExport;
 
 })();
 </script>
