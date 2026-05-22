@@ -1862,7 +1862,7 @@ if ('serviceWorker' in navigator) {
         <!-- Admin-Bereich (nur für Admins) -->
         <div class="settings-section" id="settings-admin-section">
           <div class="settings-section-title">Export</div>
-          <div class="settings-row" onclick="openExportPanel()">
+          <div class="settings-row" onclick="closeSettings();setTimeout(function(){var o=document.getElementById('export-overlay');if(o)o.style.display='flex';if(typeof openExportPanel==='function')openExportPanel();},100);">
             <div class="settings-icon green">📊</div>
             <div class="settings-row-info">
               <div class="settings-row-title">Daten exportieren (CSV)</div>
@@ -1870,7 +1870,7 @@ if ('serviceWorker' in navigator) {
             </div>
             <span class="settings-row-arrow">›</span>
           </div>
-          <div class="settings-row" onclick="openPdfExportPanel()">
+          <div class="settings-row" onclick="closeSettings();setTimeout(function(){var o=document.getElementById('pdf-export-overlay');if(o)o.style.display='flex';if(typeof openPdfExportPanel==='function')openPdfExportPanel();},100);">
             <div class="settings-icon blue">📄</div>
             <div class="settings-row-info">
               <div class="settings-row-title">Karte als PDF</div>
