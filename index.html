@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="3.8">
+  <meta name="app-version" content="4.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -145,12 +145,123 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #driver-start{
   position:fixed;inset:0;z-index:9000;
   background:linear-gradient(165deg,var(--bg) 0%,#081508 100%);
-  display:none;flex-direction:column;align-items:center;justify-content:center;
-  padding:28px;gap:12px;padding-bottom:max(28px,var(--safe-bottom));
+  display:none;flex-direction:column;
+  padding:0;padding-bottom:max(16px,var(--safe-bottom));
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
 #driver-start.active{display:flex;}
-#driver-start h1{color:#c8e6c0;font-size:24px;font-weight:300;letter-spacing:-.5px;}
-.driver-welcome{color:#5a8a5a;font-size:13px;margin-bottom:4px;}
+
+/* Header */
+.ds-header{
+  display:flex;align-items:center;gap:11px;
+  padding:14px 16px;padding-top:max(14px,var(--safe-top));
+  flex-shrink:0;
+}
+.ds-logo{
+  width:38px;height:38px;border-radius:10px;flex-shrink:0;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.ds-brand{flex:1;min-width:0;}
+.ds-name{font-size:17px;font-weight:600;color:#c8e6c0;letter-spacing:-.01em;}
+.ds-tagline{font-size:11px;color:#6a9a6a;margin-top:1px;}
+.ds-icon-btn{
+  width:38px;height:38px;border-radius:10px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  color:#a0c8a0;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-family:inherit;-webkit-tap-highlight-color:transparent;
+}
+.ds-icon-btn:active{background:rgba(255,255,255,.1);}
+
+/* Map Preview */
+.ds-map-preview{
+  position:relative;flex-shrink:0;
+  height:240px;overflow:hidden;cursor:pointer;background:#2a4a2a;
+  border-radius:16px;margin:0 16px;
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+@media(min-height:750px) {.ds-map-preview{height:280px;}}
+@media(min-height:900px) {.ds-map-preview{height:320px;}}
+#driver-map-preview{position:absolute;inset:0;width:100%;height:100%;z-index:1;}
+.ds-map-overlay{
+  position:absolute;inset:0;z-index:10;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding:14px;
+  background:linear-gradient(to top, rgba(0,0,0,.65) 0%, transparent 55%);
+  transition:background .2s;
+}
+.ds-map-preview:active .ds-map-overlay{background:rgba(0,0,0,.35);}
+.ds-map-stats{display:flex;gap:7px;margin-bottom:11px;}
+.ds-map-stat{
+  background:rgba(0,0,0,.55);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.12);border-radius:11px;
+  padding:7px 13px;text-align:center;min-width:62px;
+}
+.ds-map-stat-val{
+  font-size:16px;font-weight:600;color:#c8e6c0;line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.ds-map-stat-lbl{
+  font-size:9px;color:#8ab882;text-transform:uppercase;
+  letter-spacing:.06em;margin-top:3px;
+}
+.ds-map-btn{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 22px;border-radius:24px;
+  background:rgba(255,255,255,.15);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.25);
+  color:#fff;font-size:13px;font-weight:600;
+}
+
+/* Maschinen-Karte */
+.ds-machine-card{
+  margin:14px 16px 0;padding:18px;
+  border-radius:16px;border:1px solid rgba(74,154,64,.28);
+  background:linear-gradient(165deg,rgba(45,90,39,.22),rgba(45,90,39,.05));
+  display:flex;flex-direction:column;gap:14px;flex-shrink:0;
+}
+.ds-machine-row{display:flex;align-items:center;gap:14px;}
+.ds-machine-icon{font-size:40px;flex-shrink:0;line-height:1;}
+.ds-machine-info{flex:1;min-width:0;}
+.ds-machine-title{font-size:18px;font-weight:600;color:#c8e6c0;letter-spacing:-.01em;}
+.ds-machine-desc{font-size:11px;color:#7ab070;margin-top:3px;line-height:1.45;}
+.ds-start-btn{
+  width:100%;padding:15px;border-radius:12px;border:none;
+  background:linear-gradient(135deg,#2d6a27,#3a8030);
+  color:#e8f5e4;font-size:15px;font-weight:600;
+  font-family:inherit;cursor:pointer;touch-action:manipulation;
+  transition:transform .15s,opacity .15s;
+  box-shadow:0 4px 14px rgba(45,90,39,.45);
+}
+.ds-start-btn:active{transform:scale(.98);opacity:.92;}
+
+/* Quick Actions */
+.ds-quick-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  margin:14px 16px 0;flex-shrink:0;
+}
+.ds-quick-btn{
+  padding:16px 12px;border-radius:13px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
+  color:#c8e6c0;font-family:inherit;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.ds-quick-btn:active{background:rgba(255,255,255,.08);transform:scale(.97);border-color:rgba(74,154,64,.3);}
+.ds-quick-icon{font-size:24px;line-height:1;}
+.ds-quick-label{font-size:13px;font-weight:600;color:#c8e6c0;}
+.ds-quick-sub{font-size:10px;color:#6a9a6a;letter-spacing:.02em;}
+
+/* Footer */
+.ds-logout{
+  background:none;border:none;color:#5a7a5a;font-size:12px;
+  cursor:pointer;font-family:inherit;
+  margin:16px auto 0;padding:8px 24px;display:block;
+}
+
+/* Machine-Card (verwendet vom Admin "Als Fahrer arbeiten"-Screen) */
 .machine-card{
   width:100%;max-width:340px;padding:20px;border-radius:16px;
   border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);
@@ -161,13 +272,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .mc-icon{font-size:36px;flex-shrink:0;}
 .mc-title{font-size:16px;font-weight:500;color:#c8e6c0;margin-bottom:3px;}
 .mc-desc{font-size:11px;color:#5a8a5a;line-height:1.4;}
-.start-btn{
-  width:100%;max-width:340px;padding:15px;border-radius:12px;border:none;
-  background:var(--green);color:#e8f5e4;font-size:15px;font-weight:600;
-  font-family:inherit;cursor:pointer;touch-action:manipulation;transition:all .15s;
-}
-.start-btn:active{opacity:.85;transform:scale(.99);}
-.ds-logout{background:none;border:none;color:#4a6a4a;font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px;}
 
 /* ── TOPBAR ── */
 #topbar{
@@ -1430,7 +1534,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '3.8'")) {
+        if (!txt.includes("APP_VERSION = '4.0'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1692,21 +1796,68 @@ if ('serviceWorker' in navigator) {
 
 <!-- ── FAHRER STARTSEITE ── -->
 <div id="driver-start">
-  <div style="margin-bottom:12px;">
-        <img src="icon-192.png" style="width:80px;height:80px;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,.4);" alt="Lignum"/>
-      </div>
-      <h1><span style="font-size:36px;font-weight:800;letter-spacing:-1px;">Lignum</span></h1>
-  <div class="driver-welcome" id="driver-welcome"></div>
-  <button class="machine-card" id="driver-machine-btn" onclick="startDriverMode()">
-    <span class="mc-icon" id="driver-machine-icon">🪵</span>
-    <div>
-      <div class="mc-title" id="driver-machine-title">Harvester</div>
-      <div class="mc-desc" id="driver-machine-desc">Holzpolter markieren · Strecke aufzeichnen</div>
+  <!-- Header -->
+  <div class="ds-header">
+    <img src="icon-192.png" class="ds-logo" alt="Lignum"/>
+    <div class="ds-brand">
+      <div class="ds-name">Lignum</div>
+      <div class="ds-tagline" id="driver-welcome">👋 Hallo</div>
     </div>
-  </button>
-  <button class="start-btn" onclick="startDriverMode()">▶ Starten</button>
+    <button class="ds-icon-btn" onclick="openSettings()" title="Einstellungen">⚙️</button>
+  </div>
+
+  <!-- Map Preview mit Stats -->
+  <div class="ds-map-preview" onclick="startDriverMode()">
+    <div id="driver-map-preview">
+      <div id="driver-map-bg" style="position:absolute;inset:0;background:#2a4a2a;overflow:hidden;z-index:0;"></div>
+    </div>
+    <div class="ds-map-overlay">
+      <div class="ds-map-stats">
+        <div class="ds-map-stat">
+          <div class="ds-map-stat-val" id="ds-stat-time">0:00</div>
+          <div class="ds-map-stat-lbl">Heute</div>
+        </div>
+        <div class="ds-map-stat">
+          <div class="ds-map-stat-val" id="ds-stat-drivers">0</div>
+          <div class="ds-map-stat-lbl">Aktiv</div>
+        </div>
+        <div class="ds-map-stat">
+          <div class="ds-map-stat-val" id="ds-stat-polter">0</div>
+          <div class="ds-map-stat-lbl">Polter</div>
+        </div>
+      </div>
+      <div class="ds-map-btn">🗺 Karte öffnen</div>
+    </div>
+  </div>
+
+  <!-- Maschinen-Karte mit Start-Button -->
+  <div class="ds-machine-card">
+    <div class="ds-machine-row">
+      <span class="ds-machine-icon" id="driver-machine-icon">🪵</span>
+      <div class="ds-machine-info">
+        <div class="ds-machine-title" id="driver-machine-title">Harvester</div>
+        <div class="ds-machine-desc" id="driver-machine-desc">Holzpolter markieren · Strecke aufzeichnen</div>
+      </div>
+    </div>
+    <button class="ds-start-btn" onclick="startDriverMode()">▶ Starten</button>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="ds-quick-grid">
+    <button class="ds-quick-btn" onclick="openWorktime()">
+      <span class="ds-quick-icon">⏱</span>
+      <span class="ds-quick-label">Zeiterfassung</span>
+      <span class="ds-quick-sub" id="ds-quick-worktime-sub">Heute öffnen</span>
+    </button>
+    <button class="ds-quick-btn" onclick="document.getElementById('help-modal').style.display='flex';setTimeout(updatePwaInstallBtn,50);updatePwaInstallBtn();">
+      <span class="ds-quick-icon">📖</span>
+      <span class="ds-quick-label">Anleitung</span>
+      <span class="ds-quick-sub">So funktioniert's</span>
+    </button>
+  </div>
+
+  <!-- Footer -->
   <button class="ds-logout" onclick="doLogout()">Abmelden</button>
-  <button onclick="document.getElementById('help-modal').style.display='flex';setTimeout(updatePwaInstallBtn,50);;updatePwaInstallBtn();" style="background:none;border:none;color:#4a6044;font-size:11px;cursor:pointer;text-decoration:underline;font-family:inherit;">📖 Anleitung</button>
 </div>
 
 <!-- ── HAUPTAPP ── -->
@@ -3954,8 +4105,8 @@ function initAdminMapPreview() {
   adminPreviewObserver.observe(container);
 }
 
-function showStaticSatellite(container, overrideLat, overrideLon) {
-  const bg = document.getElementById('admin-map-bg');
+function showStaticSatellite(container, overrideLat, overrideLon, bgId) {
+  const bg = document.getElementById(bgId || 'admin-map-bg');
   if (!bg) return;
 
   const W = container.offsetWidth  || window.innerWidth;
@@ -4325,6 +4476,82 @@ function showDriverStart() {
     document.getElementById('driver-machine-title').textContent = 'Forwarder / Rückezug';
     document.getElementById('driver-machine-desc').textContent = 'Arbeitsliste · Polter einsammeln · LKW-Koordinaten teilen';
   }
+
+  // Map-Vorschau initialisieren
+  try { initDriverMapPreview(); } catch(e) { console.warn('initDriverMapPreview:', e); }
+
+  // Stats laden (Worktime, aktive Kollegen, Polter)
+  loadDriverStartStats().catch(e => console.warn('loadDriverStartStats:', e));
+}
+
+function initDriverMapPreview() {
+  const container = document.getElementById('driver-map-preview');
+  if (!container) return;
+  const tryShow = () => {
+    if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+      showStaticSatellite(container, null, null, 'driver-map-bg');
+    } else {
+      setTimeout(tryShow, 100);
+    }
+  };
+  tryShow();
+}
+
+async function loadDriverStartStats() {
+  if (!currentProfile || !currentUser) return;
+  const cId = currentProfile.company_id;
+
+  // 1) Heute-Arbeitszeit (eigene)
+  try {
+    const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+    const todayEntries = await dbFetch(
+      'time_entries?company_id=eq.' + cId +
+      '&profile_id=eq.' + currentUser.id +
+      '&started_at=gte.' + dayStart.toISOString() +
+      '&deleted_at=is.null' +
+      '&select=started_at,stopped_at,pause_seconds,pause_started_at'
+    ) || [];
+    let netSec = 0;
+    todayEntries.forEach(e => {
+      let pause = e.pause_seconds || 0;
+      if (e.pause_started_at) pause += Math.floor((Date.now() - new Date(e.pause_started_at).getTime())/1000);
+      const end = e.stopped_at ? new Date(e.stopped_at).getTime() : Date.now();
+      const total = Math.floor((end - new Date(e.started_at).getTime())/1000);
+      netSec += Math.max(0, total - pause);
+    });
+    const h = Math.floor(netSec/3600), m = Math.floor((netSec%3600)/60);
+    const el = document.getElementById('ds-stat-time');
+    if (el) el.textContent = h + ':' + String(m).padStart(2,'0');
+    const sub = document.getElementById('ds-quick-worktime-sub');
+    if (sub) sub.textContent = netSec > 0 ? 'Heute ' + h + ':' + String(m).padStart(2,'0') : 'Heute öffnen';
+  } catch (e) { console.warn('driver stat: today', e); }
+
+  // 2) Aktive Kollegen (andere Fahrer, in den letzten 15 Min gesehen)
+  try {
+    const drivers = await dbFetch(
+      'profiles?company_id=eq.' + cId +
+      '&id=neq.' + currentUser.id +
+      '&select=id,is_active,last_seen'
+    ) || [];
+    const now = Date.now();
+    const active = drivers.filter(d =>
+      d.is_active && d.last_seen && (now - new Date(d.last_seen).getTime() < 15*60*1000)
+    ).length;
+    const el = document.getElementById('ds-stat-drivers');
+    if (el) el.textContent = active;
+  } catch (e) { console.warn('driver stat: drivers', e); }
+
+  // 3) Offene Polter (Harvester-Marker mit done=false)
+  try {
+    const polter = await dbFetch(
+      'markers?company_id=eq.' + cId +
+      "&typ=eq.harvester" +
+      '&select=done'
+    ) || [];
+    const offen = polter.filter(p => !p.done).length;
+    const el = document.getElementById('ds-stat-polter');
+    if (el) el.textContent = offen;
+  } catch (e) { console.warn('driver stat: polter', e); }
 }
 
 function startDriverMode() {
@@ -6947,22 +7174,122 @@ document.getElementById('btn-grenzen-clear').addEventListener('click',async func
 });
 
 // ── OFFLINE ───────────────────────────────────────────────────────
-document.getElementById('btn-cache').addEventListener('click',async()=>{
-  const wrap=document.getElementById('cache-wrap'),fill=document.getElementById('cache-fill'),txt=document.getElementById('sw-txt');
-  wrap.style.display='block';fill.style.width='0%';txt.textContent=(currentBasemap==='sat'?'Satellitenkacheln':'Kartenkacheln')+' werden geladen...';
-  const bounds=map.getBounds(),zoom=map.getZoom();
-  const minZ=Math.max(zoom-1,10),maxZ=Math.min(zoom+2,19);
-  const urls=[];
-  for(let z=minZ;z<=maxZ;z++){const x0=lon2t(bounds.getWest(),z),x1=lon2t(bounds.getEast(),z);const y0=lat2t(bounds.getNorth(),z),y1=lat2t(bounds.getSouth(),z);for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){if(currentBasemap==='sat')urls.push(satUrl(z,x,y));else urls.push('https://'+('abc'[Math.floor(Math.random()*3)])+'.tile.openstreetmap.org/'+z+'/'+x+'/'+y+'.png');}}
-  const limited=urls.slice(0,400);
-  if(navigator.serviceWorker&&navigator.serviceWorker.controller){
-    navigator.serviceWorker.controller.postMessage({type:'CACHE_TILES',urls:limited,layer:currentBasemap});
-    const h=e=>{if(e.data.type==='CACHE_PROGRESS')fill.style.width=Math.round(e.data.done/e.data.total*100)+'%';if(e.data.type==='CACHE_DONE'){navigator.serviceWorker.removeEventListener('message',h);txt.textContent='✓ '+e.data.total+' Kacheln gespeichert';setTimeout(()=>wrap.style.display='none',3000);}};
-    navigator.serviceWorker.addEventListener('message',h);
+document.getElementById('btn-cache').addEventListener('click', async () => {
+  const wrap = document.getElementById('cache-wrap');
+  const fill = document.getElementById('cache-fill');
+  const txt  = document.getElementById('sw-txt');
+  wrap.style.display = 'block';
+  fill.style.width = '0%';
+  txt.textContent = (currentBasemap==='sat' ? 'Satellitenkacheln' : 'Kartenkacheln') + ' werden geladen...';
+
+  // URLs aufbauen für aktuellen Viewport
+  const bounds = map.getBounds(), zoom = map.getZoom();
+  const minZ = Math.max(zoom-1, 10), maxZ = Math.min(zoom+2, 19);
+  const urls = [];
+  for (let z = minZ; z <= maxZ; z++) {
+    const x0 = lon2t(bounds.getWest(), z),  x1 = lon2t(bounds.getEast(), z);
+    const y0 = lat2t(bounds.getNorth(), z), y1 = lat2t(bounds.getSouth(), z);
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      if (currentBasemap === 'sat') urls.push(satUrl(z, x, y));
+      else urls.push('https://' + ('abc'[Math.floor(Math.random()*3)]) + '.tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png');
+    }
+  }
+  const limited = urls.slice(0, 400);
+  if (limited.length === 0) {
+    txt.textContent = 'Keine Kacheln zu laden';
+    setTimeout(() => wrap.style.display = 'none', 2500);
+    return;
+  }
+
+  // Direkter Download im Main-Thread (Fallback wenn SW nicht reagiert)
+  async function directDownload(urlList) {
+    txt.textContent = 'Direkter Download (' + urlList.length + ' Kacheln)...';
+    let cache = null;
+    try {
+      cache = await caches.open(currentBasemap === 'sat' ? 'lignum-sat-v5' : 'lignum-tiles-v5');
+    } catch (e) { console.warn('caches.open Fehler:', e); }
+    let done = 0;
+    for (let i = 0; i < urlList.length; i += 4) {
+      const batch = urlList.slice(i, i + 4);
+      await Promise.all(batch.map(async url => {
+        try {
+          if (cache) {
+            if (!(await cache.match(url))) {
+              const r = await fetch(url, { mode: 'cors' });
+              if (r && r.ok) await cache.put(url, r);
+            }
+          } else {
+            await fetch(url, { mode: 'cors' });
+          }
+        } catch {}
+        done++;
+        fill.style.width = Math.round(done/urlList.length*100) + '%';
+        txt.textContent = done + ' / ' + urlList.length;
+      }));
+      // Kurzer Yield damit die UI nicht blockiert
+      if (isIOS) await new Promise(r => setTimeout(r, 20));
+    }
+    txt.textContent = '✓ ' + done + ' Kacheln gespeichert';
+    setTimeout(() => wrap.style.display = 'none', 3000);
+  }
+
+  // Bevorzugt: SW-Weg (parallel, mit Background-Cache wenn App im Hintergrund)
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    let lastProgressAt = Date.now();
+    let watchdog = null;
+    let fellBack = false;
+    let finished = false;
+
+    const onSwMsg = e => {
+      if (!e.data) return;
+      if (e.data.type === 'CACHE_PROGRESS') {
+        lastProgressAt = Date.now();
+        fill.style.width = Math.round(e.data.done/e.data.total*100) + '%';
+        txt.textContent = e.data.done + ' / ' + e.data.total;
+      } else if (e.data.type === 'CACHE_DONE') {
+        finished = true;
+        navigator.serviceWorker.removeEventListener('message', onSwMsg);
+        if (watchdog) { clearInterval(watchdog); watchdog = null; }
+        const errPart = e.data.errors > 0 ? ' (' + e.data.errors + ' Fehler)' : '';
+        txt.textContent = '✓ ' + e.data.total + ' Kacheln gespeichert' + errPart;
+        setTimeout(() => wrap.style.display = 'none', 3000);
+      } else if (e.data.type === 'CACHE_ERROR') {
+        finished = true;
+        navigator.serviceWorker.removeEventListener('message', onSwMsg);
+        if (watchdog) { clearInterval(watchdog); watchdog = null; }
+        txt.textContent = '⚠️ Fehler im Cache: ' + e.data.error;
+        setTimeout(() => wrap.style.display = 'none', 5000);
+      }
+    };
+
+    // Listener VOR postMessage registrieren um Race-Condition zu vermeiden
+    navigator.serviceWorker.addEventListener('message', onSwMsg);
+    try {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CACHE_TILES', urls: limited, layer: currentBasemap
+      });
+    } catch (e) {
+      navigator.serviceWorker.removeEventListener('message', onSwMsg);
+      console.warn('postMessage Fehler, Fallback:', e);
+      await directDownload(limited);
+      return;
+    }
+
+    // Watchdog: falls 8s keine Progress-Updates → Fallback zu direktem Download
+    watchdog = setInterval(async () => {
+      if (finished || fellBack) return;
+      if (Date.now() - lastProgressAt > 8000) {
+        fellBack = true;
+        clearInterval(watchdog); watchdog = null;
+        navigator.serviceWorker.removeEventListener('message', onSwMsg);
+        console.warn('SW antwortet nicht — Fallback auf Direkt-Download');
+        txt.textContent = 'SW reagiert nicht — Fallback...';
+        await directDownload(limited);
+      }
+    }, 2000);
   } else {
-    let cache=null;try{cache=await caches.open(currentBasemap==='sat'?'holzpolter-sat-v2':'holzpolter-tiles-v1');}catch{}
-    for(let i=0;i<limited.length;i++){try{if(cache){if(!(await cache.match(limited[i])))await cache.add(limited[i]);}else await fetch(limited[i],{mode:'cors'});}catch{}fill.style.width=Math.round((i+1)/limited.length*100)+'%';await new Promise(r=>setTimeout(r,isIOS?40:18));}
-    txt.textContent='✓ '+limited.length+' Kacheln gespeichert';setTimeout(()=>wrap.style.display='none',3000);
+    // Kein SW-Controller → direkter Download
+    await directDownload(limited);
   }
 });
 
