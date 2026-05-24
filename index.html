@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="3.0">
+  <meta name="app-version" content="3.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1140,7 +1140,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '3.2'")) {
+        if (!txt.includes("APP_VERSION = '3.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2461,21 +2461,29 @@ function toggleAdminOwnGps() {
 function startAdminOwnGps() {
   if (!navigator.geolocation) return;
   if (adminOwnGpsWatchId !== null) return;
+  // Kompass aktivieren (Touch-Kontext aus dem Toggle-Tap heraus)
+  if (typeof setupCompass === 'function') { try { setupCompass(); } catch(e){} }
   adminOwnGpsWatchId = navigator.geolocation.watchPosition(pos => {
-    const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+    const { latitude: lat, longitude: lng, accuracy: acc, heading: hd, speed: spd } = pos.coords;
     if (acc > 80) return;
+    if (typeof feedGpsHeading === 'function') feedGpsHeading(hd, spd);
     // Marker auf Karte setzen/aktualisieren
     const ll = L.latLng(lat, lng);
+    const adminColor = '#1a5fa8';
+    const adminHtml = (typeof buildUserMarkerHtml === 'function')
+      ? buildUserMarkerHtml(adminColor, currentHeading)
+      : '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>';
     if (adminOwnMarker) {
       adminOwnMarker.setLatLng(ll);
+      adminOwnMarker.setIcon(L.divIcon({
+        className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
+      }));
       if (adminOwnCircle) adminOwnCircle.setLatLng(ll).setRadius(acc);
     } else {
-      adminOwnCircle = L.circle(ll, { radius: acc, color: '#1a5fa8', fillColor: '#1a5fa8', fillOpacity: 0.15, weight: 1 }).addTo(map);
+      adminOwnCircle = L.circle(ll, { radius: acc, color: adminColor, fillColor: adminColor, fillOpacity: 0.15, weight: 1 }).addTo(map);
       adminOwnMarker = L.marker(ll, {
         icon: L.divIcon({
-          className: '',
-          html: '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
-          iconSize: [16, 16], iconAnchor: [8, 8]
+          className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
         })
       }).addTo(map).bindPopup('<b>Mein Standort</b><br>Admin');
     }
@@ -2491,6 +2499,10 @@ function stopAdminOwnGps() {
   }
   if (adminOwnMarker) { try { map.removeLayer(adminOwnMarker); } catch {} adminOwnMarker = null; }
   if (adminOwnCircle) { try { map.removeLayer(adminOwnCircle); } catch {} adminOwnCircle = null; }
+  // Kompass nur stoppen wenn nicht auch das normale GPS-Tracking aktiv ist
+  if (typeof stopCompass === 'function' && typeof gpsTrackingEnabled !== 'undefined' && !gpsTrackingEnabled) {
+    try { stopCompass(); } catch(e){}
+  }
 }
 
 // ── FAHRER MARKER AUF KARTE (ADMIN) ──────────────────────────────
@@ -2588,21 +2600,29 @@ function toggleAdminOwnGps() {
 function startAdminOwnGps() {
   if (!navigator.geolocation) return;
   if (adminOwnGpsWatchId !== null) return;
+  // Kompass aktivieren (Touch-Kontext aus dem Toggle-Tap heraus)
+  if (typeof setupCompass === 'function') { try { setupCompass(); } catch(e){} }
   adminOwnGpsWatchId = navigator.geolocation.watchPosition(pos => {
-    const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+    const { latitude: lat, longitude: lng, accuracy: acc, heading: hd, speed: spd } = pos.coords;
     if (acc > 80) return;
+    if (typeof feedGpsHeading === 'function') feedGpsHeading(hd, spd);
     // Marker auf Karte setzen/aktualisieren
     const ll = L.latLng(lat, lng);
+    const adminColor = '#1a5fa8';
+    const adminHtml = (typeof buildUserMarkerHtml === 'function')
+      ? buildUserMarkerHtml(adminColor, currentHeading)
+      : '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>';
     if (adminOwnMarker) {
       adminOwnMarker.setLatLng(ll);
+      adminOwnMarker.setIcon(L.divIcon({
+        className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
+      }));
       if (adminOwnCircle) adminOwnCircle.setLatLng(ll).setRadius(acc);
     } else {
-      adminOwnCircle = L.circle(ll, { radius: acc, color: '#1a5fa8', fillColor: '#1a5fa8', fillOpacity: 0.15, weight: 1 }).addTo(map);
+      adminOwnCircle = L.circle(ll, { radius: acc, color: adminColor, fillColor: adminColor, fillOpacity: 0.15, weight: 1 }).addTo(map);
       adminOwnMarker = L.marker(ll, {
         icon: L.divIcon({
-          className: '',
-          html: '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
-          iconSize: [16, 16], iconAnchor: [8, 8]
+          className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
         })
       }).addTo(map).bindPopup('<b>Mein Standort</b><br>Admin');
     }
@@ -2618,6 +2638,10 @@ function stopAdminOwnGps() {
   }
   if (adminOwnMarker) { try { map.removeLayer(adminOwnMarker); } catch {} adminOwnMarker = null; }
   if (adminOwnCircle) { try { map.removeLayer(adminOwnCircle); } catch {} adminOwnCircle = null; }
+  // Kompass nur stoppen wenn nicht auch das normale GPS-Tracking aktiv ist
+  if (typeof stopCompass === 'function' && typeof gpsTrackingEnabled !== 'undefined' && !gpsTrackingEnabled) {
+    try { stopCompass(); } catch(e){}
+  }
 }
 
 // ── FAHRER MARKER AUF KARTE (ADMIN) ──────────────────────────────
@@ -4149,8 +4173,206 @@ function triggerStill(ll){if(stillActive||!document.getElementById('panel').clas
 function checkStill(rLat,rLng,fLat,fLng,spd,acc){if(acc>25)return;posWin.push([fLat,fLng]);if(posWin.length>10)posWin.shift();if(posWin.length<4)return;const lats=posWin.map(p=>p[0]),lngs=posWin.map(p=>p[1]);const cL=lats.reduce((a,b)=>a+b)/lats.length,cG=lngs.reduce((a,b)=>a+b)/lngs.length;const sp=posWin.reduce((s,p)=>s+hav([cL,cG],p),0)/posWin.length;const pos=sp<Math.max(4,acc*.6);let v=spd!==null&&!isNaN(spd)?(spd<(acc>10?1.5:.8)&&pos?'still':'moving'):(pos?'still':'moving');if(v==='still')stillVotes=Math.min(stillVotes+1,7);else if(v==='moving'){stillVotes=Math.max(stillVotes-2,0);if(stillVotes===0&&stillActive)cancelStill();}if(stillVotes>=5)triggerStill(L.latLng(fLat,fLng));}
 document.getElementById('btn-still-cancel').addEventListener('click',cancelStill);
 
-// ── USER MARKER ───────────────────────────────────────────────────
-function updateUM(ll,acc,state){if(uMarker)map.removeLayer(uMarker);if(uCircle)map.removeLayer(uCircle);const c=state==='stl'?'#c8860a':state==='trk'?'#e05555':'#1a7050';uCircle=L.circle(ll,{radius:acc,color:c,fillOpacity:.07,weight:1}).addTo(map);uMarker=L.marker(ll,{icon:L.divIcon({className:'',html:`<div style="width:13px;height:13px;border-radius:50%;background:${c};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);"></div>`,iconSize:[13,13],iconAnchor:[6,6]})}).addTo(map);setDot(state==='trk'?'trk':state==='stl'?'stl':'ok');}
+// ── USER MARKER + KOMPASS ─────────────────────────────────────────
+// Hybrid-Heading wie Google Maps: Kompass (DeviceOrientation) im Stand,
+// GPS-Heading (pos.coords.heading) in Bewegung. Glatte Rotation per
+// DOM-Transform statt L.marker neu erstellen.
+
+let currentHeading = null;       // 0-360, null = unbekannt → kein Pfeil
+let compassHeading = null;       // letzter geglätteter Wert vom Magnetometer
+let gpsHeading = null;           // letzter Wert aus pos.coords.heading
+let gpsSpeed = 0;                // letzter Wert aus pos.coords.speed (m/s)
+let compassListenerActive = false;
+let lastUmColor = '#1a7050';     // gemerkte Farbe für Pfeil-Refresh ohne Position
+
+// Zirkulärer EMA (Exponential Moving Average) für Heading - vermeidet
+// Sprung von 359° auf 1° (würde sonst rückwärts drehen)
+function smoothHeading(prev, next, alpha) {
+  if (prev == null || isNaN(prev)) return next;
+  let diff = next - prev;
+  if (diff > 180) diff -= 360;
+  else if (diff < -180) diff += 360;
+  let s = prev + diff * alpha;
+  if (s < 0) s += 360;
+  if (s >= 360) s -= 360;
+  return s;
+}
+
+// Wählt Heading-Quelle: bei Bewegung GPS (stabiler), sonst Kompass
+function pickHeading() {
+  // GPS-Heading nur vertrauen wenn klar in Bewegung (>1 m/s ≈ 3.6 km/h)
+  if (gpsHeading != null && !isNaN(gpsHeading) && gpsSpeed > 1) {
+    return gpsHeading;
+  }
+  if (compassHeading != null && !isNaN(compassHeading)) {
+    return compassHeading;
+  }
+  return null;
+}
+
+function handleOrientation(e) {
+  let h = null;
+  // iOS: webkitCompassHeading ist 0-360 im Uhrzeigersinn relativ zu geografischem Norden
+  if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+    h = e.webkitCompassHeading;
+  } else if (e.absolute && typeof e.alpha === 'number' && !isNaN(e.alpha)) {
+    // Android Standard: alpha ist 0-360 gegen den Uhrzeigersinn → invertieren
+    h = (360 - e.alpha) % 360;
+  } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
+    // Nicht-absolutes Heading (kein echter Kompass) - trotzdem nutzen als Notfall
+    h = (360 - e.alpha) % 360;
+  }
+  if (h == null) return;
+  compassHeading = smoothHeading(compassHeading, h, 0.25);
+  currentHeading = pickHeading();
+  applyMarkerHeading();
+}
+
+// iOS 13+: Permission muss in einem User-Gesten-Handler angefragt werden.
+// toggleGpsTracking ruft setupCompass() im Touch-Handler auf - das ist OK.
+async function setupCompass() {
+  if (compassListenerActive) return;
+  if (typeof DeviceOrientationEvent === 'undefined') return;
+
+  // iOS 13+ Permission
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const result = await DeviceOrientationEvent.requestPermission();
+      if (result !== 'granted') {
+        console.warn('Kompass-Zugriff verweigert');
+        return; // Pfeil bleibt aus, nur GPS-Heading als Fallback bei Bewegung
+      }
+    } catch(e) {
+      console.warn('Kompass Permission:', e);
+      return;
+    }
+  }
+
+  // Bevorzugt: 'deviceorientationabsolute' (echter Magnetometer-Wert)
+  const evt = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+  window.addEventListener(evt, handleOrientation, true);
+  compassListenerActive = true;
+}
+
+function stopCompass() {
+  if (!compassListenerActive) return;
+  window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.removeEventListener('deviceorientation', handleOrientation, true);
+  compassListenerActive = false;
+  compassHeading = null;
+  gpsHeading = null;
+  currentHeading = null;
+}
+
+// Heading aus GPS aktualisieren (aus watchPosition-Callbacks aufgerufen)
+function feedGpsHeading(heading, speed) {
+  gpsSpeed = (typeof speed === 'number' && !isNaN(speed)) ? speed : 0;
+  if (typeof heading === 'number' && !isNaN(heading) && heading >= 0) {
+    gpsHeading = smoothHeading(gpsHeading, heading, 0.4);
+  }
+  currentHeading = pickHeading();
+  applyMarkerHeading();
+}
+
+// Marker-HTML bauen (Wedge + Punkt). Wedge ist nur im DOM wenn Heading bekannt -
+// CSS transform rotiert ihn günstig ohne Re-Render.
+function buildUserMarkerHtml(color, heading) {
+  const showWedge = heading != null;
+  // Wedge: Spitze in (0,0), öffnet sich nach OBEN (Richtung -Y = Norden), 60° Öffnung
+  // Punkte: links (-10,-17.32), rechts (10,-17.32), dazwischen Arc-Segment
+  // Eindeutige Gradient-ID damit mehrere Marker (Fahrer + Admin) nicht kollidieren
+  const gid = 'umGrad_' + Math.floor(Math.random()*1e6);
+  const wedge = showWedge ? `
+    <svg class="um-wedge" width="60" height="60" viewBox="-30 -30 60 60"
+         style="position:absolute;top:50%;left:50%;margin:-30px 0 0 -30px;pointer-events:none;transform:rotate(${heading}deg);transition:transform .18s ease-out;will-change:transform;">
+      <defs>
+        <radialGradient id="${gid}" cx="0" cy="0" r="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0"   stop-color="${color}" stop-opacity="0.75"/>
+          <stop offset="0.5" stop-color="${color}" stop-opacity="0.35"/>
+          <stop offset="1"   stop-color="${color}" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <path d="M 0,0 L -14,-24.25 A 28,28 0 0,1 14,-24.25 Z" fill="url(#${gid})"/>
+    </svg>` : '';
+
+  return `
+    <div class="um-root" style="position:relative;width:18px;height:18px;">
+      ${wedge}
+      <div style="position:absolute;top:0;left:0;width:14px;height:14px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);"></div>
+    </div>`;
+}
+
+// Schneller Heading-Refresh ohne L.marker zu rezeugen - nur transform updaten.
+// Wenn noch kein Wedge im DOM ist (currentHeading war vorher null), Marker neu rendern.
+function applyMarkerHeading() {
+  if (!uMarker || !map) return;
+  const el = uMarker.getElement();
+  if (!el) return;
+  let wedge = el.querySelector('.um-wedge');
+  if (currentHeading == null) {
+    // Kein Heading mehr - Wedge entfernen
+    if (wedge) wedge.remove();
+    return;
+  }
+  if (!wedge) {
+    // Erstmals Heading verfügbar - Marker-Icon neu setzen damit Wedge erscheint
+    uMarker.setIcon(L.divIcon({
+      className: '',
+      html: buildUserMarkerHtml(lastUmColor, currentHeading),
+      iconSize: [14, 14], iconAnchor: [7, 7]
+    }));
+    return;
+  }
+  // Bestehender Wedge - nur Transform aktualisieren (super günstig)
+  wedge.style.transform = 'rotate(' + currentHeading + 'deg)';
+
+  // Auch beim Admin-eigenen-Marker synchronisieren falls aktiv
+  if (typeof adminOwnMarker !== 'undefined' && adminOwnMarker) {
+    const aEl = adminOwnMarker.getElement();
+    if (aEl) {
+      const aw = aEl.querySelector('.um-wedge');
+      if (aw) aw.style.transform = 'rotate(' + currentHeading + 'deg)';
+    }
+  }
+}
+
+function updateUM(ll, acc, state) {
+  const c = state==='stl' ? '#c8860a' : state==='trk' ? '#e05555' : '#1a7050';
+  lastUmColor = c;
+
+  // Genauigkeits-Kreis
+  if (uCircle) {
+    uCircle.setLatLng(ll).setRadius(acc);
+    uCircle.setStyle({ color: c });
+  } else {
+    uCircle = L.circle(ll, { radius: acc, color: c, fillOpacity: .07, weight: 1 }).addTo(map);
+  }
+
+  // Marker: in-place updaten wenn möglich (kein Flicker)
+  if (uMarker) {
+    uMarker.setLatLng(ll);
+    uMarker.setIcon(L.divIcon({
+      className: '',
+      html: buildUserMarkerHtml(c, currentHeading),
+      iconSize: [14, 14], iconAnchor: [7, 7]
+    }));
+  } else {
+    uMarker = L.marker(ll, {
+      icon: L.divIcon({
+        className: '',
+        html: buildUserMarkerHtml(c, currentHeading),
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      })
+    }).addTo(map);
+  }
+
+  setDot(state==='trk' ? 'trk' : state==='stl' ? 'stl' : 'ok');
+}
+
+// Window-Binding für andere Module
+window.setupCompass = setupCompass;
+window.stopCompass = stopCompass;
+window.feedGpsHeading = feedGpsHeading;
 
 // ── BAUMART CHIPS ─────────────────────────────────────────────────
 let selArt='';
@@ -4312,6 +4534,9 @@ function toggleGpsTracking() {
     _lastLocationUpdate = 0;
     setDot('off');
     setTxt('GPS wird gestartet...');
+    // Kompass-Permission im Touch-Kontext anfragen (iOS 13+ Pflicht)
+    // Bewusst NICHT awaiten - wenn User die Permission ablehnt, läuft GPS trotzdem
+    if (typeof setupCompass === 'function') { try { setupCompass(); } catch(e){} }
     // Permission anfragen dann BgGps starten
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -4341,6 +4566,7 @@ function toggleGpsTracking() {
     }
   } else {
     stopBgGps();
+    if (typeof stopCompass === 'function') { try { stopCompass(); } catch(e){} }
     setDriverOffline();
     // GPS Punkt und Kreis von der Karte entfernen
     try { if(typeof uMarker!=='undefined'&&uMarker){map.removeLayer(uMarker);uMarker=null;} } catch{}
@@ -4371,8 +4597,10 @@ function startBgGps() {
   if (currentMode === 'admin') return;
   bgGpsWatchId = navigator.geolocation.watchPosition(
     pos => {
-      const { latitude, longitude, accuracy } = pos.coords;
+      const { latitude, longitude, accuracy, heading, speed } = pos.coords;
       if (accuracy > 100) return; // Nur >100m ignorieren
+      // GPS-Heading füttern (wird ignoriert wenn Speed zu niedrig)
+      if (typeof feedGpsHeading === 'function') feedGpsHeading(heading, speed);
       updateDriverLocation(latitude, longitude);
     },
     err => console.warn('BG-GPS:', err.message),
@@ -4671,7 +4899,8 @@ document.getElementById('btn-track').addEventListener('click',()=>{
   document.getElementById('btn-stop').classList.remove('hidden');
   setTxt('Aufzeichnung läuft...');setDot('trk');
   watchId=navigator.geolocation.watchPosition(pos=>{
-    const{latitude:rLat,longitude:rLng,accuracy:acc,speed:spd}=pos.coords;
+    const{latitude:rLat,longitude:rLng,accuracy:acc,speed:spd,heading:hd}=pos.coords;
+    if(typeof feedGpsHeading==='function') feedGpsHeading(hd,spd);
     updateDriverLocation(rLat, rLng);
     const ts=pos.timestamp||Date.now();
     if(acc>15){setTxt('GPS schwach (±'+Math.round(acc)+'m)...');return;}
