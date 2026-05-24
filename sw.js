@@ -1,10 +1,9 @@
 const TILE_CACHE = 'lignum-tiles-v5';
 const SAT_CACHE  = 'lignum-sat-v5';
-const APP_VERSION = '3.8';
+const APP_VERSION = '4.0';
 const MAX_OSM = 600; const MAX_SAT = 1200;
 
 self.addEventListener('install',  () => self.skipWaiting());
-self.addEventListener('message', e => { if(e.data?.type==='SKIP_WAITING') self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -36,8 +35,8 @@ async function tileRespond(req, cacheName, max) {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
   if (!url.startsWith('http')) return;
-  
-  // CDN-Scripts (jsPDF, html2canvas etc.) direkt durchreichen
+
+  // CDN-Scripts direkt durchreichen
   if (url.includes('jsdelivr.net') || url.includes('cdnjs.cloudflare.com') || url.includes('unpkg.com')) return;
 
   // Karten-Tiles: cachen
@@ -48,7 +47,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM)); return;
   }
 
-  // Supabase API: niemals cachen, immer direkt
+  // Supabase API: niemals cachen
   if (url.includes('supabase.co')) {
     e.respondWith(fetch(e.request)); return;
   }
@@ -57,20 +56,49 @@ self.addEventListener('fetch', e => {
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });
 
+// ── MESSAGES ──────────────────────────────────────────────────────────
+// WICHTIG: e.waitUntil() haelt den SW am Leben. Ohne das wird er von
+// iOS Safari aggressiv schlafengelegt und der Cache-Vorgang bricht ab.
 self.addEventListener('message', e => {
-  if (!e.data || e.data.type !== 'CACHE_TILES') return;
+  if (!e.data) return;
+  if (e.data.type === 'SKIP_WAITING') { self.skipWaiting(); return; }
+  if (e.data.type === 'CACHE_TILES') {
+    e.waitUntil(handleCacheTiles(e));
+  }
+});
+
+async function handleCacheTiles(e) {
   const {urls, layer} = e.data;
   const cacheName = layer === 'sat' ? SAT_CACHE : TILE_CACHE;
   const max = layer === 'sat' ? MAX_SAT : MAX_OSM;
-  caches.open(cacheName).then(async cache => {
+  const client = e.source;
+  function send(msg) {
+    if (!client) return;
+    try { client.postMessage(msg); } catch {}
+  }
+  try {
+    const cache = await caches.open(cacheName);
     let done = 0;
+    let errors = 0;
+    const total = urls.length;
     for (let i = 0; i < urls.length; i += 6) {
-      await Promise.all(urls.slice(i, i+6).map(async url => {
-        try { if (!(await cache.match(url))) { const r = await fetch(url,{mode:'cors'}); if(r&&r.ok) await cache.put(url,r); } } catch {}
-        e.source.postMessage({type:'CACHE_PROGRESS', done: ++done, total: urls.length});
+      const batch = urls.slice(i, i + 6);
+      await Promise.all(batch.map(async url => {
+        try {
+          const existing = await cache.match(url);
+          if (!existing) {
+            const r = await fetch(url, { mode: 'cors' });
+            if (r && r.ok) await cache.put(url, r);
+            else errors++;
+          }
+        } catch { errors++; }
+        done++;
+        send({ type: 'CACHE_PROGRESS', done, total });
       }));
     }
     await limitCache(cacheName, max);
-    e.source.postMessage({type:'CACHE_DONE', total: done});
-  });
-});
+    send({ type: 'CACHE_DONE', total: done, errors });
+  } catch (err) {
+    send({ type: 'CACHE_ERROR', error: String(err && err.message || err) });
+  }
+}
