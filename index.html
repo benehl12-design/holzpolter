@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="3.6">
+  <meta name="app-version" content="3.8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1152,6 +1152,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   padding:12px;display:flex;flex-direction:column;gap:12px;
   padding-bottom:max(12px,var(--safe-bottom));
 }
+.wt-body > *{flex-shrink:0;}
 .wt-card{
   background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
   border-radius:16px;overflow:hidden;
@@ -1204,18 +1205,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .wt-btn-stop:active{background:rgba(163,32,32,.1);}
 
 /* Start-Sektion (Kategorie-Chips) */
-.wt-start-card{padding:14px 14px 18px;}
-.wt-start-title{font-size:14px;font-weight:500;color:#a0c8a0;margin-bottom:14px;text-align:center;}
-.wt-kat-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.wt-start-card{padding:14px 14px 16px;}
+.wt-start-title{font-size:14px;font-weight:500;color:#a0c8a0;margin-bottom:12px;text-align:center;}
+.wt-kat-chips{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;}
 .wt-kat-chip{
   background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);
-  border-radius:14px;padding:14px 8px;cursor:pointer;font-family:inherit;
-  display:flex;flex-direction:column;align-items:center;gap:6px;
+  border-radius:12px;padding:11px 4px;cursor:pointer;font-family:inherit;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
   transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
 }
 .wt-kat-chip:active{background:rgba(255,255,255,.08);transform:scale(.97);border-color:var(--katcolor,#4a9a40);}
-.wt-kat-chip-emoji{font-size:26px;line-height:1;}
-.wt-kat-chip-label{font-size:13px;font-weight:500;color:#c8e6c0;}
+.wt-kat-chip-emoji{font-size:22px;line-height:1;}
+.wt-kat-chip-label{font-size:11.5px;font-weight:500;color:#c8e6c0;text-align:center;line-height:1.1;}
 
 /* Einträge-Liste */
 .wt-entries-list{display:flex;flex-direction:column;gap:10px;}
@@ -1381,6 +1382,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   margin-bottom:14px;text-align:center;
 }
 .wt-cal-day-summary strong{color:#c8e6c0;font-size:16px;font-variant-numeric:tabular-nums;}
+
+/* Admin-Worktime spezifisch */
+.admin-cal-driver-bar{
+  padding:10px 14px;background:rgba(0,0,0,.2);
+  border-top:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.admin-cal-driver-label{
+  font-size:11px;font-weight:600;color:#6a9a6a;
+  text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;
+}
+.admin-cal-driver-select{
+  flex:1;font-size:13px;padding:9px 12px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:#c8e6c0;font-family:inherit;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238ab882' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;
+}
+/* Indikator-Punkt für "Alle Fahrer"-Modus */
+.wt-cal-cell.has-dot{position:relative;}
+.wt-cal-cell.has-dot::after{
+  content:'';position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+  width:6px;height:6px;border-radius:50%;background:#4aaa4a;
+  box-shadow:0 0 4px rgba(74,170,74,.5);
+}
+.wt-cal-cell.has-dot.today::after{background:#a0d89a;}
+
+/* Driver-Gruppierung im Day-Detail */
+.admin-day-driver-group{
+  margin-bottom:14px;
+  border-radius:11px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);overflow:hidden;
+}
+.admin-day-driver-head{
+  padding:9px 14px;display:flex;justify-content:space-between;align-items:center;
+  background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.05);
+  font-size:12px;font-weight:600;
+}
+.admin-day-driver-name{color:#c8e6c0;}
+.admin-day-driver-sum{color:#8ab882;font-variant-numeric:tabular-nums;}
 </style>
 <script>
 // Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
@@ -1389,7 +1430,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '3.6'")) {
+        if (!txt.includes("APP_VERSION = '3.8'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1541,6 +1582,23 @@ if ('serviceWorker' in navigator) {
         <div style="padding:14px 16px;color:#5a8a5a;font-size:13px;">Wird geladen...</div>
       </div>
     </div>
+
+    <!-- Zeiterfassung Übersicht -->
+    <button onclick="openAdminWorktime()" style="
+      display:flex;align-items:center;gap:14px;
+      padding:16px;border-radius:14px;
+      border:1px solid rgba(74,170,74,.25);
+      background:rgba(45,90,39,.1);
+      cursor:pointer;font-family:inherit;text-align:left;
+      touch-action:manipulation;transition:all .15s;width:100%;
+    ">
+      <span style="font-size:24px;">📅</span>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:#a0d89a;">Zeiterfassung</div>
+        <div style="font-size:11px;color:#6a9a6a;margin-top:2px;">Monatsübersicht aller Fahrer</div>
+      </div>
+      <span style="margin-left:auto;color:#6a9a6a;font-size:18px;">›</span>
+    </button>
 
     <!-- Daten verwalten Button -->
     <button onclick="openDataMgmt()" style="
@@ -2094,6 +2152,44 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
 
+  <!-- ── ADMIN ZEITERFASSUNG ÜBERSICHT ── -->
+  <div id="admin-worktime-screen" style="display:none;position:fixed;inset:0;z-index:9350;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+    <div class="wt-header">
+      <button class="wt-back" onclick="closeAdminWorktime()">&#8592;</button>
+      <div class="wt-title">📅 Zeiterfassung</div>
+      <button class="wt-cal-today-btn" onclick="goToAdminCalToday()">Heute</button>
+    </div>
+    <div class="wt-cal-nav">
+      <button class="wt-cal-nav-btn" onclick="prevAdminCalMonth()">◀</button>
+      <div id="admin-cal-month-label" class="wt-cal-month-label">–</div>
+      <button class="wt-cal-nav-btn" onclick="nextAdminCalMonth()">▶</button>
+    </div>
+    <div class="wt-cal-weekdays">
+      <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+    </div>
+    <div id="admin-cal-grid" class="wt-cal-grid"></div>
+    <div class="admin-cal-driver-bar">
+      <label for="admin-cal-driver-select" class="admin-cal-driver-label">Fahrer</label>
+      <select id="admin-cal-driver-select" class="admin-cal-driver-select" onchange="onAdminDriverChange(this.value)">
+        <option value="">Alle Fahrer</option>
+      </select>
+    </div>
+    <div class="wt-cal-footer">
+      <div id="admin-cal-month-total" class="wt-cal-month-total">–</div>
+    </div>
+  </div>
+
+  <!-- ── ADMIN TAGESDETAIL MODAL ── -->
+  <div id="admin-cal-day-overlay" style="display:none;position:fixed;inset:0;z-index:9650;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeAdminCalDayDetail()">
+    <div class="wt-edit-sheet">
+      <div class="wt-edit-header">
+        <h2 id="admin-cal-day-title">Tag</h2>
+        <button class="wt-edit-close" onclick="closeAdminCalDayDetail()">&times;</button>
+      </div>
+      <div class="wt-edit-body" id="admin-cal-day-body"></div>
+    </div>
+  </div>
+
     <!-- ── DATEN VERWALTEN MODAL ── -->
   <div id="data-mgmt-overlay" style="display:none;" onclick="if(event.target===this)closeDataMgmt()">
     <div id="data-mgmt-sheet">
@@ -2567,8 +2663,7 @@ async function doLogin() {
 
   try {
     // Schritt 1: Verbindung testen
-    showAuthErr('Schritt 1: Verbinde mit Server...');
-    
+
     // Direkt-Test: fetch zur Supabase Auth API
     const testResp = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
       method: 'POST',
@@ -2587,7 +2682,7 @@ async function doLogin() {
       return;
     }
     
-    showAuthErr('Schritt 2: Profil laden...');
+    showAuthErr('');
     
     // User-ID direkt aus JWT lesen (kein setSession nötig)
     const payload = JSON.parse(atob(testData.access_token.split('.')[1]));
@@ -6469,6 +6564,314 @@ window.goToCalendarToday = goToCalendarToday;
 window.openCalendarDay = openCalendarDay;
 window.closeCalendarDayDetail = closeCalendarDayDetail;
 window.openManualEntryForDay = openManualEntryForDay;
+
+// ── ADMIN ZEITERFASSUNG ÜBERSICHT ─────────────────────────────────────
+// Monatskalender für Admin mit optionalem Fahrer-Filter.
+// Bei "Alle Fahrer": Tage mit beliebigem Eintrag bekommen einen Punkt.
+// Bei spezifischem Fahrer: Tage zeigen die Stunden dieses Fahrers.
+
+let _adminCalYear = null;
+let _adminCalMonth = null;
+let _adminCalSelectedDriver = '';      // '' = Alle Fahrer
+let _adminCalEntries = new Map();      // 'YYYY-MM-DD' -> Array<entry mit profiles.name>
+let _adminCalLoadedMonths = new Set(); // 'YYYY-MM' (lädt immer ALLE Fahrer)
+let _adminCalDrivers = [];
+
+async function openAdminWorktime() {
+  const scr = document.getElementById('admin-worktime-screen');
+  if (!scr) return;
+  scr.style.display = 'flex';
+  if (_adminCalYear === null) {
+    const now = new Date();
+    _adminCalYear = now.getFullYear();
+    _adminCalMonth = now.getMonth();
+  }
+  await loadAdminCalDrivers();
+  await loadAdminCalMonth(_adminCalYear, _adminCalMonth);
+  renderAdminCal();
+}
+
+function closeAdminWorktime() {
+  const scr = document.getElementById('admin-worktime-screen');
+  if (scr) scr.style.display = 'none';
+}
+
+async function loadAdminCalDrivers() {
+  if (!currentProfile) return;
+  if (_adminCalDrivers.length > 0) return;
+  try {
+    const data = await dbFetch(
+      'profiles?company_id=eq.' + currentProfile.company_id +
+      '&select=id,name,role&order=name.asc'
+    );
+    _adminCalDrivers = (data || []).filter(d => d.role !== 'admin');
+    const sel = document.getElementById('admin-cal-driver-select');
+    if (sel) {
+      sel.innerHTML = '<option value="">Alle Fahrer</option>' +
+        _adminCalDrivers.map(d => `<option value="${d.id}">${escapeHtml(d.name || '(ohne Name)')}</option>`).join('');
+    }
+  } catch (e) { console.warn('loadAdminCalDrivers:', e); }
+}
+
+async function loadAdminCalMonth(year, month) {
+  if (!currentProfile) return;
+  const key = year + '-' + String(month+1).padStart(2,'0');
+  if (_adminCalLoadedMonths.has(key)) return;
+  const start = new Date(year, month, 1).toISOString();
+  const end = new Date(year, month + 1, 1).toISOString();
+  try {
+    const data = await dbFetch(
+      'time_entries?company_id=eq.' + currentProfile.company_id +
+      '&started_at=gte.' + start +
+      '&started_at=lt.' + end +
+      '&deleted_at=is.null' +
+      '&order=started_at.asc&limit=2000' +
+      '&select=*,areas(name),profiles(id,name)'
+    );
+    (data || []).forEach(e => {
+      const d = new Date(e.started_at);
+      const dayKey = d.getFullYear() + '-' +
+        String(d.getMonth()+1).padStart(2,'0') + '-' +
+        String(d.getDate()).padStart(2,'0');
+      if (!_adminCalEntries.has(dayKey)) _adminCalEntries.set(dayKey, []);
+      _adminCalEntries.get(dayKey).push(e);
+    });
+    _adminCalLoadedMonths.add(key);
+  } catch (e) { console.warn('loadAdminCalMonth:', e); }
+}
+
+function invalidateAdminCalCache() {
+  _adminCalEntries.clear();
+  _adminCalLoadedMonths.clear();
+}
+
+function renderAdminCal() {
+  renderAdminCalHeader();
+  renderAdminCalGrid();
+  renderAdminCalMonthTotal();
+}
+
+function renderAdminCalHeader() {
+  const el = document.getElementById('admin-cal-month-label');
+  if (!el) return;
+  const monthNames = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  el.textContent = monthNames[_adminCalMonth] + ' ' + _adminCalYear;
+}
+
+// Filtert Einträge eines Tages nach aktuell ausgewähltem Fahrer (oder alle)
+function getAdminFilteredDayEntries(dayKey) {
+  const all = _adminCalEntries.get(dayKey) || [];
+  if (!_adminCalSelectedDriver) return all;
+  return all.filter(e => e.profile_id === _adminCalSelectedDriver);
+}
+
+function renderAdminCalGrid() {
+  const el = document.getElementById('admin-cal-grid');
+  if (!el) return;
+  const firstDay = new Date(_adminCalYear, _adminCalMonth, 1);
+  let startWeekday = firstDay.getDay();
+  startWeekday = startWeekday === 0 ? 6 : startWeekday - 1;
+  const daysInMonth = new Date(_adminCalYear, _adminCalMonth + 1, 0).getDate();
+  const daysInPrev = new Date(_adminCalYear, _adminCalMonth, 0).getDate();
+  const cells = [];
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    cells.push({ date: new Date(_adminCalYear, _adminCalMonth - 1, daysInPrev - i), inMonth: false });
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({ date: new Date(_adminCalYear, _adminCalMonth, day), inMonth: true });
+  }
+  let nextDay = 1;
+  while (cells.length < 42) {
+    cells.push({ date: new Date(_adminCalYear, _adminCalMonth + 1, nextDay), inMonth: false });
+    nextDay++;
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const showHours = !!_adminCalSelectedDriver;
+  el.innerHTML = cells.map(c => {
+    const d = c.date;
+    const dayKey = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const entries = getAdminFilteredDayEntries(dayKey);
+    const finished = entries.filter(e => e.stopped_at);
+    const isToday = d.getTime() === today.getTime();
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    let totalNetSec = 0;
+    finished.forEach(e => { totalNetSec += calcNetSeconds(e); });
+    const isRunning = entries.some(e => !e.stopped_at);
+    const hasAny = entries.length > 0;
+    let timeText = '';
+    if (showHours && totalNetSec > 0) {
+      const h = Math.floor(totalNetSec / 3600);
+      const m = Math.floor((totalNetSec % 3600) / 60);
+      timeText = h + ':' + String(m).padStart(2,'0');
+    } else if (showHours && isRunning) {
+      timeText = '· läuft';
+    }
+    const classes = ['wt-cal-cell'];
+    if (c.inMonth) classes.push('in'); else classes.push('out');
+    if (isToday) classes.push('today');
+    if (isWeekend) classes.push('weekend');
+    if (showHours && timeText) classes.push('has-entries');
+    if (!showHours && hasAny) classes.push('has-dot');
+    if (isRunning) classes.push('running');
+    return `
+      <div class="${classes.join(' ')}" onclick="openAdminCalDay('${dayKey}')">
+        <div class="wt-cal-day">${d.getDate()}</div>
+        ${timeText ? `<div class="wt-cal-time">${timeText}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderAdminCalMonthTotal() {
+  const el = document.getElementById('admin-cal-month-total');
+  if (!el) return;
+  let netSum = 0;
+  let entryCount = 0;
+  const monthKey = _adminCalYear + '-' + String(_adminCalMonth+1).padStart(2,'0');
+  _adminCalEntries.forEach((entries, dayKey) => {
+    if (!dayKey.startsWith(monthKey)) return;
+    const filtered = _adminCalSelectedDriver
+      ? entries.filter(e => e.profile_id === _adminCalSelectedDriver)
+      : entries;
+    filtered.filter(e => e.stopped_at).forEach(e => { netSum += calcNetSeconds(e); entryCount++; });
+  });
+  if (_adminCalSelectedDriver) {
+    const driver = _adminCalDrivers.find(d => d.id === _adminCalSelectedDriver);
+    const name = driver ? driver.name : 'Fahrer';
+    el.innerHTML = netSum > 0
+      ? `${escapeHtml(name)}: <strong>${fmtTime(netSum)}</strong> (${entryCount} Einträge)`
+      : `${escapeHtml(name)}: keine Einträge`;
+  } else {
+    el.innerHTML = entryCount > 0
+      ? `Alle Fahrer: <strong>${fmtTime(netSum)}</strong> (${entryCount} Einträge)`
+      : 'Keine Einträge in diesem Monat';
+  }
+}
+
+async function prevAdminCalMonth() {
+  _adminCalMonth--;
+  if (_adminCalMonth < 0) { _adminCalMonth = 11; _adminCalYear--; }
+  await loadAdminCalMonth(_adminCalYear, _adminCalMonth);
+  renderAdminCal();
+}
+
+async function nextAdminCalMonth() {
+  _adminCalMonth++;
+  if (_adminCalMonth > 11) { _adminCalMonth = 0; _adminCalYear++; }
+  await loadAdminCalMonth(_adminCalYear, _adminCalMonth);
+  renderAdminCal();
+}
+
+async function goToAdminCalToday() {
+  const now = new Date();
+  _adminCalYear = now.getFullYear();
+  _adminCalMonth = now.getMonth();
+  await loadAdminCalMonth(_adminCalYear, _adminCalMonth);
+  renderAdminCal();
+}
+
+function onAdminDriverChange(driverId) {
+  _adminCalSelectedDriver = driverId || '';
+  renderAdminCal();
+}
+
+function openAdminCalDay(dayKey) {
+  const entries = getAdminFilteredDayEntries(dayKey).filter(e => e.stopped_at);
+  if (entries.length === 0) return; // Admin legt keine manuellen Einträge an
+  showAdminCalDayDetail(dayKey, entries);
+}
+
+function showAdminCalDayDetail(dayKey, entries) {
+  const overlay = document.getElementById('admin-cal-day-overlay');
+  const titleEl = document.getElementById('admin-cal-day-title');
+  const body    = document.getElementById('admin-cal-day-body');
+  if (!overlay || !titleEl || !body) return;
+  const [yy, mm, dd] = dayKey.split('-').map(n => parseInt(n));
+  const date = new Date(yy, mm-1, dd);
+  titleEl.textContent = date.toLocaleDateString('de-DE',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+
+  // Gruppiere nach Fahrer wenn "Alle Fahrer"
+  if (!_adminCalSelectedDriver) {
+    const byDriver = new Map();
+    entries.forEach(e => {
+      const did = e.profile_id;
+      if (!byDriver.has(did)) byDriver.set(did, { name: e.profiles && e.profiles.name || '(unbekannt)', entries: [] });
+      byDriver.get(did).entries.push(e);
+    });
+    let totalNet = 0;
+    entries.forEach(e => { totalNet += calcNetSeconds(e); });
+    const groups = Array.from(byDriver.values()).map(grp => {
+      grp.entries.sort((a,b) => new Date(a.started_at) - new Date(b.started_at));
+      let driverNet = 0;
+      grp.entries.forEach(e => { driverNet += calcNetSeconds(e); });
+      const rows = grp.entries.map(e => renderAdminEntryRow(e)).join('');
+      return `
+        <div class="admin-day-driver-group">
+          <div class="admin-day-driver-head">
+            <span class="admin-day-driver-name">👤 ${escapeHtml(grp.name)}</span>
+            <span class="admin-day-driver-sum">${fmtTime(driverNet)}</span>
+          </div>
+          ${rows}
+        </div>`;
+    }).join('');
+    body.innerHTML = `
+      <div class="wt-cal-day-summary">
+        <strong>${fmtTime(totalNet)}</strong> Arbeit gesamt · ${byDriver.size} Fahrer
+      </div>
+      ${groups}`;
+  } else {
+    const sorted = entries.slice().sort((a,b) => new Date(a.started_at) - new Date(b.started_at));
+    let netSum = 0, pauseSum = 0;
+    sorted.forEach(e => { netSum += calcNetSeconds(e); pauseSum += calcCurrentPauseSeconds(e); });
+    const rows = sorted.map(e => renderAdminEntryRow(e)).join('');
+    body.innerHTML = `
+      <div class="wt-cal-day-summary">
+        <strong>${fmtTime(netSum)}</strong> Arbeit${pauseSum > 0 ? ' · ' + fmtTime(pauseSum) + ' Pause' : ''}
+      </div>
+      ${rows}`;
+  }
+  overlay.style.display = 'flex';
+}
+
+function renderAdminEntryRow(e) {
+  const k = getKategorie(e.kategorie);
+  const net = calcNetSeconds(e);
+  const pause = calcCurrentPauseSeconds(e);
+  const start = new Date(e.started_at);
+  const stop = new Date(e.stopped_at);
+  const timeRange = start.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) +
+                    '–' + stop.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const edited = e.manually_edited ? '<span class="wt-edited">✎ bearbeitet</span>' : '';
+  const area = (e.areas && e.areas.name) ? `<span class="wt-area">📍 ${escapeHtml(e.areas.name)}</span>` : '';
+  const note = e.note ? `<div class="wt-row-note">${escapeHtml(e.note)}</div>` : '';
+  const pauseTxt = pause > 0 ? ' · Pause ' + fmtTime(pause) : '';
+  return `
+    <div class="wt-entry-row" style="cursor:default;">
+      <div class="wt-row-emoji" style="background:${k.color}25;color:${k.color}">${k.emoji}</div>
+      <div class="wt-row-body">
+        <div class="wt-row-head">
+          <span class="wt-row-kat">${k.label}</span>
+          <span class="wt-row-time">${fmtTime(net)}</span>
+        </div>
+        <div class="wt-row-meta">${timeRange}${pauseTxt} ${area} ${edited}</div>
+        ${note}
+      </div>
+    </div>`;
+}
+
+function closeAdminCalDayDetail() {
+  const overlay = document.getElementById('admin-cal-day-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+window.openAdminWorktime = openAdminWorktime;
+window.closeAdminWorktime = closeAdminWorktime;
+window.prevAdminCalMonth = prevAdminCalMonth;
+window.nextAdminCalMonth = nextAdminCalMonth;
+window.goToAdminCalToday = goToAdminCalToday;
+window.onAdminDriverChange = onAdminDriverChange;
+window.openAdminCalDay = openAdminCalDay;
+window.closeAdminCalDayDetail = closeAdminCalDayDetail;
+
 
 // ── GRENZEN ───────────────────────────────────────────────────────
 document.getElementById('btn-grenzen').addEventListener('click',()=>{document.getElementById('grenzen-panel').classList.toggle('hidden');});
