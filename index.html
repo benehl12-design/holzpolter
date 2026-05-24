@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="3.5">
+  <meta name="app-version" content="3.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1298,6 +1298,89 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   border:1px solid rgba(163,32,32,.3);
 }
 .wt-edit-delete:active{background:rgba(163,32,32,.25);}
+/* ══════ ARBEITSZEIT KALENDER v3.6 ══════ */
+.wt-cal-open-btn{
+  width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.05);color:#a0c8a0;font-size:18px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-family:inherit;padding:0;margin-right:6px;
+}
+.wt-cal-open-btn:active{background:rgba(74,170,74,.15);}
+
+.wt-cal-today-btn{
+  padding:6px 14px;border-radius:9px;border:1px solid rgba(74,170,74,.3);
+  background:rgba(45,90,39,.25);color:#a0d89a;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:inherit;
+}
+.wt-cal-today-btn:active{background:rgba(45,90,39,.4);}
+
+.wt-cal-nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.06);
+}
+.wt-cal-nav-btn{
+  width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:#a0c8a0;font-size:14px;cursor:pointer;
+  font-family:inherit;
+}
+.wt-cal-nav-btn:active{background:rgba(255,255,255,.1);}
+.wt-cal-month-label{
+  font-size:18px;font-weight:500;color:#c8e6c0;letter-spacing:.01em;text-align:center;flex:1;
+}
+
+.wt-cal-weekdays{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
+  padding:10px 12px 6px;background:rgba(0,0,0,.1);
+}
+.wt-cal-weekdays > div{
+  text-align:center;font-size:10px;font-weight:700;color:#5a8a5a;
+  text-transform:uppercase;letter-spacing:.06em;
+}
+
+.wt-cal-grid{
+  flex:1;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(6,1fr);
+  gap:4px;padding:6px 12px 12px;overflow:hidden;
+}
+.wt-cal-cell{
+  border-radius:9px;background:rgba(255,255,255,.025);border:1px solid transparent;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:4px 2px;cursor:pointer;transition:background .12s;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  min-height:0;overflow:hidden;
+}
+.wt-cal-cell:active{background:rgba(255,255,255,.08);}
+.wt-cal-cell.out .wt-cal-day{color:#3a5a3a;opacity:.55;}
+.wt-cal-cell.in  .wt-cal-day{color:#c8e6c0;}
+.wt-cal-cell.weekend.in .wt-cal-day{color:#8aa890;}
+.wt-cal-cell.today{
+  border-color:#4aaa4a;background:rgba(74,170,74,.13);
+}
+.wt-cal-cell.today .wt-cal-day{color:#a0d89a;font-weight:700;}
+.wt-cal-cell.has-entries{background:rgba(74,170,74,.07);}
+.wt-cal-cell.has-entries.today{background:rgba(74,170,74,.2);}
+.wt-cal-cell.running{border-color:#4aaa4a;animation:pulse 2s infinite;}
+
+.wt-cal-day{
+  font-size:15px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums;
+}
+.wt-cal-time{
+  font-size:10px;font-weight:600;color:#7ab070;margin-top:4px;
+  font-variant-numeric:tabular-nums;line-height:1;
+}
+
+.wt-cal-footer{
+  padding:10px 18px;padding-bottom:max(10px,var(--safe-bottom));
+  background:rgba(0,0,0,.25);border-top:1px solid rgba(255,255,255,.06);
+  text-align:center;font-size:12px;color:#8ab882;
+}
+.wt-cal-month-total strong{color:#c8e6c0;font-weight:600;font-variant-numeric:tabular-nums;}
+
+.wt-cal-day-summary{
+  padding:10px 14px;border-radius:10px;background:rgba(74,170,74,.08);
+  border:1px solid rgba(74,170,74,.15);font-size:13px;color:#a0c8a0;
+  margin-bottom:14px;text-align:center;
+}
+.wt-cal-day-summary strong{color:#c8e6c0;font-size:16px;font-variant-numeric:tabular-nums;}
 </style>
 <script>
 // Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
@@ -1306,7 +1389,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '3.5'")) {
+        if (!txt.includes("APP_VERSION = '3.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1915,6 +1998,7 @@ if ('serviceWorker' in navigator) {
     <div class="wt-header">
       <button class="wt-back" onclick="closeWorktime()">&#8592;</button>
       <div class="wt-title">⏱ Arbeitszeit</div>
+      <button class="wt-cal-open-btn" onclick="openWorktimeCalendar()" title="Kalender öffnen">📅</button>
       <button class="wt-add-btn" onclick="openManualEntry()" title="Manueller Eintrag">+</button>
     </div>
     <div class="wt-body">
@@ -1975,6 +2059,38 @@ if ('serviceWorker' in navigator) {
         </div>
         <button id="wt-edit-delete-btn" class="wt-edit-btn wt-edit-delete" onclick="deleteWorktimeEntry()">🗑 Eintrag löschen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── ARBEITSZEIT KALENDER (Monatsansicht) ── -->
+  <div id="worktime-calendar-screen" style="display:none;position:fixed;inset:0;z-index:9300;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+    <div class="wt-header">
+      <button class="wt-back" onclick="closeWorktimeCalendar()">&#8592;</button>
+      <div class="wt-title">📅 Kalender</div>
+      <button class="wt-cal-today-btn" onclick="goToCalendarToday()">Heute</button>
+    </div>
+    <div class="wt-cal-nav">
+      <button class="wt-cal-nav-btn" onclick="prevCalendarMonth()">◀</button>
+      <div id="wt-cal-month-label" class="wt-cal-month-label">–</div>
+      <button class="wt-cal-nav-btn" onclick="nextCalendarMonth()">▶</button>
+    </div>
+    <div class="wt-cal-weekdays">
+      <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+    </div>
+    <div id="wt-cal-grid" class="wt-cal-grid"></div>
+    <div class="wt-cal-footer">
+      <div id="wt-cal-month-total" class="wt-cal-month-total">–</div>
+    </div>
+  </div>
+
+  <!-- ── KALENDER TAGESDETAIL MODAL ── -->
+  <div id="wt-cal-day-overlay" style="display:none;position:fixed;inset:0;z-index:9550;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeCalendarDayDetail()">
+    <div class="wt-edit-sheet">
+      <div class="wt-edit-header">
+        <h2 id="wt-cal-day-title">Tag</h2>
+        <button class="wt-edit-close" onclick="closeCalendarDayDetail()">&times;</button>
+      </div>
+      <div class="wt-edit-body" id="wt-cal-day-body"></div>
     </div>
   </div>
 
@@ -6019,8 +6135,13 @@ async function saveWorktimeEdit() {
       showToast('✓ Eintrag angelegt');
     }
     closeWorktimeEditModal();
+    invalidateCalendarCache();
     await loadWorktimeEntries();
     renderWorktimeScreen();
+    if (document.getElementById('worktime-calendar-screen').style.display === 'flex') {
+      await loadCalendarMonth(_calendarYear, _calendarMonth);
+      renderCalendar();
+    }
   } catch (e) {
     showToast('⚠️ Speichern fehlgeschlagen: ' + e.message);
   }
@@ -6041,8 +6162,13 @@ async function deleteWorktimeEntry() {
       prefer: 'return=minimal'
     });
     closeWorktimeEditModal();
+    invalidateCalendarCache();
     await loadWorktimeEntries();
     renderWorktimeScreen();
+    if (document.getElementById('worktime-calendar-screen').style.display === 'flex') {
+      await loadCalendarMonth(_calendarYear, _calendarMonth);
+      renderCalendar();
+    }
     showToast('✓ Eintrag gelöscht');
   } catch (e) {
     showToast('⚠️ Löschen fehlgeschlagen: ' + e.message);
@@ -6068,6 +6194,261 @@ function updateSlideMenuWorktimeStatus() {
   }
 }
 
+// ── KALENDER (Monatsansicht) ──────────────────────────────────────────
+
+let _calendarYear = null;
+let _calendarMonth = null;       // 0-11
+let _calendarEntries = new Map(); // 'YYYY-MM-DD' -> Array<entry>
+let _calendarLoadedMonths = new Set(); // 'YYYY-MM' Keys
+
+async function openWorktimeCalendar() {
+  const scr = document.getElementById('worktime-calendar-screen');
+  if (!scr) return;
+  scr.style.display = 'flex';
+  if (_calendarYear === null) {
+    const now = new Date();
+    _calendarYear = now.getFullYear();
+    _calendarMonth = now.getMonth();
+  }
+  await loadCalendarMonth(_calendarYear, _calendarMonth);
+  renderCalendar();
+}
+
+function closeWorktimeCalendar() {
+  const scr = document.getElementById('worktime-calendar-screen');
+  if (scr) scr.style.display = 'none';
+}
+
+async function loadCalendarMonth(year, month) {
+  if (!currentProfile || !currentUser) return;
+  const key = year + '-' + String(month+1).padStart(2,'0');
+  if (_calendarLoadedMonths.has(key)) return;
+  const start = new Date(year, month, 1).toISOString();
+  const end = new Date(year, month + 1, 1).toISOString();
+  try {
+    const data = await dbFetch(
+      'time_entries?company_id=eq.' + currentProfile.company_id +
+      '&profile_id=eq.' + currentUser.id +
+      '&started_at=gte.' + start +
+      '&started_at=lt.' + end +
+      '&deleted_at=is.null' +
+      '&order=started_at.asc&limit=300' +
+      '&select=*,areas(name)'
+    );
+    (data || []).forEach(e => {
+      const d = new Date(e.started_at);
+      const dayKey = d.getFullYear() + '-' +
+        String(d.getMonth()+1).padStart(2,'0') + '-' +
+        String(d.getDate()).padStart(2,'0');
+      if (!_calendarEntries.has(dayKey)) _calendarEntries.set(dayKey, []);
+      _calendarEntries.get(dayKey).push(e);
+    });
+    _calendarLoadedMonths.add(key);
+  } catch (e) { console.warn('loadCalendarMonth:', e); }
+}
+
+function invalidateCalendarCache() {
+  _calendarEntries.clear();
+  _calendarLoadedMonths.clear();
+}
+
+function renderCalendar() {
+  renderCalendarHeader();
+  renderCalendarGrid();
+  renderCalendarMonthTotal();
+}
+
+function renderCalendarHeader() {
+  const el = document.getElementById('wt-cal-month-label');
+  if (!el) return;
+  const monthNames = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  el.textContent = monthNames[_calendarMonth] + ' ' + _calendarYear;
+}
+
+function renderCalendarGrid() {
+  const el = document.getElementById('wt-cal-grid');
+  if (!el) return;
+  const firstDay = new Date(_calendarYear, _calendarMonth, 1);
+  let startWeekday = firstDay.getDay(); // 0=So
+  startWeekday = startWeekday === 0 ? 6 : startWeekday - 1; // shift to Mo=0
+  const daysInMonth = new Date(_calendarYear, _calendarMonth + 1, 0).getDate();
+  const daysInPrev = new Date(_calendarYear, _calendarMonth, 0).getDate();
+  const cells = [];
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    cells.push({ date: new Date(_calendarYear, _calendarMonth - 1, daysInPrev - i), inMonth: false });
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({ date: new Date(_calendarYear, _calendarMonth, day), inMonth: true });
+  }
+  let nextDay = 1;
+  while (cells.length < 42) {
+    cells.push({ date: new Date(_calendarYear, _calendarMonth + 1, nextDay), inMonth: false });
+    nextDay++;
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  el.innerHTML = cells.map(c => {
+    const d = c.date;
+    const dayKey = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const entries = _calendarEntries.get(dayKey) || [];
+    const finished = entries.filter(e => e.stopped_at);
+    let totalNetSec = 0;
+    finished.forEach(e => { totalNetSec += calcNetSeconds(e); });
+    const isRunning = entries.some(e => !e.stopped_at);
+    const isToday = d.getTime() === today.getTime();
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    let timeText = '';
+    if (totalNetSec > 0) {
+      const h = Math.floor(totalNetSec / 3600);
+      const m = Math.floor((totalNetSec % 3600) / 60);
+      timeText = h + ':' + String(m).padStart(2,'0');
+    } else if (isRunning) {
+      timeText = '· läuft';
+    }
+    const classes = ['wt-cal-cell'];
+    if (c.inMonth) classes.push('in'); else classes.push('out');
+    if (isToday) classes.push('today');
+    if (isWeekend) classes.push('weekend');
+    if (timeText) classes.push('has-entries');
+    if (isRunning) classes.push('running');
+    return `
+      <div class="${classes.join(' ')}" onclick="openCalendarDay('${dayKey}')">
+        <div class="wt-cal-day">${d.getDate()}</div>
+        ${timeText ? `<div class="wt-cal-time">${timeText}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderCalendarMonthTotal() {
+  const el = document.getElementById('wt-cal-month-total');
+  if (!el) return;
+  let netSum = 0;
+  const monthKey = _calendarYear + '-' + String(_calendarMonth+1).padStart(2,'0');
+  _calendarEntries.forEach((entries, dayKey) => {
+    if (dayKey.startsWith(monthKey)) {
+      entries.filter(e => e.stopped_at).forEach(e => { netSum += calcNetSeconds(e); });
+    }
+  });
+  el.innerHTML = netSum > 0
+    ? `Monatssumme: <strong>${fmtTime(netSum)}</strong>`
+    : 'Keine Einträge in diesem Monat';
+}
+
+async function prevCalendarMonth() {
+  _calendarMonth--;
+  if (_calendarMonth < 0) { _calendarMonth = 11; _calendarYear--; }
+  await loadCalendarMonth(_calendarYear, _calendarMonth);
+  renderCalendar();
+}
+
+async function nextCalendarMonth() {
+  _calendarMonth++;
+  if (_calendarMonth > 11) { _calendarMonth = 0; _calendarYear++; }
+  await loadCalendarMonth(_calendarYear, _calendarMonth);
+  renderCalendar();
+}
+
+async function goToCalendarToday() {
+  const now = new Date();
+  _calendarYear = now.getFullYear();
+  _calendarMonth = now.getMonth();
+  await loadCalendarMonth(_calendarYear, _calendarMonth);
+  renderCalendar();
+}
+
+function openCalendarDay(dayKey) {
+  const entries = (_calendarEntries.get(dayKey) || []).filter(e => e.stopped_at);
+  if (entries.length === 0) {
+    openManualEntryForDay(dayKey);
+    return;
+  }
+  showCalendarDayDetail(dayKey, entries);
+}
+
+function showCalendarDayDetail(dayKey, entries) {
+  const overlay = document.getElementById('wt-cal-day-overlay');
+  const titleEl = document.getElementById('wt-cal-day-title');
+  const body    = document.getElementById('wt-cal-day-body');
+  if (!overlay || !titleEl || !body) return;
+  const [yy, mm, dd] = dayKey.split('-').map(n => parseInt(n));
+  const date = new Date(yy, mm-1, dd);
+  titleEl.textContent = date.toLocaleDateString('de-DE',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+  let netSum = 0, pauseSum = 0;
+  entries.forEach(e => { netSum += calcNetSeconds(e); pauseSum += calcCurrentPauseSeconds(e); });
+  const sorted = entries.slice().sort((a,b) => new Date(a.started_at) - new Date(b.started_at));
+  const rows = sorted.map(e => {
+    const k = getKategorie(e.kategorie);
+    const net = calcNetSeconds(e);
+    const pause = calcCurrentPauseSeconds(e);
+    const start = new Date(e.started_at);
+    const stop = new Date(e.stopped_at);
+    const timeRange = start.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) +
+                      '–' + stop.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    const edited = e.manually_edited ? '<span class="wt-edited">✎ bearbeitet</span>' : '';
+    const area = (e.areas && e.areas.name) ? `<span class="wt-area">📍 ${escapeHtml(e.areas.name)}</span>` : '';
+    const note = e.note ? `<div class="wt-row-note">${escapeHtml(e.note)}</div>` : '';
+    const pauseTxt = pause > 0 ? ' · Pause ' + fmtTime(pause) : '';
+    return `
+      <div class="wt-entry-row" onclick="closeCalendarDayDetail();openWorktimeEdit('${e.id}')">
+        <div class="wt-row-emoji" style="background:${k.color}25;color:${k.color}">${k.emoji}</div>
+        <div class="wt-row-body">
+          <div class="wt-row-head">
+            <span class="wt-row-kat">${k.label}</span>
+            <span class="wt-row-time">${fmtTime(net)}</span>
+          </div>
+          <div class="wt-row-meta">${timeRange}${pauseTxt} ${area} ${edited}</div>
+          ${note}
+        </div>
+      </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div class="wt-cal-day-summary">
+      <strong>${fmtTime(netSum)}</strong> Arbeit${pauseSum > 0 ? ' · ' + fmtTime(pauseSum) + ' Pause' : ''}
+    </div>
+    ${rows}
+    <button class="wt-edit-btn wt-edit-save" style="width:100%;margin-top:14px;" onclick="closeCalendarDayDetail();openManualEntryForDay('${dayKey}')">+ Eintrag für diesen Tag</button>
+  `;
+  overlay.style.display = 'flex';
+}
+
+function closeCalendarDayDetail() {
+  const overlay = document.getElementById('wt-cal-day-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function openManualEntryForDay(dayKey) {
+  _worktimeEditingId = null;
+  document.getElementById('wt-edit-title').textContent = 'Manueller Eintrag';
+  document.getElementById('wt-edit-delete-btn').style.display = 'none';
+  const [yy, mm, dd] = dayKey.split('-').map(n => parseInt(n));
+  const today = new Date();
+  const isToday = (yy === today.getFullYear() && (mm-1) === today.getMonth() && dd === today.getDate());
+  let startDate, stopDate;
+  if (isToday) {
+    stopDate = new Date();
+    startDate = new Date(stopDate.getTime() - 3600 * 1000);
+  } else {
+    startDate = new Date(yy, mm-1, dd, 9, 0);
+    stopDate  = new Date(yy, mm-1, dd, 17, 0);
+  }
+  function localISO(d) {
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  document.getElementById('wt-edit-start').value = localISO(startDate);
+  document.getElementById('wt-edit-stop').value  = localISO(stopDate);
+  document.getElementById('wt-edit-pause-min').value = 0;
+  document.getElementById('wt-edit-note').value = '';
+  document.querySelectorAll('.wt-edit-kat-chip').forEach(c => {
+    c.classList.toggle('on', c.dataset.kat === 'sonstiges');
+  });
+  const sel = document.getElementById('wt-edit-area');
+  if (sel) {
+    sel.innerHTML = '<option value="">– Kein Gebiet –</option>' +
+      areas.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+  }
+  document.getElementById('worktime-edit-overlay').style.display = 'flex';
+}
+
 // Window-Bindings
 window.openWorktime = openWorktime;
 window.closeWorktime = closeWorktime;
@@ -6080,6 +6461,14 @@ window.closeWorktimeEditModal = closeWorktimeEditModal;
 window.selectEditKategorie = selectEditKategorie;
 window.saveWorktimeEdit = saveWorktimeEdit;
 window.deleteWorktimeEntry = deleteWorktimeEntry;
+window.openWorktimeCalendar = openWorktimeCalendar;
+window.closeWorktimeCalendar = closeWorktimeCalendar;
+window.prevCalendarMonth = prevCalendarMonth;
+window.nextCalendarMonth = nextCalendarMonth;
+window.goToCalendarToday = goToCalendarToday;
+window.openCalendarDay = openCalendarDay;
+window.closeCalendarDayDetail = closeCalendarDayDetail;
+window.openManualEntryForDay = openManualEntryForDay;
 
 // ── GRENZEN ───────────────────────────────────────────────────────
 document.getElementById('btn-grenzen').addEventListener('click',()=>{document.getElementById('grenzen-panel').classList.toggle('hidden');});
