@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="3.3">
+  <meta name="app-version" content="3.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1132,6 +1132,172 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .delete-all-row{display:flex;gap:10px;}
 .delete-cancel-btn{flex:1;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#8ab882;font-size:14px;font-family:inherit;cursor:pointer;font-weight:500;}
 .delete-confirm-btn{flex:1;padding:12px;border-radius:10px;border:none;background:var(--red);color:#fff;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;}
+/* ══════ ARBEITSZEIT v3.5 ══════ */
+.wt-header{
+  padding:12px 16px;padding-top:max(12px,var(--safe-top));
+  background:rgba(0,0,0,.35);backdrop-filter:blur(10px);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.wt-back{background:none;border:none;color:#8ab882;font-size:22px;cursor:pointer;padding:0;}
+.wt-title{font-size:16px;font-weight:500;color:#c8e6c0;flex:1;}
+.wt-add-btn{
+  width:36px;height:36px;border-radius:50%;border:1px solid rgba(74,170,74,.3);
+  background:rgba(45,90,39,.25);color:#a0d89a;font-size:22px;font-weight:300;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  line-height:1;padding:0 0 2px 0;font-family:inherit;
+}
+.wt-body{
+  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:12px;display:flex;flex-direction:column;gap:12px;
+  padding-bottom:max(12px,var(--safe-bottom));
+}
+.wt-card{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  border-radius:16px;overflow:hidden;
+}
+.wt-card-head{
+  padding:10px 16px 6px;font-size:10px;font-weight:700;color:#5a8a5a;
+  text-transform:uppercase;letter-spacing:.1em;
+}
+.wt-empty-today{padding:18px 16px;font-size:13px;color:#5a8a5a;font-style:italic;text-align:center;}
+.wt-empty-list{padding:32px 16px;text-align:center;color:#4a6a4a;font-size:13px;font-style:italic;}
+
+/* Tages-Summary */
+.wt-summary-main{padding:6px 16px 14px;display:flex;align-items:baseline;justify-content:space-between;}
+.wt-summary-headline{font-size:32px;font-weight:300;color:#c8e6c0;font-variant-numeric:tabular-nums;letter-spacing:-.02em;}
+.wt-summary-unit{font-size:14px;color:#5a8a5a;font-weight:400;margin-left:4px;}
+.wt-summary-sub{font-size:13px;color:#8ab882;}
+.wt-kat-list{border-top:1px solid rgba(255,255,255,.05);padding:8px 16px;}
+.wt-kat-row{display:flex;justify-content:space-between;font-size:13px;color:#a0c8a0;padding:3px 0;font-variant-numeric:tabular-nums;}
+
+/* Aktiver Eintrag */
+.wt-active-card{border-color:rgba(74,170,74,.3);background:linear-gradient(180deg,rgba(45,106,39,.12),rgba(45,106,39,.04));}
+.wt-active-head{padding:14px 16px;display:flex;align-items:center;gap:12px;}
+.wt-active-emoji{
+  width:44px;height:44px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:22px;flex-shrink:0;
+}
+.wt-active-info{flex:1;}
+.wt-active-kat{font-size:15px;font-weight:600;color:#c8e6c0;display:flex;align-items:center;gap:8px;}
+.wt-active-since{font-size:11px;color:#5a8a5a;margin-top:2px;}
+.wt-pause-badge{font-size:11px;padding:2px 8px;border-radius:8px;background:rgba(200,134,10,.2);color:#e0c060;font-weight:500;}
+#wt-active-time-display{padding:0 16px 12px;}
+.wt-active-net{
+  font-size:42px;font-weight:300;color:#c8e6c0;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1;
+}
+.wt-active-meta{font-size:12px;color:#8ab882;margin-top:4px;}
+.wt-active-actions{
+  display:flex;gap:0;border-top:1px solid rgba(255,255,255,.06);
+}
+.wt-btn{
+  flex:1;padding:14px;border:none;background:transparent;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:600;
+  border-right:1px solid rgba(255,255,255,.06);
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.wt-btn:last-child{border-right:none;}
+.wt-btn-pause{color:#e0c060;}
+.wt-btn-pause:active{background:rgba(200,134,10,.1);}
+.wt-btn-stop{color:#f5a0a0;}
+.wt-btn-stop:active{background:rgba(163,32,32,.1);}
+
+/* Start-Sektion (Kategorie-Chips) */
+.wt-start-card{padding:14px 14px 18px;}
+.wt-start-title{font-size:14px;font-weight:500;color:#a0c8a0;margin-bottom:14px;text-align:center;}
+.wt-kat-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.wt-kat-chip{
+  background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);
+  border-radius:14px;padding:14px 8px;cursor:pointer;font-family:inherit;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.wt-kat-chip:active{background:rgba(255,255,255,.08);transform:scale(.97);border-color:var(--katcolor,#4a9a40);}
+.wt-kat-chip-emoji{font-size:26px;line-height:1;}
+.wt-kat-chip-label{font-size:13px;font-weight:500;color:#c8e6c0;}
+
+/* Einträge-Liste */
+.wt-entries-list{display:flex;flex-direction:column;gap:10px;}
+.wt-day-group{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;overflow:hidden;
+}
+.wt-day-head{
+  padding:10px 14px;background:rgba(255,255,255,.03);
+  display:flex;justify-content:space-between;align-items:center;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  font-size:12px;font-weight:600;
+}
+.wt-day-label{color:#a0c8a0;text-transform:uppercase;letter-spacing:.05em;}
+.wt-day-sum{color:#8ab882;font-variant-numeric:tabular-nums;}
+.wt-entry-row{
+  padding:12px 14px;display:flex;gap:12px;align-items:flex-start;
+  border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;
+  transition:background .12s;-webkit-tap-highlight-color:transparent;
+}
+.wt-entry-row:last-child{border-bottom:none;}
+.wt-entry-row:active{background:rgba(255,255,255,.05);}
+.wt-row-emoji{
+  width:36px;height:36px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.wt-row-body{flex:1;min-width:0;}
+.wt-row-head{display:flex;justify-content:space-between;align-items:baseline;}
+.wt-row-kat{font-size:14px;font-weight:600;color:#c8e6c0;}
+.wt-row-time{font-size:14px;font-weight:600;color:#8ab882;font-variant-numeric:tabular-nums;}
+.wt-row-meta{font-size:11px;color:#5a8a5a;margin-top:3px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.wt-area{font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(74,170,74,.12);color:#7ab070;}
+.wt-edited{font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(200,134,10,.15);color:#c89030;}
+.wt-row-note{font-size:12px;color:#8ab882;margin-top:4px;font-style:italic;}
+
+/* Edit/Manual Modal */
+.wt-edit-sheet{
+  background:linear-gradient(175deg,#1e3520,#121f12);
+  border-radius:24px 24px 0 0;width:100%;max-width:520px;
+  max-height:88vh;display:flex;flex-direction:column;overflow:hidden;
+  padding-bottom:max(10px,env(safe-area-inset-bottom));
+}
+.wt-edit-header{
+  padding:18px 20px 12px;display:flex;align-items:center;
+  border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;
+}
+.wt-edit-header h2{font-size:17px;font-weight:500;color:#c8e6c0;flex:1;margin:0;}
+.wt-edit-close{background:none;border:none;color:#5a8a5a;font-size:26px;cursor:pointer;padding:0;line-height:1;}
+.wt-edit-body{overflow-y:auto;padding:14px 18px 18px;}
+.wt-edit-label{
+  display:block;font-size:11px;font-weight:600;color:#6a9a6a;
+  text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;
+}
+.wt-edit-label:first-child{margin-top:4px;}
+.wt-edit-input{
+  width:100%;font-size:14px;padding:10px 13px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:#c8e6c0;font-family:inherit;-webkit-appearance:none;
+}
+.wt-edit-textarea{resize:vertical;min-height:50px;}
+.wt-edit-kat-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.wt-edit-kat-chip{
+  padding:8px 12px;border-radius:9px;border:1.5px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:#a0c8a0;font-size:12px;
+  font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.wt-edit-kat-chip.on{
+  border-color:rgba(74,170,74,.5);background:rgba(74,170,74,.15);color:#c8e6c0;font-weight:600;
+}
+.wt-edit-actions{display:flex;gap:8px;margin-top:18px;}
+.wt-edit-btn{
+  flex:1;padding:12px;border-radius:10px;border:none;font-family:inherit;
+  font-size:14px;font-weight:600;cursor:pointer;touch-action:manipulation;
+}
+.wt-edit-cancel{background:rgba(255,255,255,.08);color:#8ab882;border:1px solid rgba(255,255,255,.1);}
+.wt-edit-save{background:#2d6a27;color:#e8f5e4;}
+.wt-edit-delete{
+  width:100%;margin-top:10px;background:rgba(163,32,32,.15);color:#f5a0a0;
+  border:1px solid rgba(163,32,32,.3);
+}
+.wt-edit-delete:active{background:rgba(163,32,32,.25);}
 </style>
 <script>
 // Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
@@ -1140,7 +1306,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '3.3'")) {
+        if (!txt.includes("APP_VERSION = '3.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1560,18 +1726,16 @@ if ('serviceWorker' in navigator) {
     </div>
     </div>
 
-    <!-- Stoppuhr (nur für Fahrer) -->
-    <div id="smenu-sec-stoppuhr">
-    <div class="slide-section-title">Stoppuhr</div>
-    <div style="padding:8px 12px;display:flex;align-items:center;gap:8px;">
-      <span id="timer-display-menu" style="font-size:22px;font-weight:600;color:#b5d4f4;font-variant-numeric:tabular-nums;min-width:85px;letter-spacing:.02em;">00:00:00</span>
-      <input type="text" id="timer-note-menu" placeholder="Notiz..." autocorrect="off"
-        style="flex:1;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;">
-    </div>
-    <div style="padding:0 12px 8px;display:flex;gap:8px;">
-      <button id="timer-start-menu" onclick="document.getElementById('btn-timer-start').click()" style="flex:1;padding:10px;border-radius:9px;border:none;background:#2d6a27;color:#e8f5e4;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">▶ Start</button>
-      <button id="timer-stop-menu" onclick="document.getElementById('btn-timer-stop').click()" style="flex:1;padding:10px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:#8ab882;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;">⏹ Stopp</button>
-    </div>
+    <!-- Arbeitszeit (nur für Fahrer) -->
+    <div id="smenu-sec-arbeitszeit">
+    <div class="slide-section-title">Arbeitszeit</div>
+    <button class="slide-btn" id="smenu-btn-worktime" onclick="closeSlideMenu();openWorktime()">
+      <div class="slide-btn-icon blue">⏱</div>
+      <div class="slide-btn-info">
+        <div class="slide-btn-label">Arbeitszeit erfassen</div>
+        <div class="slide-btn-desc" id="smenu-worktime-status">Heute: noch nicht gestartet</div>
+      </div>
+    </button>
     </div>
 
     <!-- Einstellungen -->
@@ -1742,6 +1906,74 @@ if ('serviceWorker' in navigator) {
       </div>
       <div id="dov-list">
         <div style="padding:24px;text-align:center;color:#5a8a5a;font-size:13px;">Wird geladen...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ARBEITSZEIT SCREEN (Vollscreen Overlay) ── -->
+  <div id="worktime-screen" style="display:none;position:fixed;inset:0;z-index:9200;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+    <div class="wt-header">
+      <button class="wt-back" onclick="closeWorktime()">&#8592;</button>
+      <div class="wt-title">⏱ Arbeitszeit</div>
+      <button class="wt-add-btn" onclick="openManualEntry()" title="Manueller Eintrag">+</button>
+    </div>
+    <div class="wt-body">
+      <!-- Tages-Zusammenfassung -->
+      <div class="wt-card wt-summary-card">
+        <div class="wt-card-head">HEUTE</div>
+        <div id="worktime-today-summary"><div class="wt-empty-today">Lade…</div></div>
+      </div>
+
+      <!-- Aktiver Eintrag (wenn vorhanden) -->
+      <div id="worktime-active-card" class="wt-card wt-active-card" style="display:none;"></div>
+
+      <!-- Start-Sektion (wenn kein aktiver Eintrag) -->
+      <div id="worktime-start-section" class="wt-card wt-start-card"></div>
+
+      <!-- Einträge-Liste -->
+      <div id="worktime-entries-list" class="wt-entries-list"></div>
+
+      <div style="height:20px;"></div>
+    </div>
+  </div>
+
+  <!-- ── ARBEITSZEIT EDIT/MANUAL MODAL ── -->
+  <div id="worktime-edit-overlay" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeWorktimeEditModal()">
+    <div class="wt-edit-sheet">
+      <div class="wt-edit-header">
+        <h2 id="wt-edit-title">Eintrag bearbeiten</h2>
+        <button class="wt-edit-close" onclick="closeWorktimeEditModal()">&times;</button>
+      </div>
+      <div class="wt-edit-body">
+        <label class="wt-edit-label">Kategorie</label>
+        <div class="wt-edit-kat-chips">
+          <button class="wt-edit-kat-chip" data-kat="einschlag" onclick="selectEditKategorie('einschlag')"><span>🪓</span> Einschlag</button>
+          <button class="wt-edit-kat-chip" data-kat="ruecken"   onclick="selectEditKategorie('ruecken')"><span>🚜</span> Rücken</button>
+          <button class="wt-edit-kat-chip" data-kat="fahrzeit"  onclick="selectEditKategorie('fahrzeit')"><span>🚗</span> Fahrzeit</button>
+          <button class="wt-edit-kat-chip" data-kat="wartung"   onclick="selectEditKategorie('wartung')"><span>🔧</span> Wartung</button>
+          <button class="wt-edit-kat-chip" data-kat="sonstiges" onclick="selectEditKategorie('sonstiges')"><span>📋</span> Sonstiges</button>
+        </div>
+
+        <label class="wt-edit-label">Start</label>
+        <input type="datetime-local" id="wt-edit-start" class="wt-edit-input">
+
+        <label class="wt-edit-label">Stopp</label>
+        <input type="datetime-local" id="wt-edit-stop" class="wt-edit-input">
+
+        <label class="wt-edit-label">Pause (Minuten)</label>
+        <input type="number" id="wt-edit-pause-min" min="0" step="5" value="0" class="wt-edit-input">
+
+        <label class="wt-edit-label">Gebiet</label>
+        <select id="wt-edit-area" class="wt-edit-input"></select>
+
+        <label class="wt-edit-label">Notiz</label>
+        <textarea id="wt-edit-note" rows="2" class="wt-edit-input wt-edit-textarea" placeholder="Optional…"></textarea>
+
+        <div class="wt-edit-actions">
+          <button class="wt-edit-btn wt-edit-cancel" onclick="closeWorktimeEditModal()">Abbrechen</button>
+          <button class="wt-edit-btn wt-edit-save" onclick="saveWorktimeEdit()">Speichern</button>
+        </div>
+        <button id="wt-edit-delete-btn" class="wt-edit-btn wt-edit-delete" onclick="deleteWorktimeEntry()">🗑 Eintrag löschen</button>
       </div>
     </div>
   </div>
@@ -2281,6 +2513,12 @@ async function doLogin() {
     if (loginBtn) { loginBtn.textContent = 'Anmelden'; loginBtn.disabled = false; }
     document.getElementById('auth-screen').style.display = 'none';
     showModeScreen();
+    // Worktime-Status laden (zeigt aktuellen Status im Slide-Menu, restauriert laufenden Eintrag)
+    if (currentProfile && currentProfile.role !== 'admin' && typeof loadWorktimeEntries === 'function') {
+      loadWorktimeEntries().then(() => {
+        if (typeof updateSlideMenuWorktimeStatus === 'function') updateSlideMenuWorktimeStatus();
+      });
+    }
 
   } catch(e) {
     showAuthErr('Unbekannter Fehler: ' + e.message);
@@ -2343,6 +2581,11 @@ sb.auth.onAuthStateChange(async (event, session) => {
     currentProfile = prof;
     document.getElementById('auth-screen').style.display = 'none';
     showModeScreen();
+    if (currentProfile && currentProfile.role !== 'admin' && typeof loadWorktimeEntries === 'function') {
+      loadWorktimeEntries().then(() => {
+        if (typeof updateSlideMenuWorktimeStatus === 'function') updateSlideMenuWorktimeStatus();
+      });
+    }
   }
 });
 
@@ -2461,13 +2704,11 @@ function toggleAdminOwnGps() {
 function startAdminOwnGps() {
   if (!navigator.geolocation) return;
   if (adminOwnGpsWatchId !== null) return;
-  // Kompass aktivieren (Touch-Kontext aus dem Toggle-Tap heraus)
   if (typeof setupCompass === 'function') { try { setupCompass(); } catch(e){} }
   adminOwnGpsWatchId = navigator.geolocation.watchPosition(pos => {
     const { latitude: lat, longitude: lng, accuracy: acc, heading: hd, speed: spd } = pos.coords;
     if (acc > 80) return;
     if (typeof feedGpsHeading === 'function') feedGpsHeading(hd, spd);
-    // Marker auf Karte setzen/aktualisieren
     const ll = L.latLng(lat, lng);
     const adminColor = '#1a5fa8';
     const adminHtml = (typeof buildUserMarkerHtml === 'function')
@@ -2475,16 +2716,12 @@ function startAdminOwnGps() {
       : '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>';
     if (adminOwnMarker) {
       adminOwnMarker.setLatLng(ll);
-      adminOwnMarker.setIcon(L.divIcon({
-        className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
-      }));
+      adminOwnMarker.setIcon(L.divIcon({ className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7] }));
       if (adminOwnCircle) adminOwnCircle.setLatLng(ll).setRadius(acc);
     } else {
       adminOwnCircle = L.circle(ll, { radius: acc, color: adminColor, fillColor: adminColor, fillOpacity: 0.15, weight: 1 }).addTo(map);
       adminOwnMarker = L.marker(ll, {
-        icon: L.divIcon({
-          className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
-        })
+        icon: L.divIcon({ className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7] })
       }).addTo(map).bindPopup('<b>Mein Standort</b><br>Admin');
     }
     map.panTo(ll);
@@ -2499,7 +2736,6 @@ function stopAdminOwnGps() {
   }
   if (adminOwnMarker) { try { map.removeLayer(adminOwnMarker); } catch {} adminOwnMarker = null; }
   if (adminOwnCircle) { try { map.removeLayer(adminOwnCircle); } catch {} adminOwnCircle = null; }
-  // Kompass nur stoppen wenn nicht auch das normale GPS-Tracking aktiv ist
   if (typeof stopCompass === 'function' && typeof gpsTrackingEnabled !== 'undefined' && !gpsTrackingEnabled) {
     try { stopCompass(); } catch(e){}
   }
@@ -2600,13 +2836,11 @@ function toggleAdminOwnGps() {
 function startAdminOwnGps() {
   if (!navigator.geolocation) return;
   if (adminOwnGpsWatchId !== null) return;
-  // Kompass aktivieren (Touch-Kontext aus dem Toggle-Tap heraus)
   if (typeof setupCompass === 'function') { try { setupCompass(); } catch(e){} }
   adminOwnGpsWatchId = navigator.geolocation.watchPosition(pos => {
     const { latitude: lat, longitude: lng, accuracy: acc, heading: hd, speed: spd } = pos.coords;
     if (acc > 80) return;
     if (typeof feedGpsHeading === 'function') feedGpsHeading(hd, spd);
-    // Marker auf Karte setzen/aktualisieren
     const ll = L.latLng(lat, lng);
     const adminColor = '#1a5fa8';
     const adminHtml = (typeof buildUserMarkerHtml === 'function')
@@ -2614,16 +2848,12 @@ function startAdminOwnGps() {
       : '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>';
     if (adminOwnMarker) {
       adminOwnMarker.setLatLng(ll);
-      adminOwnMarker.setIcon(L.divIcon({
-        className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
-      }));
+      adminOwnMarker.setIcon(L.divIcon({ className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7] }));
       if (adminOwnCircle) adminOwnCircle.setLatLng(ll).setRadius(acc);
     } else {
       adminOwnCircle = L.circle(ll, { radius: acc, color: adminColor, fillColor: adminColor, fillOpacity: 0.15, weight: 1 }).addTo(map);
       adminOwnMarker = L.marker(ll, {
-        icon: L.divIcon({
-          className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7]
-        })
+        icon: L.divIcon({ className: '', html: adminHtml, iconSize: [14, 14], iconAnchor: [7, 7] })
       }).addTo(map).bindPopup('<b>Mein Standort</b><br>Admin');
     }
     map.panTo(ll);
@@ -2638,7 +2868,6 @@ function stopAdminOwnGps() {
   }
   if (adminOwnMarker) { try { map.removeLayer(adminOwnMarker); } catch {} adminOwnMarker = null; }
   if (adminOwnCircle) { try { map.removeLayer(adminOwnCircle); } catch {} adminOwnCircle = null; }
-  // Kompass nur stoppen wenn nicht auch das normale GPS-Tracking aktiv ist
   if (typeof stopCompass === 'function' && typeof gpsTrackingEnabled !== 'undefined' && !gpsTrackingEnabled) {
     try { stopCompass(); } catch(e){}
   }
@@ -4177,16 +4406,19 @@ document.getElementById('btn-still-cancel').addEventListener('click',cancelStill
 // Hybrid-Heading wie Google Maps: Kompass (DeviceOrientation) im Stand,
 // GPS-Heading (pos.coords.heading) in Bewegung. Glatte Rotation per
 // DOM-Transform statt L.marker neu erstellen.
+// Performance (v3.4 gegen Stuttering):
+//  - rAF-Throttling: DOM-Update max. 1x pro Frame
+//  - Adaptives EMA-Alpha: bei großen Drehungen schnell folgen, im Stand stark filtern
+//  - Kurze CSS-Transition (120ms linear)
 
-let currentHeading = null;       // 0-360, null = unbekannt → kein Pfeil
-let compassHeading = null;       // letzter geglätteter Wert vom Magnetometer
-let gpsHeading = null;           // letzter Wert aus pos.coords.heading
-let gpsSpeed = 0;                // letzter Wert aus pos.coords.speed (m/s)
+let currentHeading = null;
+let compassHeading = null;
+let gpsHeading = null;
+let gpsSpeed = 0;
 let compassListenerActive = false;
-let lastUmColor = '#1a7050';     // gemerkte Farbe für Pfeil-Refresh ohne Position
+let lastUmColor = '#1a7050';
+let _headingRafScheduled = false;
 
-// Zirkulärer EMA (Exponential Moving Average) für Heading - vermeidet
-// Sprung von 359° auf 1° (würde sonst rückwärts drehen)
 function smoothHeading(prev, next, alpha) {
   if (prev == null || isNaN(prev)) return next;
   let diff = next - prev;
@@ -4198,57 +4430,49 @@ function smoothHeading(prev, next, alpha) {
   return s;
 }
 
-// Wählt Heading-Quelle: bei Bewegung GPS (stabiler), sonst Kompass
 function pickHeading() {
-  // GPS-Heading nur vertrauen wenn klar in Bewegung (>1 m/s ≈ 3.6 km/h)
-  if (gpsHeading != null && !isNaN(gpsHeading) && gpsSpeed > 1) {
-    return gpsHeading;
-  }
-  if (compassHeading != null && !isNaN(compassHeading)) {
-    return compassHeading;
-  }
+  if (gpsHeading != null && !isNaN(gpsHeading) && gpsSpeed > 1) return gpsHeading;
+  if (compassHeading != null && !isNaN(compassHeading)) return compassHeading;
   return null;
+}
+
+function headingDiff(a, b) {
+  if (a == null || b == null) return 999;
+  let d = Math.abs(a - b);
+  if (d > 180) d = 360 - d;
+  return d;
 }
 
 function handleOrientation(e) {
   let h = null;
-  // iOS: webkitCompassHeading ist 0-360 im Uhrzeigersinn relativ zu geografischem Norden
   if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
     h = e.webkitCompassHeading;
   } else if (e.absolute && typeof e.alpha === 'number' && !isNaN(e.alpha)) {
-    // Android Standard: alpha ist 0-360 gegen den Uhrzeigersinn → invertieren
     h = (360 - e.alpha) % 360;
   } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
-    // Nicht-absolutes Heading (kein echter Kompass) - trotzdem nutzen als Notfall
     h = (360 - e.alpha) % 360;
   }
   if (h == null) return;
-  compassHeading = smoothHeading(compassHeading, h, 0.25);
+  let alpha = 0.25;
+  const d = headingDiff(compassHeading, h);
+  if      (d > 30) alpha = 0.5;
+  else if (d > 10) alpha = 0.3;
+  else if (d > 2)  alpha = 0.2;
+  else             alpha = 0.08;
+  compassHeading = smoothHeading(compassHeading, h, alpha);
   currentHeading = pickHeading();
-  applyMarkerHeading();
+  scheduleMarkerHeadingUpdate();
 }
 
-// iOS 13+: Permission muss in einem User-Gesten-Handler angefragt werden.
-// toggleGpsTracking ruft setupCompass() im Touch-Handler auf - das ist OK.
 async function setupCompass() {
   if (compassListenerActive) return;
   if (typeof DeviceOrientationEvent === 'undefined') return;
-
-  // iOS 13+ Permission
   if (typeof DeviceOrientationEvent.requestPermission === 'function') {
     try {
       const result = await DeviceOrientationEvent.requestPermission();
-      if (result !== 'granted') {
-        console.warn('Kompass-Zugriff verweigert');
-        return; // Pfeil bleibt aus, nur GPS-Heading als Fallback bei Bewegung
-      }
-    } catch(e) {
-      console.warn('Kompass Permission:', e);
-      return;
-    }
+      if (result !== 'granted') { console.warn('Kompass denied'); return; }
+    } catch(e) { console.warn('Compass perm:', e); return; }
   }
-
-  // Bevorzugt: 'deviceorientationabsolute' (echter Magnetometer-Wert)
   const evt = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
   window.addEventListener(evt, handleOrientation, true);
   compassListenerActive = true;
@@ -4259,32 +4483,24 @@ function stopCompass() {
   window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
   window.removeEventListener('deviceorientation', handleOrientation, true);
   compassListenerActive = false;
-  compassHeading = null;
-  gpsHeading = null;
-  currentHeading = null;
+  compassHeading = null; gpsHeading = null; currentHeading = null;
 }
 
-// Heading aus GPS aktualisieren (aus watchPosition-Callbacks aufgerufen)
 function feedGpsHeading(heading, speed) {
   gpsSpeed = (typeof speed === 'number' && !isNaN(speed)) ? speed : 0;
   if (typeof heading === 'number' && !isNaN(heading) && heading >= 0) {
     gpsHeading = smoothHeading(gpsHeading, heading, 0.4);
   }
   currentHeading = pickHeading();
-  applyMarkerHeading();
+  scheduleMarkerHeadingUpdate();
 }
 
-// Marker-HTML bauen (Wedge + Punkt). Wedge ist nur im DOM wenn Heading bekannt -
-// CSS transform rotiert ihn günstig ohne Re-Render.
 function buildUserMarkerHtml(color, heading) {
   const showWedge = heading != null;
-  // Wedge: Spitze in (0,0), öffnet sich nach OBEN (Richtung -Y = Norden), 60° Öffnung
-  // Punkte: links (-10,-17.32), rechts (10,-17.32), dazwischen Arc-Segment
-  // Eindeutige Gradient-ID damit mehrere Marker (Fahrer + Admin) nicht kollidieren
   const gid = 'umGrad_' + Math.floor(Math.random()*1e6);
   const wedge = showWedge ? `
     <svg class="um-wedge" width="60" height="60" viewBox="-30 -30 60 60"
-         style="position:absolute;top:50%;left:50%;margin:-30px 0 0 -30px;pointer-events:none;transform:rotate(${heading}deg);transition:transform .18s ease-out;will-change:transform;">
+         style="position:absolute;top:50%;left:50%;margin:-30px 0 0 -30px;pointer-events:none;transform:rotate(${heading}deg);transition:transform .12s linear;will-change:transform;">
       <defs>
         <radialGradient id="${gid}" cx="0" cy="0" r="28" gradientUnits="userSpaceOnUse">
           <stop offset="0"   stop-color="${color}" stop-opacity="0.75"/>
@@ -4294,7 +4510,6 @@ function buildUserMarkerHtml(color, heading) {
       </defs>
       <path d="M 0,0 L -14,-24.25 A 28,28 0 0,1 14,-24.25 Z" fill="url(#${gid})"/>
     </svg>` : '';
-
   return `
     <div class="um-root" style="position:relative;width:18px;height:18px;">
       ${wedge}
@@ -4302,74 +4517,76 @@ function buildUserMarkerHtml(color, heading) {
     </div>`;
 }
 
-// Schneller Heading-Refresh ohne L.marker zu rezeugen - nur transform updaten.
-// Wenn noch kein Wedge im DOM ist (currentHeading war vorher null), Marker neu rendern.
-function applyMarkerHeading() {
+function scheduleMarkerHeadingUpdate() {
+  if (_headingRafScheduled) return;
+  _headingRafScheduled = true;
+  requestAnimationFrame(() => {
+    _headingRafScheduled = false;
+    _renderMarkerHeading();
+  });
+}
+
+function _renderMarkerHeading() {
   if (!uMarker || !map) return;
   const el = uMarker.getElement();
   if (!el) return;
   let wedge = el.querySelector('.um-wedge');
   if (currentHeading == null) {
-    // Kein Heading mehr - Wedge entfernen
     if (wedge) wedge.remove();
     return;
   }
   if (!wedge) {
-    // Erstmals Heading verfügbar - Marker-Icon neu setzen damit Wedge erscheint
     uMarker.setIcon(L.divIcon({
-      className: '',
-      html: buildUserMarkerHtml(lastUmColor, currentHeading),
+      className: '', html: buildUserMarkerHtml(lastUmColor, currentHeading),
       iconSize: [14, 14], iconAnchor: [7, 7]
     }));
-    return;
+  } else {
+    wedge.style.transform = 'rotate(' + currentHeading + 'deg)';
   }
-  // Bestehender Wedge - nur Transform aktualisieren (super günstig)
-  wedge.style.transform = 'rotate(' + currentHeading + 'deg)';
-
-  // Auch beim Admin-eigenen-Marker synchronisieren falls aktiv
   if (typeof adminOwnMarker !== 'undefined' && adminOwnMarker) {
     const aEl = adminOwnMarker.getElement();
     if (aEl) {
       const aw = aEl.querySelector('.um-wedge');
-      if (aw) aw.style.transform = 'rotate(' + currentHeading + 'deg)';
+      if (aw) {
+        aw.style.transform = 'rotate(' + currentHeading + 'deg)';
+      } else if (currentHeading != null) {
+        adminOwnMarker.setIcon(L.divIcon({
+          className: '', html: buildUserMarkerHtml('#1a5fa8', currentHeading),
+          iconSize: [14, 14], iconAnchor: [7, 7]
+        }));
+      }
     }
   }
 }
 
+function applyMarkerHeading() { scheduleMarkerHeadingUpdate(); }
+
 function updateUM(ll, acc, state) {
   const c = state==='stl' ? '#c8860a' : state==='trk' ? '#e05555' : '#1a7050';
   lastUmColor = c;
-
-  // Genauigkeits-Kreis
   if (uCircle) {
     uCircle.setLatLng(ll).setRadius(acc);
     uCircle.setStyle({ color: c });
   } else {
     uCircle = L.circle(ll, { radius: acc, color: c, fillOpacity: .07, weight: 1 }).addTo(map);
   }
-
-  // Marker: in-place updaten wenn möglich (kein Flicker)
   if (uMarker) {
     uMarker.setLatLng(ll);
     uMarker.setIcon(L.divIcon({
-      className: '',
-      html: buildUserMarkerHtml(c, currentHeading),
+      className: '', html: buildUserMarkerHtml(c, currentHeading),
       iconSize: [14, 14], iconAnchor: [7, 7]
     }));
   } else {
     uMarker = L.marker(ll, {
       icon: L.divIcon({
-        className: '',
-        html: buildUserMarkerHtml(c, currentHeading),
+        className: '', html: buildUserMarkerHtml(c, currentHeading),
         iconSize: [14, 14], iconAnchor: [7, 7]
       })
     }).addTo(map);
   }
-
   setDot(state==='trk' ? 'trk' : state==='stl' ? 'stl' : 'ok');
 }
 
-// Window-Binding für andere Module
 window.setupCompass = setupCompass;
 window.stopCompass = stopCompass;
 window.feedGpsHeading = feedGpsHeading;
@@ -4535,7 +4752,6 @@ function toggleGpsTracking() {
     setDot('off');
     setTxt('GPS wird gestartet...');
     // Kompass-Permission im Touch-Kontext anfragen (iOS 13+ Pflicht)
-    // Bewusst NICHT awaiten - wenn User die Permission ablehnt, läuft GPS trotzdem
     if (typeof setupCompass === 'function') { try { setupCompass(); } catch(e){} }
     // Permission anfragen dann BgGps starten
     if (navigator.geolocation) {
@@ -4593,13 +4809,11 @@ let bgGpsWatchId = null;
 function startBgGps() {
   if (bgGpsWatchId !== null) return;
   if (!navigator.geolocation) return;
-  // GPS blockieren nur wenn Admin im Admin-Dashboard-Modus (nicht als Fahrer)
   if (currentMode === 'admin') return;
   bgGpsWatchId = navigator.geolocation.watchPosition(
     pos => {
       const { latitude, longitude, accuracy, heading, speed } = pos.coords;
-      if (accuracy > 100) return; // Nur >100m ignorieren
-      // GPS-Heading füttern (wird ignoriert wenn Speed zu niedrig)
+      if (accuracy > 100) return;
       if (typeof feedGpsHeading === 'function') feedGpsHeading(heading, speed);
       updateDriverLocation(latitude, longitude);
     },
@@ -4657,9 +4871,9 @@ function startMode(mode) {
   if (adminGpsTgl2)  adminGpsTgl2.style.display  = isAdmin ? 'flex' : 'none';
   if (adminOwnTgl2)  adminOwnTgl2.style.display  = isAdmin ? 'flex' : 'none';
 
-  // Stoppuhr nur für Fahrer (nicht im Admin-Dashboard-Modus)
-  const stoppuhrSec = document.getElementById('smenu-sec-stoppuhr');
-  if (stoppuhrSec) stoppuhrSec.style.display = isAdmin ? 'none' : '';
+  // Arbeitszeit nur für Fahrer (nicht im Admin-Dashboard-Modus)
+  const arbzeitSec = document.getElementById('smenu-sec-arbeitszeit');
+  if (arbzeitSec) arbzeitSec.style.display = isAdmin ? 'none' : '';
 
   // Maschine-Einstellungen nur für Fahrer
   const maschineSec = document.getElementById('smenu-sec-maschine-wrap');
@@ -5273,11 +5487,26 @@ async function saveArea() {
   }
 }
 
-// ── ZEITERFASSUNG / STOPPUHR ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+// ── ARBEITSZEITERFASSUNG (Worktime v3.5) ─────────────────────────────
+// Ersetzt die alte Stoppuhr. Mit Kategorien, Pausen, Edit/Delete,
+// Tageszusammenfassung und Audit-Log fuer rechtliche Beweispflicht.
+// ══════════════════════════════════════════════════════════════════════
+
+// Compat-Shims fuer Kraftstoff-Tracking (das prueft weiterhin timerRunning)
 let timerRunning = false;
 let timerStart   = null;
 let timerItv     = null;
 let timerEntryId = null;
+
+const KATEGORIEN = [
+  { id: 'einschlag', label: 'Einschlag', emoji: '🪓', color: '#2d6a27' },
+  { id: 'ruecken',   label: 'Rücken',    emoji: '🚜', color: '#1a5fa8' },
+  { id: 'fahrzeit',  label: 'Fahrzeit',  emoji: '🚗', color: '#b07010' },
+  { id: 'wartung',   label: 'Wartung',   emoji: '🔧', color: '#888'    },
+  { id: 'sonstiges', label: 'Sonstiges', emoji: '📋', color: '#666'    }
+];
+function getKategorie(id) { return KATEGORIEN.find(k => k.id === id) || KATEGORIEN[4]; }
 
 function fmtTime(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -5286,110 +5515,571 @@ function fmtTime(seconds) {
   return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
 }
 
-document.getElementById('btn-timer-start').addEventListener('click', async () => {
-  if (!currentProfile) { alert('Bitte zuerst einloggen.'); return; }
-  timerRunning = true;
-  timerStart   = new Date();
-  document.getElementById('btn-timer-start').classList.add('hidden');
-  document.getElementById('btn-timer-stop').classList.remove('hidden');
-  document.getElementById('timer-note').disabled = true;
+let activeWorktimeEntry = null;
+let worktimeEntries = [];
+let _worktimeTickItv = null;
+let _worktimeEditingId = null;
 
-  // Uhr sofort starten (unabhängig von DB)
-  startKraftstoffTracking();
-  timerItv = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - timerStart.getTime()) / 1000);
-    const t = fmtTime(elapsed);
-    document.getElementById('timer-display').textContent = t;
-    updateMenuTimerDisplay(t);
-  }, 1000);
-  syncTimerButtons(true);
+// ── DB / AUDIT ────────────────────────────────────────────────────────
 
-  // In DB speichern (im Hintergrund)
+async function auditLog(action, prevValues, reason) {
+  if (!currentProfile || !currentUser) return;
   try {
-    const tEntry = await dbFetch('time_entries?select=*', {
+    await dbFetch('time_entry_audit?select=*', {
       method: 'POST',
-      body: { company_id: currentProfile.company_id, profile_id: currentUser.id,
-              area_id: currentAreaId || null, started_at: timerStart.toISOString(),
-              note: document.getElementById('timer-note').value || null },
-      prefer: 'return=representation'
-    });
-    if (tEntry && tEntry[0]) timerEntryId = tEntry[0].id;
-  } catch(e) {
-    console.warn('Timer DB-Fehler:', e.message);
-    // Timer läuft trotzdem weiter
-  }
-});
-
-document.getElementById('btn-timer-stop').addEventListener('click', async () => {
-  clearInterval(timerItv); timerItv = null;
-  timerRunning = false;
-  const stopped  = new Date();
-  const duration = Math.floor((stopped - timerStart) / 1000);
-
-  document.getElementById('btn-timer-stop').classList.add('hidden');
-  document.getElementById('btn-timer-start').classList.remove('hidden');
-  document.getElementById('timer-note').disabled = false;
-  document.getElementById('timer-display').textContent = '00:00:00';
-  updateMenuTimerDisplay('00:00:00');
-  syncTimerButtons(false);
-
-  // In DB aktualisieren
-  if (timerEntryId) {
-    await dbFetch('time_entries?id=eq.'+timerEntryId, {
-      method: 'PATCH',
-      body: { stopped_at: stopped.toISOString(), duration_seconds: duration },
+      body: {
+        time_entry_id: prevValues.id || prevValues.time_entry_id,
+        company_id: currentProfile.company_id,
+        edited_by: currentUser.id,
+        action,
+        prev_started_at: prevValues.started_at || null,
+        prev_stopped_at: prevValues.stopped_at || null,
+        prev_kategorie: prevValues.kategorie || null,
+        prev_pause_seconds: prevValues.pause_seconds || 0,
+        prev_note: prevValues.note || null,
+        prev_area_id: prevValues.area_id || null,
+        reason: reason || null
+      },
       prefer: 'return=minimal'
-    }).catch(()=>{});
-    timerEntryId = null;
+    });
+  } catch (e) {
+    console.warn('Audit-Log Fehler:', e);
   }
-
-  document.getElementById('timer-note').value = '';
-  timerStart = null;
-  // History kurz flashen
-  await loadTimerHistory();
-});
-
-let timerHistory = [];
-
-async function loadTimerHistory() {
-  const data = await dbFetch(
-    'time_entries?company_id=eq.'+currentProfile.company_id+
-    '&order=started_at.desc&limit=50&select=*,areas(name),profiles(name)'
-  ).catch(()=>[]);
-  if (data.length >= 0) timerHistory = data;
-  renderTimerHistory();
 }
 
-function renderTimerHistory() {
-  const el = document.getElementById('timer-entries');
-  if (!timerHistory.length) {
-    el.innerHTML = '<div style="padding:20px;color:#aaa;text-align:center;font-style:italic;">Noch keine Einträge.</div>';
+async function loadWorktimeEntries() {
+  if (!currentProfile || !currentUser) return;
+  const since = new Date(Date.now() - 30*24*3600*1000).toISOString();
+  try {
+    const data = await dbFetch(
+      'time_entries?company_id=eq.' + currentProfile.company_id +
+      '&profile_id=eq.' + currentUser.id +
+      '&started_at=gte.' + since +
+      '&deleted_at=is.null' +
+      '&order=started_at.desc&limit=200' +
+      '&select=*,areas(name)'
+    );
+    worktimeEntries = data || [];
+    const running = worktimeEntries.find(e => !e.stopped_at);
+    if (running) {
+      activeWorktimeEntry = running;
+      timerStart = new Date(running.started_at);
+      timerEntryId = running.id;
+      timerRunning = !running.pause_started_at;
+      startTickTimer();
+      if (typeof startKraftstoffTracking === 'function' && timerRunning) startKraftstoffTracking();
+    } else {
+      activeWorktimeEntry = null;
+      timerRunning = false; timerStart = null; timerEntryId = null;
+    }
+  } catch (e) { console.warn('loadWorktimeEntries:', e); }
+}
+
+// ── SCREEN OPEN/CLOSE ─────────────────────────────────────────────────
+
+async function openWorktime() {
+  const scr = document.getElementById('worktime-screen');
+  if (!scr) return;
+  scr.style.display = 'flex';
+  await loadWorktimeEntries();
+  renderWorktimeScreen();
+  startTickTimer();
+}
+
+function closeWorktime() {
+  const scr = document.getElementById('worktime-screen');
+  if (scr) scr.style.display = 'none';
+  if (!activeWorktimeEntry) stopTickTimer();
+}
+
+// ── TICK TIMER ────────────────────────────────────────────────────────
+
+function startTickTimer() {
+  if (_worktimeTickItv) return;
+  _worktimeTickItv = setInterval(() => {
+    if (!activeWorktimeEntry) return;
+    updateActiveCardLive();
+    updateSlideMenuWorktimeStatus();
+    timerItv = _worktimeTickItv;
+  }, 1000);
+}
+function stopTickTimer() {
+  if (_worktimeTickItv) { clearInterval(_worktimeTickItv); _worktimeTickItv = null; timerItv = null; }
+}
+
+// ── BERECHNUNGEN ──────────────────────────────────────────────────────
+
+function calcCurrentPauseSeconds(entry) {
+  let p = entry.pause_seconds || 0;
+  if (entry.pause_started_at) {
+    p += Math.floor((Date.now() - new Date(entry.pause_started_at).getTime()) / 1000);
+  }
+  return p;
+}
+function calcNetSeconds(entry) {
+  const end = entry.stopped_at ? new Date(entry.stopped_at).getTime() : Date.now();
+  const total = Math.floor((end - new Date(entry.started_at).getTime()) / 1000);
+  return Math.max(0, total - calcCurrentPauseSeconds(entry));
+}
+function calcTotalSeconds(entry) {
+  const end = entry.stopped_at ? new Date(entry.stopped_at).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - new Date(entry.started_at).getTime()) / 1000));
+}
+
+function summarizeDay(entries, dayDate) {
+  const dayStart = new Date(dayDate); dayStart.setHours(0,0,0,0);
+  const dayEnd = new Date(dayDate); dayEnd.setHours(23,59,59,999);
+  const inDay = entries.filter(e => {
+    const s = new Date(e.started_at);
+    return s >= dayStart && s <= dayEnd;
+  });
+  let netSum = 0, pauseSum = 0;
+  const byKat = {};
+  KATEGORIEN.forEach(k => byKat[k.id] = 0);
+  inDay.forEach(e => {
+    const net = calcNetSeconds(e);
+    netSum += net;
+    pauseSum += calcCurrentPauseSeconds(e);
+    byKat[e.kategorie] = (byKat[e.kategorie] || 0) + net;
+  });
+  return { entries: inDay, netSum, pauseSum, byKategorie: byKat };
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────
+
+function renderWorktimeScreen() {
+  renderTodaySummary();
+  renderActiveCard();
+  renderEntriesList();
+}
+
+function renderTodaySummary() {
+  const el = document.getElementById('worktime-today-summary');
+  if (!el) return;
+  const sum = summarizeDay(worktimeEntries, new Date());
+  if (sum.entries.length === 0) {
+    el.innerHTML = '<div class="wt-empty-today">Noch kein Eintrag heute.</div>';
     return;
   }
-  el.innerHTML = timerHistory.map(e => {
-    const dur  = e.duration_seconds ? fmtTime(e.duration_seconds) : '(läuft noch)';
-    const date = new Date(e.started_at);
-    const dateStr = date.toLocaleDateString('de-DE') + ' ' +
-      date.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-    const area  = e.areas?.name ? `<span class="te-area">${e.areas.name}</span>` : '';
-    const who   = e.profiles?.name ? ` · ${e.profiles.name}` : '';
-    return `<div class="te-row">
-      <div class="te-duration">${dur}${area}</div>
-      <div class="te-meta">${dateStr}${who}${e.note ? ' · ' + e.note : ''}</div>
+  const katRows = KATEGORIEN.filter(k => sum.byKategorie[k.id] > 0)
+    .map(k => `<div class="wt-kat-row"><span>${k.emoji} ${k.label}</span><span>${fmtTime(sum.byKategorie[k.id])}</span></div>`)
+    .join('');
+  el.innerHTML = `
+    <div class="wt-summary-main">
+      <div class="wt-summary-headline">${fmtTime(sum.netSum)}<span class="wt-summary-unit"> Arbeit</span></div>
+      <div class="wt-summary-sub">${fmtTime(sum.pauseSum)} Pause</div>
+    </div>
+    ${katRows ? `<div class="wt-kat-list">${katRows}</div>` : ''}`;
+}
+
+function renderActiveCard() {
+  const el = document.getElementById('worktime-active-card');
+  const startEl = document.getElementById('worktime-start-section');
+  if (!el || !startEl) return;
+  if (!activeWorktimeEntry) {
+    el.style.display = 'none';
+    startEl.style.display = 'block';
+    renderStartSection();
+    return;
+  }
+  el.style.display = 'block';
+  startEl.style.display = 'none';
+  const k = getKategorie(activeWorktimeEntry.kategorie);
+  const isPaused = !!activeWorktimeEntry.pause_started_at;
+  const total = calcTotalSeconds(activeWorktimeEntry);
+  const pause = calcCurrentPauseSeconds(activeWorktimeEntry);
+  const net = Math.max(0, total - pause);
+  el.innerHTML = `
+    <div class="wt-active-head">
+      <div class="wt-active-emoji" style="background:${k.color}25;color:${k.color}">${k.emoji}</div>
+      <div class="wt-active-info">
+        <div class="wt-active-kat">${k.label}${isPaused ? ' <span class="wt-pause-badge">⏸ Pause</span>' : ''}</div>
+        <div class="wt-active-since">Seit ${new Date(activeWorktimeEntry.started_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>
+    <div id="wt-active-time-display">
+      <div class="wt-active-net">${fmtTime(net)}</div>
+      <div class="wt-active-meta">${fmtTime(pause)} Pause</div>
+    </div>
+    <div class="wt-active-actions">
+      <button class="wt-btn wt-btn-pause" onclick="toggleWorktimePause()">${isPaused ? '▶ Weiter' : '⏸ Pause'}</button>
+      <button class="wt-btn wt-btn-stop" onclick="stopWorktime()">⏹ Stoppen</button>
     </div>`;
+}
+
+function updateActiveCardLive() {
+  if (!activeWorktimeEntry) return;
+  const el = document.getElementById('wt-active-time-display');
+  if (!el) return;
+  const total = calcTotalSeconds(activeWorktimeEntry);
+  const pause = calcCurrentPauseSeconds(activeWorktimeEntry);
+  const net = Math.max(0, total - pause);
+  el.innerHTML = `
+    <div class="wt-active-net">${fmtTime(net)}</div>
+    <div class="wt-active-meta">${fmtTime(pause)} Pause</div>`;
+  renderTodaySummary();
+}
+
+function renderStartSection() {
+  const el = document.getElementById('worktime-start-section');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="wt-start-title">Was wird gearbeitet?</div>
+    <div class="wt-kat-chips">
+      ${KATEGORIEN.map(k => `
+        <button class="wt-kat-chip" onclick="startWorktime('${k.id}')" style="--katcolor:${k.color}">
+          <div class="wt-kat-chip-emoji">${k.emoji}</div>
+          <div class="wt-kat-chip-label">${k.label}</div>
+        </button>
+      `).join('')}
+    </div>`;
+}
+
+function renderEntriesList() {
+  const el = document.getElementById('worktime-entries-list');
+  if (!el) return;
+  const groups = {};
+  worktimeEntries.filter(e => e.stopped_at).forEach(e => {
+    const d = new Date(e.started_at);
+    const key = d.toISOString().split('T')[0];
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+  const keys = Object.keys(groups).sort().reverse();
+  if (keys.length === 0) {
+    el.innerHTML = '<div class="wt-empty-list">Noch keine abgeschlossenen Einträge.</div>';
+    return;
+  }
+  el.innerHTML = keys.map(key => {
+    const date = new Date(key);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+    let dayLabel;
+    if (date.getTime() === today.getTime()) dayLabel = 'Heute';
+    else if (date.getTime() === yesterday.getTime()) dayLabel = 'Gestern';
+    else dayLabel = date.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'});
+    const sum = summarizeDay(groups[key], date);
+    const rows = groups[key].map(e => {
+      const k = getKategorie(e.kategorie);
+      const net = calcNetSeconds(e);
+      const pause = calcCurrentPauseSeconds(e);
+      const start = new Date(e.started_at);
+      const stop = new Date(e.stopped_at);
+      const timeRange = start.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) +
+                        '–' + stop.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+      const edited = e.manually_edited ? '<span class="wt-edited">✎ bearbeitet</span>' : '';
+      const area = (e.areas && e.areas.name) ? `<span class="wt-area">📍 ${escapeHtml(e.areas.name)}</span>` : '';
+      const note = e.note ? `<div class="wt-row-note">${escapeHtml(e.note)}</div>` : '';
+      const pauseTxt = pause > 0 ? ' · Pause ' + fmtTime(pause) : '';
+      return `
+        <div class="wt-entry-row" onclick="openWorktimeEdit('${e.id}')">
+          <div class="wt-row-emoji" style="background:${k.color}25;color:${k.color}">${k.emoji}</div>
+          <div class="wt-row-body">
+            <div class="wt-row-head">
+              <span class="wt-row-kat">${k.label}</span>
+              <span class="wt-row-time">${fmtTime(net)}</span>
+            </div>
+            <div class="wt-row-meta">${timeRange}${pauseTxt} ${area} ${edited}</div>
+            ${note}
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      <div class="wt-day-group">
+        <div class="wt-day-head">
+          <span class="wt-day-label">${dayLabel}</span>
+          <span class="wt-day-sum">${fmtTime(sum.netSum)}</span>
+        </div>
+        ${rows}
+      </div>`;
   }).join('');
 }
 
-document.getElementById('btn-timer-history').addEventListener('click', async () => {
-  await loadTimerHistory();
-  document.getElementById('timer-history-panel').classList.remove('hidden');
-  document.getElementById('timer-history-overlay').classList.remove('hidden');
-});
+// ── START / STOP / PAUSE ──────────────────────────────────────────────
 
-function closeTimerHistory() {
-  document.getElementById('timer-history-panel').classList.add('hidden');
-  document.getElementById('timer-history-overlay').classList.add('hidden');
+async function startWorktime(kategorie) {
+  if (!currentProfile || !currentUser) { showToast('Bitte einloggen.'); return; }
+  if (activeWorktimeEntry) { showToast('Es läuft bereits ein Eintrag.'); return; }
+  const k = getKategorie(kategorie);
+  const now = new Date();
+  try {
+    const saved = await dbFetch('time_entries?select=*', {
+      method: 'POST',
+      body: {
+        company_id: currentProfile.company_id,
+        profile_id: currentUser.id,
+        area_id: currentAreaId || null,
+        started_at: now.toISOString(),
+        kategorie: kategorie,
+        note: null
+      },
+      prefer: 'return=representation'
+    });
+    if (saved && saved[0]) {
+      activeWorktimeEntry = saved[0];
+      timerRunning = true; timerStart = now; timerEntryId = saved[0].id;
+      await auditLog('create', { id: saved[0].id, started_at: now.toISOString(), kategorie });
+      if (typeof startKraftstoffTracking === 'function') startKraftstoffTracking();
+      startTickTimer();
+      renderWorktimeScreen();
+      updateSlideMenuWorktimeStatus();
+      showToast('✓ ' + k.label + ' gestartet');
+    }
+  } catch (e) {
+    showToast('⚠️ Fehler: ' + e.message);
+  }
 }
+
+async function toggleWorktimePause() {
+  if (!activeWorktimeEntry) return;
+  const now = new Date();
+  if (activeWorktimeEntry.pause_started_at) {
+    const pauseDuration = Math.floor((now.getTime() - new Date(activeWorktimeEntry.pause_started_at).getTime()) / 1000);
+    const newPauseSeconds = (activeWorktimeEntry.pause_seconds || 0) + pauseDuration;
+    try {
+      await dbFetch('time_entries?id=eq.' + activeWorktimeEntry.id, {
+        method: 'PATCH',
+        body: { pause_seconds: newPauseSeconds, pause_started_at: null },
+        prefer: 'return=minimal'
+      });
+      activeWorktimeEntry.pause_seconds = newPauseSeconds;
+      activeWorktimeEntry.pause_started_at = null;
+      timerRunning = true;
+      if (typeof startKraftstoffTracking === 'function') startKraftstoffTracking();
+      renderActiveCard();
+      showToast('▶ Weiter');
+    } catch (e) { showToast('⚠️ ' + e.message); }
+  } else {
+    try {
+      await dbFetch('time_entries?id=eq.' + activeWorktimeEntry.id, {
+        method: 'PATCH',
+        body: { pause_started_at: now.toISOString() },
+        prefer: 'return=minimal'
+      });
+      activeWorktimeEntry.pause_started_at = now.toISOString();
+      timerRunning = false;
+      renderActiveCard();
+      showToast('⏸ Pause');
+    } catch (e) { showToast('⚠️ ' + e.message); }
+  }
+}
+
+async function stopWorktime() {
+  if (!activeWorktimeEntry) return;
+  const now = new Date();
+  let pauseSeconds = activeWorktimeEntry.pause_seconds || 0;
+  if (activeWorktimeEntry.pause_started_at) {
+    pauseSeconds += Math.floor((now.getTime() - new Date(activeWorktimeEntry.pause_started_at).getTime()) / 1000);
+  }
+  const total = Math.floor((now.getTime() - new Date(activeWorktimeEntry.started_at).getTime()) / 1000);
+  const duration = Math.max(0, total - pauseSeconds);
+  try {
+    await dbFetch('time_entries?id=eq.' + activeWorktimeEntry.id, {
+      method: 'PATCH',
+      body: {
+        stopped_at: now.toISOString(),
+        duration_seconds: duration,
+        pause_seconds: pauseSeconds,
+        pause_started_at: null
+      },
+      prefer: 'return=minimal'
+    });
+    activeWorktimeEntry = null;
+    timerRunning = false; timerStart = null; timerEntryId = null;
+    stopTickTimer();
+    if (typeof stopKraftstoffTracking === 'function') stopKraftstoffTracking();
+    await loadWorktimeEntries();
+    renderWorktimeScreen();
+    updateSlideMenuWorktimeStatus();
+    showToast('✓ Eintrag beendet (' + fmtTime(duration) + ')');
+  } catch (e) {
+    showToast('⚠️ Fehler beim Beenden: ' + e.message);
+  }
+}
+
+// ── EDIT / DELETE / MANUAL ────────────────────────────────────────────
+
+function openWorktimeEdit(entryId) {
+  const entry = worktimeEntries.find(e => e.id === entryId);
+  if (!entry) return;
+  _worktimeEditingId = entryId;
+  populateEditModal(entry, false);
+  document.getElementById('worktime-edit-overlay').style.display = 'flex';
+}
+
+function openManualEntry() {
+  _worktimeEditingId = null;
+  populateEditModal(null, true);
+  document.getElementById('worktime-edit-overlay').style.display = 'flex';
+}
+
+function closeWorktimeEditModal() {
+  document.getElementById('worktime-edit-overlay').style.display = 'none';
+  _worktimeEditingId = null;
+}
+
+function populateEditModal(entry, isManual) {
+  document.getElementById('wt-edit-title').textContent = isManual ? 'Manueller Eintrag' : 'Eintrag bearbeiten';
+  document.getElementById('wt-edit-delete-btn').style.display = isManual ? 'none' : 'block';
+  let startDate, stopDate, kategorie, pauseMin, note, areaId;
+  if (entry) {
+    startDate = new Date(entry.started_at);
+    stopDate  = entry.stopped_at ? new Date(entry.stopped_at) : new Date();
+    kategorie = entry.kategorie || 'sonstiges';
+    pauseMin  = Math.round((entry.pause_seconds || 0) / 60);
+    note      = entry.note || '';
+    areaId    = entry.area_id || '';
+  } else {
+    stopDate  = new Date();
+    startDate = new Date(stopDate.getTime() - 3600 * 1000);
+    kategorie = 'sonstiges';
+    pauseMin  = 0; note = '';
+    areaId    = currentAreaId || '';
+  }
+  function localISO(d) {
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  document.getElementById('wt-edit-start').value = localISO(startDate);
+  document.getElementById('wt-edit-stop').value  = localISO(stopDate);
+  document.getElementById('wt-edit-pause-min').value = pauseMin;
+  document.getElementById('wt-edit-note').value = note;
+  document.querySelectorAll('.wt-edit-kat-chip').forEach(c => {
+    c.classList.toggle('on', c.dataset.kat === kategorie);
+  });
+  const sel = document.getElementById('wt-edit-area');
+  if (sel) {
+    sel.innerHTML = '<option value="">– Kein Gebiet –</option>' +
+      areas.map(a => `<option value="${a.id}"${a.id===areaId?' selected':''}>${escapeHtml(a.name)}</option>`).join('');
+  }
+}
+
+function selectEditKategorie(katId) {
+  document.querySelectorAll('.wt-edit-kat-chip').forEach(c => {
+    c.classList.toggle('on', c.dataset.kat === katId);
+  });
+}
+
+async function saveWorktimeEdit() {
+  const startVal = document.getElementById('wt-edit-start').value;
+  const stopVal  = document.getElementById('wt-edit-stop').value;
+  if (!startVal || !stopVal) { showToast('⚠️ Start- und Stopp-Zeit erforderlich'); return; }
+  const startDate = new Date(startVal);
+  const stopDate  = new Date(stopVal);
+  if (stopDate <= startDate) { showToast('⚠️ Stopp muss nach Start sein'); return; }
+  const katChip = document.querySelector('.wt-edit-kat-chip.on');
+  const kategorie = katChip ? katChip.dataset.kat : 'sonstiges';
+  const pauseSeconds = (parseInt(document.getElementById('wt-edit-pause-min').value) || 0) * 60;
+  const totalSeconds = Math.floor((stopDate - startDate) / 1000);
+  if (pauseSeconds >= totalSeconds) { showToast('⚠️ Pause länger als Gesamtdauer'); return; }
+  const duration = totalSeconds - pauseSeconds;
+  const note = document.getElementById('wt-edit-note').value.trim() || null;
+  const areaId = document.getElementById('wt-edit-area').value || null;
+  const isEdit = !!_worktimeEditingId;
+  try {
+    if (isEdit) {
+      const prev = worktimeEntries.find(e => e.id === _worktimeEditingId);
+      if (!prev) { showToast('⚠️ Eintrag nicht gefunden'); return; }
+      await auditLog('edit', prev);
+      await dbFetch('time_entries?id=eq.' + _worktimeEditingId, {
+        method: 'PATCH',
+        body: {
+          started_at: startDate.toISOString(), stopped_at: stopDate.toISOString(),
+          duration_seconds: duration, pause_seconds: pauseSeconds, pause_started_at: null,
+          kategorie, note, area_id: areaId,
+          manually_edited: true, edit_count: (prev.edit_count || 0) + 1
+        },
+        prefer: 'return=minimal'
+      });
+      showToast('✓ Eintrag aktualisiert');
+    } else {
+      const saved = await dbFetch('time_entries?select=*', {
+        method: 'POST',
+        body: {
+          company_id: currentProfile.company_id, profile_id: currentUser.id,
+          area_id: areaId, started_at: startDate.toISOString(),
+          stopped_at: stopDate.toISOString(), duration_seconds: duration,
+          pause_seconds: pauseSeconds, kategorie, note, manually_edited: true
+        },
+        prefer: 'return=representation'
+      });
+      if (saved && saved[0]) {
+        await auditLog('create', {
+          id: saved[0].id, started_at: startDate.toISOString(),
+          stopped_at: stopDate.toISOString(), kategorie,
+          pause_seconds: pauseSeconds, note, area_id: areaId
+        });
+      }
+      showToast('✓ Eintrag angelegt');
+    }
+    closeWorktimeEditModal();
+    await loadWorktimeEntries();
+    renderWorktimeScreen();
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen: ' + e.message);
+  }
+}
+
+async function deleteWorktimeEntry() {
+  if (!_worktimeEditingId) return;
+  const prev = worktimeEntries.find(e => e.id === _worktimeEditingId);
+  if (!prev) return;
+  const ok = confirm('Eintrag wirklich löschen?\n\n' + getKategorie(prev.kategorie).label + ' am ' +
+    new Date(prev.started_at).toLocaleString('de-DE'));
+  if (!ok) return;
+  try {
+    await auditLog('delete', prev);
+    await dbFetch('time_entries?id=eq.' + _worktimeEditingId, {
+      method: 'PATCH',
+      body: { deleted_at: new Date().toISOString() },
+      prefer: 'return=minimal'
+    });
+    closeWorktimeEditModal();
+    await loadWorktimeEntries();
+    renderWorktimeScreen();
+    showToast('✓ Eintrag gelöscht');
+  } catch (e) {
+    showToast('⚠️ Löschen fehlgeschlagen: ' + e.message);
+  }
+}
+
+// ── SLIDE-MENU STATUS ─────────────────────────────────────────────────
+
+function updateSlideMenuWorktimeStatus() {
+  const el = document.getElementById('smenu-worktime-status');
+  if (!el) return;
+  if (activeWorktimeEntry) {
+    const k = getKategorie(activeWorktimeEntry.kategorie);
+    const net = calcNetSeconds(activeWorktimeEntry);
+    el.textContent = activeWorktimeEntry.pause_started_at
+      ? k.label + ' · ⏸ Pause'
+      : k.label + ' · ' + fmtTime(net) + ' läuft';
+    el.style.color = activeWorktimeEntry.pause_started_at ? '#c8860a' : '#4aaa4a';
+  } else {
+    const today = summarizeDay(worktimeEntries, new Date());
+    el.textContent = today.netSum > 0 ? 'Heute ' + fmtTime(today.netSum) : 'Heute: noch nicht gestartet';
+    el.style.color = '';
+  }
+}
+
+// Window-Bindings
+window.openWorktime = openWorktime;
+window.closeWorktime = closeWorktime;
+window.startWorktime = startWorktime;
+window.toggleWorktimePause = toggleWorktimePause;
+window.stopWorktime = stopWorktime;
+window.openWorktimeEdit = openWorktimeEdit;
+window.openManualEntry = openManualEntry;
+window.closeWorktimeEditModal = closeWorktimeEditModal;
+window.selectEditKategorie = selectEditKategorie;
+window.saveWorktimeEdit = saveWorktimeEdit;
+window.deleteWorktimeEntry = deleteWorktimeEntry;
 
 // ── GRENZEN ───────────────────────────────────────────────────────
 document.getElementById('btn-grenzen').addEventListener('click',()=>{document.getElementById('grenzen-panel').classList.toggle('hidden');});
