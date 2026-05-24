@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.0">
+  <meta name="app-version" content="4.1">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1419,6 +1419,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .wt-cal-today-btn:active{background:rgba(45,90,39,.4);}
 
+.wt-cal-pdf-btn{
+  width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.05);color:#a0c8a0;font-size:16px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-family:inherit;padding:0;margin-right:6px;
+}
+.wt-cal-pdf-btn:active{background:rgba(74,170,74,.15);}
+
 .wt-cal-nav{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.06);
@@ -1534,7 +1542,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.0'")) {
+        if (!txt.includes("APP_VERSION = '4.1'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2276,6 +2284,7 @@ if ('serviceWorker' in navigator) {
     <div class="wt-header">
       <button class="wt-back" onclick="closeWorktimeCalendar()">&#8592;</button>
       <div class="wt-title">📅 Kalender</div>
+      <button class="wt-cal-pdf-btn" onclick="exportWorktimePdf()" title="Als PDF exportieren">📄</button>
       <button class="wt-cal-today-btn" onclick="goToCalendarToday()">Heute</button>
     </div>
     <div class="wt-cal-nav">
@@ -2308,6 +2317,7 @@ if ('serviceWorker' in navigator) {
     <div class="wt-header">
       <button class="wt-back" onclick="closeAdminWorktime()">&#8592;</button>
       <div class="wt-title">📅 Zeiterfassung</div>
+      <button class="wt-cal-pdf-btn" onclick="exportAdminWorktimePdf()" title="Als PDF exportieren">📄</button>
       <button class="wt-cal-today-btn" onclick="goToAdminCalToday()">Heute</button>
     </div>
     <div class="wt-cal-nav">
@@ -2564,30 +2574,38 @@ if ('serviceWorker' in navigator) {
 <div id="help-modal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div id="help-sheet">
     <div id="help-header"><h2>📖 Anleitung — Lignum</h2><button id="help-close" onclick="document.getElementById('help-modal').style.display='none'">×</button></div>
-    <div id="help-tabs">
+    <div id="help-tabs" style="overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
       <button class="htab on" data-tab="start" onclick="helpTab(this)">🚀 Start</button>
       <button class="htab" data-tab="harvester" onclick="helpTab(this)">🪵 Harvester</button>
       <button class="htab" data-tab="forwarder" onclick="helpTab(this)">🚜 Forwarder</button>
+      <button class="htab" data-tab="zeit" onclick="helpTab(this)">⏱ Zeiten</button>
       <button class="htab" data-tab="karte" onclick="helpTab(this)">🗺 Karte</button>
+      <button class="htab" data-tab="admin" onclick="helpTab(this)">👨‍💼 Admin</button>
     </div>
     <div id="help-body">
+
+      <!-- ═══ START ═══ -->
       <div class="hpage on" id="hpage-start">
         <h3>Willkommen bei Lignum</h3>
-        <p>Diese App verbindet Harvester- und Forwarder-Fahrer in Echtzeit. Alle Markierungen eines Betriebs sind sofort für alle Fahrer des Betriebs sichtbar.</p>
-        <div class="htip">💡 Die App funktioniert auch ohne Mobilfunknetz — lade vorher die Karte über <b>⬇ Offline</b> herunter. Neue Markierungen werden beim nächsten Netzwerkzugang synchronisiert.</div>
-        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Anmelden</b><span>Mit E-Mail und Passwort anmelden. Neues Unternehmen? Auf <b>Registrieren</b> tippen — damit erstellen Sie ein Admin-Konto für Ihren Betrieb.</span></div></div>
-        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Fahrer anlegen (Admin)</b><span>Nach dem Login erscheint <b>⚙ Fahrer verwalten</b>. Dort können Sie Harvester- und Forwarder-Konten mit E-Mail und Passwort anlegen.</span></div></div>
-        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Rolle wählen</b><span>Tippe auf <span class="hbadge h">🪵 Harvester</span> oder <span class="hbadge f">🚜 Forwarder</span>. Alle Marker sind für beide Rollen sichtbar — in Echtzeit.</span></div></div>
+        <p>Die App verbindet Harvester- und Forwarder-Fahrer eines Forstbetriebs in Echtzeit. Alle Markierungen, Strecken und Arbeitszeiten sind sofort für die Kollegen sichtbar — auch offline.</p>
+        <div class="htip">💡 Im Wald ohne Netz? Lade vorher die Kartenkacheln über <b>⬇ Offline</b> herunter. Neue Daten synchronisieren beim nächsten Netzkontakt automatisch.</div>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Anmelden</b><span>Mit E-Mail und Passwort anmelden. Neuer Betrieb? Auf <b>Registrieren</b> tippen — dabei legst du ein Admin-Konto an.</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Startseite</b><span>Nach dem Login siehst du eine Karten-Vorschau mit Live-Stats (Heute-Arbeitszeit, aktive Kollegen, offene Polter). Tipp auf die Karte oder <b>▶ Starten</b> öffnet deinen Arbeitsmodus.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Slide-Menü <span class="hicon">☰</span></b><span>Oben links — hier findest du alle Funktionen: GPS an/aus, Arbeitszeit, Einschlagsgebiet wählen, Einstellungen, Anleitung.</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>Kompass-Pfeil</b><span>Wenn GPS läuft, zeigt dein Marker einen weichen Kegel in Fahrtrichtung — wie bei Google Maps. Schaltet automatisch zwischen GPS-Heading (in Bewegung) und Kompass (im Stand).</span></div></div>
+
         <div class="hstep">
-          <div class="hnum">4</div>
+          <div class="hnum">5</div>
           <div class="hstep-txt">
             <b>Als App installieren</b>
             <span>Installiere die App direkt auf deinem Homescreen — läuft dann wie eine native App, auch offline.</span>
-            <!-- PWA Install — wird automatisch befüllt -->
             <div id="pwa-install-hint" style="font-size:13px;color:#2a4a2a;margin-top:6px;line-height:1.6;"></div>
             <div id="pwa-install-btn-wrap" style="margin-top:10px;"></div>
 
-            <!-- iOS immer zeigen (wird durch updatePwaInstallBtn gefüllt) -->
             <div id="pwa-ios-box" style="display:none;margin-top:10px;background:#e8f2ff;border:1.5px solid #93bef0;border-radius:14px;overflow:hidden;">
               <div style="padding:12px 16px;background:#c8dff8;border-bottom:1px solid #93bef0;">
                 <span style="font-size:13px;font-weight:700;color:#0d3b7a;">📱 iPhone / iPad — Safari</span>
@@ -2608,7 +2626,6 @@ if ('serviceWorker' in navigator) {
               </div>
             </div>
 
-            <!-- Android -->
             <div id="pwa-android-box" style="display:none;margin-top:10px;background:#eaf5e8;border:1.5px solid #7ec87a;border-radius:14px;overflow:hidden;">
               <div style="padding:12px 16px;background:#c8e8c4;border-bottom:1px solid #7ec87a;">
                 <span style="font-size:13px;font-weight:700;color:#1a4018;">🤖 Android — Chrome</span>
@@ -2631,37 +2648,116 @@ if ('serviceWorker' in navigator) {
               </div>
             </div>
 
-            <!-- Bereits installiert -->
             <div id="pwa-installed-box" style="display:none;margin-top:10px;background:#d4edcc;border:1.5px solid rgba(74,154,64,.4);border-radius:14px;padding:14px 16px;font-size:14px;color:#1a4018;font-weight:500;">
               ✅ App ist bereits installiert und läuft im Vollbild-Modus.
             </div>
           </div>
         </div>
       </div>
-      </div>
+
+      <!-- ═══ HARVESTER ═══ -->
       <div class="hpage" id="hpage-harvester">
         <h3>Harvester-Modus</h3>
-        <p>Der Harvester markiert jeden Ablageort. Die Markierungen erscheinen sofort auf dem Gerät des Forwarders.</p>
-        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Strecke aufzeichnen</b><span>Tippe <span class="hicon" style="background:#a32020;color:#fff!important;-webkit-text-fill-color:#fff">⏺ Strecke</span> — die Fahrstrecke wird aufgezeichnet. Stoppen mit ⏹ Stopp.</span></div></div>
-        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Auto-Erkennung</b><span>Bei 20 Sekunden Stillstand öffnet sich der Polter-Dialog automatisch.</span></div></div>
-        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Manuell markieren</b><span>Tippe auf <span class="hicon">＋ Polter</span> oder direkt auf die Karte → Baumart wählen → Speichern.</span></div></div>
-        <div class="htip">💡 Markierungen werden sofort an alle Forwarder-Geräte des Betriebs gesendet.</div>
+        <p>Du markierst Polter im Wald, die der Forwarder dann einsammelt. Alles in Echtzeit synchronisiert.</p>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Einschlagsgebiet wählen</b><span><span class="hicon">☰</span> Menü → <b>Einschlagsgebiet</b> → vorhandenes wählen oder neues anlegen. Alle neuen Polter und Strecken werden diesem Gebiet zugeordnet.</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Strecke aufzeichnen</b><span>Tippe <span class="hicon red">⏺ Strecke</span> oben → Fahrtweg wird aufgezeichnet. Stoppen mit <span class="hicon">⏹ Stopp</span>.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Auto-Polter bei Stillstand</b><span>Bei ca. 20 Sekunden Stillstand öffnet sich der Polter-Dialog automatisch. Baumart wählen, ggf. Menge eintragen, Speichern.</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>Manuell markieren</b><span>Tippe <span class="hicon">＋ Polter</span> oder direkt auf die Karte → Baumart wählen → Speichern.</span></div></div>
+
+        <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>Baumarten</b><span><span class="hbadge h">Fichte</span> <span class="hbadge f">Kiefer</span> <span class="hbadge h">Birke</span> <span class="hbadge f">Sonstige</span> — wird im Marker farbig dargestellt.</span></div></div>
+
+        <div class="hstep"><div class="hnum">6</div><div class="hstep-txt"><b>Polter bearbeiten</b><span>Tippe auf einen bestehenden Marker → Baumart, Menge, Notiz nachträglich ändern.</span></div></div>
+
+        <div class="htip">💡 Alle Markierungen werden in Echtzeit an Forwarder und Admin-Geräte gesendet. Auch offline gemachte Markierungen synchronisieren später automatisch.</div>
       </div>
+
+      <!-- ═══ FORWARDER ═══ -->
       <div class="hpage" id="hpage-forwarder">
-        <h3>Forwarder-Modus</h3>
-        <p>Der Forwarder sieht alle Harvester-Polter in Echtzeit und kann sie nach Baumart filtern.</p>
-        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Arbeitsliste</b><span>Tippe <span class="hicon green">📋 Arbeitsliste</span> — alle Harvester-Polter mit Baumart-Filter. Rote Zahl = noch offen.</span></div></div>
-        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Filter</b><span>Fichte / Kiefer / Birke tippen — filtert Liste und Karte gleichzeitig.</span></div></div>
-        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Abgeholt</b><span>✓ Weg tippen → Marker wird grau, auch auf dem Harvester-Gerät sichtbar.</span></div></div>
-        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>LKW-Polterplatz</b><span>Auf Karte tippen → Polterplatz setzen. In <span class="hicon blue">🚛 LKW-Liste</span> Koordinaten per WhatsApp oder E-Mail teilen.</span></div></div>
+        <h3>Forwarder / Rückezug</h3>
+        <p>Du siehst alle Polter des Harvesters in Echtzeit, kannst sie filtern und nach Abholung als „weg" markieren.</p>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Arbeitsliste</b><span>Tippe <span class="hicon green">📋 Arbeit</span> oben — alle offenen Polter mit Baumart-Filter. Die rote Zahl zeigt die offenen Polter.</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Filtern nach Baumart</b><span>Fichte / Kiefer / Birke tippen — filtert Karte und Liste gleichzeitig. Hilfreich wenn der LKW eine bestimmte Sorte abholt.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Als abgeholt markieren</b><span>In der Arbeitsliste auf einen Polter tippen → <b>✓ Weg</b>. Marker wird grau. Auch beim Harvester sichtbar.</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>LKW-Polterplatz setzen</b><span>Auf die Karte tippen → <b>🚛 Polterplatz</b> setzen. In <span class="hicon blue">🚛 LKW</span> die Koordinaten per WhatsApp, E-Mail oder SMS teilen.</span></div></div>
+
+        <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>Fuhren zählen</b><span>Pro Polter kannst du zählen wie viele Fuhren abgeholt wurden — wichtig für die Abrechnung mit dem LKW.</span></div></div>
+
+        <div class="hstep"><div class="hnum">6</div><div class="hstep-txt"><b>Strecke aufzeichnen</b><span>Genauso wie beim Harvester — <span class="hicon red">⏺ Strecke</span> startet die Aufzeichnung deines Rückeweges (für Kunden-PDF).</span></div></div>
+
+        <div class="htip">💡 Erscheint ein neuer Polter beim Harvester, taucht er sofort bei dir auf der Karte auf — kein Reload nötig.</div>
       </div>
+
+      <!-- ═══ ZEITERFASSUNG ═══ -->
+      <div class="hpage" id="hpage-zeit">
+        <h3>Arbeitszeit erfassen</h3>
+        <p>Erfasse deine Arbeitszeit pro Kategorie — automatisch geloggt, manuell editierbar, mit Kalender-Übersicht und PDF-Export.</p>
+
+        <div class="htip">💡 Öffnen über die Kachel <b>⏱ Zeiterfassung</b> auf der Startseite oder über <span class="hicon">☰</span> Menü → <b>Arbeitszeit erfassen</b>.</div>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Kategorie wählen</b><span>Tippe eine der fünf Kategorien — Eintrag startet sofort:<br>🪓 Einschlag · 🚜 Rücken · 🚗 Fahrzeit · 🔧 Wartung · 📋 Sonstiges</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Pause</b><span><span class="hicon amber">⏸ Pause</span> tippen → Pausenzeit wird im selben Eintrag mitgeführt. Nicht als separater Eintrag, sondern als Pausenanteil. <b>▶ Weiter</b> → Arbeit läuft weiter.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Stoppen</b><span><span class="hicon red">⏹ Stoppen</span> beendet den Eintrag. Er erscheint in der Liste „Heute" mit Netto-Zeit (= Gesamt minus Pause).</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>Eintrag bearbeiten</b><span>Tippe auf einen abgeschlossenen Eintrag → Zeiten, Kategorie, Gebiet, Pause-Dauer, Notiz ändern. Bearbeitete Einträge bekommen ein <b>✎ bearbeitet</b> Badge.</span></div></div>
+
+        <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>Manueller Eintrag</b><span><span class="hicon green">＋</span> oben rechts → Eintrag nachträglich anlegen (z.B. wenn du vergessen hast zu stempeln).</span></div></div>
+
+        <div class="hstep"><div class="hnum">6</div><div class="hstep-txt"><b>Kalender-Ansicht</b><span><span class="hicon">📅</span> oben → Monatsansicht. Jeder Tag zeigt die Tagessumme. Heute ist grün umrandet. Tap auf einen Tag → Details aller Einträge. <b>◀ ▶</b> blättert zwischen Monaten, <b>Heute</b> springt zurück.</span></div></div>
+
+        <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>PDF-Export</b><span>Im Kalender oben: <span class="hicon">📄</span> → Monats-Übersicht aller Einträge als PDF speichern. Enthält Datum, Kategorie, Zeiten, Pause, Netto und Notiz. Ideal für Buchhaltung oder Stundenzettel.</span></div></div>
+
+        <div class="htip">⚖️ Jede Änderung (Anlegen, Bearbeiten, Löschen) wird unveränderlich in einem Audit-Log protokolliert — Voraussetzung für rechtliche Beweispflicht. Du als Fahrer merkst davon nichts; es läuft im Hintergrund.</div>
+      </div>
+
+      <!-- ═══ KARTE ═══ -->
       <div class="hpage" id="hpage-karte">
         <h3>Karte &amp; Satellit</h3>
-        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Kartenansicht wechseln</b><span>Tippe <span class="hicon">🗺 Karte</span> — wechselt zwischen Straßenkarte (OSM) und Satellit (Esri/Bing).</span></div></div>
-        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Offline cachen</b><span>Arbeitsgebiet einzoomen → <span class="hicon amber">⬇ Offline</span> → Kacheln werden gespeichert. Im Wald ohne Netz nutzbar.</span></div></div>
-        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Grundstücksgrenzen</b><span>📐 Grenzen → GeoJSON-Datei laden → Flurstücke erscheinen als Linien.</span></div></div>
-        <div class="htip">💡 Satellit ab Zoom 19 schaltet automatisch auf Bing Maps für höhere Auflösung.</div>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Kartenansicht wechseln</b><span><span class="hicon">🗺 Karte</span> / <span class="hicon">🛰 Satellit</span> oben — wechselt zwischen OpenStreetMap (Straßenkarte) und Satellit (Esri/Bing). Markierungen bleiben gleich.</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Offline cachen</b><span>Arbeitsgebiet zoomen → <span class="hicon amber">⬇ Offline</span> → Kartenkacheln werden gespeichert (bis zu 400 Stück). Im Wald ohne Netz: alles bleibt sichtbar. Funktioniert für OSM und Satellit getrennt.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Grundstücksgrenzen</b><span><span class="hicon">📐 Grenzen</span> → GeoJSON-Datei laden → Flurstücke erscheinen als gelbe Linien. Mehrere GeoJSON-Dateien gleichzeitig möglich (verschiedene Farben).</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>Einschlagsgebiete</b><span><span class="hicon">☰</span> Menü → <b>Einschlagsgebiet</b> → Gebiet wählen. Neue Polter werden diesem Gebiet zugeordnet. Im Admin sichtbar pro Gebiet: Polter-Anzahl, Stunden, Fuhren.</span></div></div>
+
+        <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>Karten-PDF (für Kunden)</b><span><span class="hicon green">📥 PDF</span> → Aktueller Kartenausschnitt mit Polter und Strecken als PDF speichern. Zum Versenden an den Auftraggeber oder den LKW-Fahrer.</span></div></div>
+
+        <div class="htip">💡 Im Satellit-Modus wechselt die App ab Zoom 19 automatisch auf Bing Maps für höhere Auflösung — gut für Detail-Ansicht im Bestand.</div>
       </div>
+
+      <!-- ═══ ADMIN ═══ -->
+      <div class="hpage" id="hpage-admin">
+        <h3>Admin-Funktionen</h3>
+        <p>Als Admin siehst du alle Fahrer, Daten und Berichte deines Betriebs. Andere Betriebe sehen davon nichts.</p>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Admin-Dashboard (Startseite)</b><span>Nach dem Login als Admin: Karten-Vorschau oben, darunter die Kacheln <b>👷 Fahrer</b>, <b>📍 Gebiete</b>, <b>🚜 Als Fahrer</b>, dazu Live-Liste aktiver Fahrer und Schnellzugriffe.</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Fahrer verwalten</b><span>Kachel <b>👷 Fahrer</b> → Harvester- und Forwarder-Konten anlegen, Rollen ändern, Statistiken pro Fahrer (Stunden, Polter, Fuhren), Konten deaktivieren.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Gebiete</b><span>Kachel <b>📍 Gebiete</b> → Einschlagsgebiete anlegen, umbenennen, löschen. Pro Gebiet siehst du Polter-Anzahl, Strecken, Fahrer-Aktivität.</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>Zeiterfassungs-Übersicht</b><span>Kachel <span class="hicon green">📅 Zeiterfassung</span> → Monatskalender für alle Fahrer. Im Dropdown unten einen Fahrer wählen → seine Stunden pro Tag. Ohne Auswahl: Tage mit Einträgen leuchten grün. Tap auf einen Tag → alle Einträge des Tages, gruppiert nach Fahrer.</span></div></div>
+
+        <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>PDF-Export Arbeitszeit</b><span>In der Zeiterfassungs-Übersicht: <span class="hicon">📄</span> oben → Monatsbericht als PDF. Wenn ein Fahrer ausgewählt ist: nur dessen Stunden. Wenn „Alle Fahrer": Sammelbericht, gruppiert nach Fahrer.</span></div></div>
+
+        <div class="hstep"><div class="hnum">6</div><div class="hstep-txt"><b>Als Fahrer arbeiten</b><span>Kachel <b>🚜 Als Fahrer</b> → wechsele in den Harvester- oder Forwarder-Modus, ohne separates Fahrer-Konto. Nützlich wenn du selbst mal aussteigst.</span></div></div>
+
+        <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>Daten verwalten</b><span><span class="hicon red">🗑 Daten verwalten</span> → Polter / Strecken / Gebiete / Zeiteinträge gezielt löschen (z.B. am Saison-Ende). Achtung: gelöscht ist gelöscht (Zeiteinträge bleiben aber im Audit-Log).</span></div></div>
+
+        <div class="htip">🔒 Alle Daten sind durch Row-Level-Security streng pro Firma getrennt. Andere Lignum-Kunden sehen nichts von deinen Daten — auch nicht das Anthropic-Team.</div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -7098,6 +7194,290 @@ window.goToAdminCalToday = goToAdminCalToday;
 window.onAdminDriverChange = onAdminDriverChange;
 window.openAdminCalDay = openAdminCalDay;
 window.closeAdminCalDayDetail = closeAdminCalDayDetail;
+
+// ── PDF EXPORT: ARBEITSZEIT (Fahrer + Admin) ──────────────────────────
+// jsPDF ist bereits via CDN eingebunden. Wir vermeiden Emojis im PDF
+// (jsPDF default Font ist Latin-1 — keine Emoji-Glyphen verfügbar).
+
+const KAT_TEXT = {
+  einschlag: 'Einschlag',
+  ruecken:   'Ruecken',
+  fahrzeit:  'Fahrzeit',
+  wartung:   'Wartung',
+  sonstiges: 'Sonstiges'
+};
+
+function fmtTimeHM(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h + ':' + String(m).padStart(2,'0');
+}
+
+function _pdfFormatTime(d) {
+  return d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+}
+function _pdfFormatDate(d) {
+  return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+const MONTH_NAMES = ['Januar','Februar','Maerz','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+// Hilfsfunktion: Eintraege fuer Monat sammeln, sortiert nach Datum
+function _collectMonthEntries(entriesMap, year, month) {
+  const result = [];
+  const monthKey = year + '-' + String(month+1).padStart(2,'0');
+  entriesMap.forEach((entries, dayKey) => {
+    if (!dayKey.startsWith(monthKey)) return;
+    entries.filter(e => e.stopped_at).forEach(e => result.push(e));
+  });
+  result.sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
+  return result;
+}
+
+// ── FAHRER PDF (eigener Monat) ────────────────────────────────────────
+async function exportWorktimePdf() {
+  if (!window.jspdf) { showToast('PDF-Bibliothek nicht geladen'); return; }
+  if (!currentProfile) { showToast('Nicht angemeldet'); return; }
+  // Sicherstellen dass der aktuelle Monat geladen ist
+  await loadCalendarMonth(_calendarYear, _calendarMonth);
+  const entries = _collectMonthEntries(_calendarEntries, _calendarYear, _calendarMonth);
+  if (entries.length === 0) {
+    showToast('Keine Eintraege in diesem Monat');
+    return;
+  }
+  const monthLabel = MONTH_NAMES[_calendarMonth] + ' ' + _calendarYear;
+  const driverName = currentProfile.name || '';
+  _renderWorktimePdf({
+    title: 'Arbeitszeit ' + monthLabel,
+    driverName,
+    monthLabel,
+    entries,
+    grouped: false,
+    filename: 'arbeitszeit_' + driverName.replace(/\s+/g,'_') + '_' + _calendarYear + '-' + String(_calendarMonth+1).padStart(2,'0') + '.pdf'
+  });
+}
+
+// ── ADMIN PDF (alle Fahrer oder einer) ────────────────────────────────
+async function exportAdminWorktimePdf() {
+  if (!window.jspdf) { showToast('PDF-Bibliothek nicht geladen'); return; }
+  await loadAdminCalMonth(_adminCalYear, _adminCalMonth);
+  // Filterung wie im Kalender
+  const all = _collectMonthEntries(_adminCalEntries, _adminCalYear, _adminCalMonth);
+  const entries = _adminCalSelectedDriver
+    ? all.filter(e => e.profile_id === _adminCalSelectedDriver)
+    : all;
+  if (entries.length === 0) {
+    showToast('Keine Eintraege in diesem Monat');
+    return;
+  }
+  const monthLabel = MONTH_NAMES[_adminCalMonth] + ' ' + _adminCalYear;
+  if (_adminCalSelectedDriver) {
+    const driver = _adminCalDrivers.find(d => d.id === _adminCalSelectedDriver);
+    const driverName = driver ? driver.name : 'Fahrer';
+    _renderWorktimePdf({
+      title: 'Arbeitszeit ' + monthLabel,
+      driverName,
+      monthLabel,
+      entries,
+      grouped: false,
+      filename: 'arbeitszeit_' + driverName.replace(/\s+/g,'_') + '_' + _adminCalYear + '-' + String(_adminCalMonth+1).padStart(2,'0') + '.pdf'
+    });
+  } else {
+    _renderWorktimePdf({
+      title: 'Arbeitszeit Uebersicht ' + monthLabel,
+      driverName: 'Alle Fahrer',
+      monthLabel,
+      entries,
+      grouped: true,
+      filename: 'arbeitszeit_alle_' + _adminCalYear + '-' + String(_adminCalMonth+1).padStart(2,'0') + '.pdf'
+    });
+  }
+}
+
+// ── PDF Renderer (gemeinsam) ──────────────────────────────────────────
+function _renderWorktimePdf({ title, driverName, monthLabel, entries, grouped, filename }) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210, pageH = 297;
+  const marginX = 14;
+  let y = 18;
+
+  // === HEADER ===
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(15);
+  pdf.text('Lignum - ' + title, marginX, y);
+  y += 7;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  pdf.setTextColor(80);
+  pdf.text('Fahrer: ' + driverName, marginX, y);
+  y += 4.5;
+  pdf.text('Zeitraum: ' + monthLabel, marginX, y);
+  y += 4.5;
+  pdf.text('Erstellt: ' + new Date().toLocaleString('de-DE'), marginX, y);
+  y += 7;
+  pdf.setDrawColor(180);
+  pdf.line(marginX, y, pageW - marginX, y);
+  y += 5;
+
+  // === RENDERING ===
+  pdf.setTextColor(0);
+
+  function ensureSpace(needed) {
+    if (y + needed > pageH - 15) {
+      pdf.addPage();
+      y = 18;
+    }
+  }
+
+  function drawTableHeader() {
+    ensureSpace(8);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    pdf.setFillColor(240);
+    pdf.rect(marginX, y - 4, pageW - 2*marginX, 6, 'F');
+    pdf.text('Datum',     marginX + 1,   y);
+    pdf.text('Kategorie', marginX + 22,  y);
+    pdf.text('Start',     marginX + 48,  y);
+    pdf.text('Ende',      marginX + 62,  y);
+    pdf.text('Pause',     marginX + 76,  y);
+    pdf.text('Netto',     marginX + 92,  y);
+    pdf.text('Gebiet / Notiz', marginX + 108, y);
+    y += 4;
+    pdf.line(marginX, y, pageW - marginX, y);
+    y += 4;
+    pdf.setFont('helvetica', 'normal');
+  }
+
+  function drawRow(e) {
+    ensureSpace(6);
+    const start = new Date(e.started_at);
+    const stop  = new Date(e.stopped_at);
+    const net = (() => {
+      let pause = e.pause_seconds || 0;
+      const total = Math.floor((stop.getTime() - start.getTime())/1000);
+      return Math.max(0, total - pause);
+    })();
+    const pauseSec = e.pause_seconds || 0;
+    const kat = KAT_TEXT[e.kategorie] || 'Sonstiges';
+    const area = (e.areas && e.areas.name) ? e.areas.name : '';
+    const note = e.note || '';
+    let meta = area;
+    if (note) meta = (area ? area + ' / ' : '') + note;
+    if (meta.length > 50) meta = meta.slice(0, 47) + '...';
+    const edited = e.manually_edited ? ' *' : '';
+
+    pdf.setFontSize(8);
+    pdf.text(_pdfFormatDate(start), marginX + 1, y);
+    pdf.text(kat + edited,          marginX + 22, y);
+    pdf.text(_pdfFormatTime(start), marginX + 48, y);
+    pdf.text(_pdfFormatTime(stop),  marginX + 62, y);
+    pdf.text(fmtTimeHM(pauseSec),   marginX + 76, y);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(fmtTimeHM(net),        marginX + 92, y);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(meta,                  marginX + 108, y);
+    y += 5;
+  }
+
+  // === GRUPPIERT (Alle Fahrer) ODER FLACH (ein Fahrer) ===
+  let grandNet = 0;
+  let grandPause = 0;
+
+  if (grouped) {
+    // Nach Fahrer gruppieren
+    const byDriver = new Map();
+    entries.forEach(e => {
+      const did = e.profile_id;
+      if (!byDriver.has(did)) {
+        byDriver.set(did, {
+          name: (e.profiles && e.profiles.name) || '(unbekannt)',
+          entries: []
+        });
+      }
+      byDriver.get(did).entries.push(e);
+    });
+
+    const driverNames = Array.from(byDriver.values()).sort((a,b) => a.name.localeCompare(b.name));
+
+    driverNames.forEach(grp => {
+      // Pro Fahrer eine eigene Sektion
+      ensureSpace(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor(45, 106, 39);
+      pdf.text(grp.name, marginX, y);
+
+      let driverNet = 0, driverPause = 0;
+      grp.entries.forEach(e => {
+        const start = new Date(e.started_at);
+        const stop  = new Date(e.stopped_at);
+        const total = Math.floor((stop.getTime() - start.getTime())/1000);
+        const pause = e.pause_seconds || 0;
+        driverNet   += Math.max(0, total - pause);
+        driverPause += pause;
+      });
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.setTextColor(80);
+      pdf.text(grp.entries.length + ' Eintraege  -  ' + fmtTimeHM(driverNet) + ' Arbeit  -  ' + fmtTimeHM(driverPause) + ' Pause',
+        pageW - marginX, y, { align: 'right' });
+      y += 5;
+      pdf.setTextColor(0);
+      drawTableHeader();
+      grp.entries.forEach(drawRow);
+
+      grandNet += driverNet;
+      grandPause += driverPause;
+      y += 6;
+    });
+  } else {
+    // Flach
+    drawTableHeader();
+    entries.forEach(e => {
+      const start = new Date(e.started_at);
+      const stop  = new Date(e.stopped_at);
+      const total = Math.floor((stop.getTime() - start.getTime())/1000);
+      const pause = e.pause_seconds || 0;
+      grandNet   += Math.max(0, total - pause);
+      grandPause += pause;
+      drawRow(e);
+    });
+  }
+
+  // === SUMME ===
+  ensureSpace(15);
+  y += 3;
+  pdf.setDrawColor(80);
+  pdf.line(marginX, y, pageW - marginX, y);
+  y += 6;
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.setTextColor(0);
+  pdf.text('Gesamt:', marginX, y);
+  pdf.text(fmtTimeHM(grandNet) + ' Arbeit  -  ' + fmtTimeHM(grandPause) + ' Pause  -  ' + entries.length + ' Eintraege',
+    pageW - marginX, y, { align: 'right' });
+
+  // === FOOTER (alle Seiten) ===
+  const pageCount = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7);
+    pdf.setTextColor(140);
+    pdf.text('Lignum - lignum.pages.dev  -  * = nachtraeglich bearbeitet',
+      marginX, pageH - 8);
+    pdf.text('Seite ' + i + ' / ' + pageCount, pageW - marginX, pageH - 8, { align: 'right' });
+  }
+
+  // === DOWNLOAD ===
+  pdf.save(filename);
+  showToast('PDF gespeichert');
+}
+
+window.exportWorktimePdf = exportWorktimePdf;
+window.exportAdminWorktimePdf = exportAdminWorktimePdf;
+
 
 
 // ── GRENZEN ───────────────────────────────────────────────────────
