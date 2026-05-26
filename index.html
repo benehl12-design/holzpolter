@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.1">
+  <meta name="app-version" content="4.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -853,6 +853,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   padding-bottom:max(12px,var(--safe-bottom));
   background:linear-gradient(175deg,#162818,#0f1f10);
 }
+.adash-body > *{flex-shrink:0;}
 
 /* Zwei symmetrische Haupt-Buttons */
 .adash-main-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -872,7 +873,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .adash-active-drivers{
   background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
   border-radius:16px;overflow:hidden;
+  flex-shrink:0;min-height:54px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
 }
+.adash-active-drivers:active{background:rgba(255,255,255,.08);}
 .adash-section-head{
   padding:14px 18px;display:flex;align-items:center;gap:10px;
   border-bottom:1px solid rgba(255,255,255,.07);
@@ -1542,7 +1546,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.1'")) {
+        if (!txt.includes("APP_VERSION = '4.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1683,11 +1687,11 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <!-- Aktive Fahrer -->
-    <div class="adash-active-drivers" onclick="openDriverOverview()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden;cursor:pointer;" onclick="openDriverOverview()">
+    <div class="adash-active-drivers" onclick="openDriverOverview()">
       <div style="padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06);">
         <div style="width:7px;height:7px;border-radius:50%;background:#4aaa4a;animation:pulse 2s infinite;flex-shrink:0;"></div>
         <span style="font-size:11px;font-weight:600;color:#6a9a6a;text-transform:uppercase;letter-spacing:.06em;flex:1;">Aktive Fahrer</span>
-        <span style="font-size:11px;color:#4a6a4a;" id="dash-driver-count"></span>
+        <span style="font-size:11px;color:#4a6a4a;" id="dash-driver-count">– Fahrer</span>
         <span style="font-size:16px;color:#4a6a4a;">&#8250;</span>
       </div>
       <div id="dash-driver-list">
@@ -3549,7 +3553,7 @@ function renderDriverOverview(drivers) {
 
       '<div class="dov-actions">' +
         (hasLocation ?
-          '<button class="dov-action-btn" onclick="jumpToDriverOnMap(' + d.last_lat + ',' + d.last_lng + ')">🗺 Auf Karte</button>' +
+          '<button class="dov-action-btn" onclick="jumpToDriverOnMap(' + d.last_lat + ',' + d.last_lng + ',' + JSON.stringify(d.name || '') + ')">🗺 Auf Karte</button>' +
           '<a href="https://maps.google.com/?q=' + d.last_lat + ',' + d.last_lng + '" target="_blank" class="dov-action-btn" style="text-align:center;text-decoration:none;display:block;padding:9px;">🧭 Navigation</a>'
         : '') +
       '</div>' +
@@ -3622,11 +3626,60 @@ function getTimeAgo(date) {
   return Math.floor(h / 24) + ' Tag(en)';
 }
 
-function jumpToDriverOnMap(lat, lng) {
+// Markiert den letzten Standort eines Fahrers auf der Karte
+let _driverFocusMarker = null;
+function showDriverFocusMarker(lat, lng, name) {
+  if (!map || typeof L === 'undefined') return;
+  if (_driverFocusMarker) {
+    try { map.removeLayer(_driverFocusMarker); } catch {}
+    _driverFocusMarker = null;
+  }
+  _driverFocusMarker = L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: '',
+      html: '<div style="position:relative;width:36px;height:36px;">' +
+            '  <div style="position:absolute;inset:0;border-radius:50%;background:rgba(74,170,74,.25);animation:pulse 2s infinite;"></div>' +
+            '  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:#4aaa4a;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:11px;">👤</div>' +
+            '</div>',
+      iconSize: [36, 36], iconAnchor: [18, 18]
+    }),
+    zIndexOffset: 1000
+  }).addTo(map);
+  if (name) {
+    _driverFocusMarker.bindPopup('<b>' + name + '</b><br>Letzter bekannter Standort');
+    setTimeout(() => { try { _driverFocusMarker.openPopup(); } catch {} }, 200);
+  }
+}
+
+function jumpToDriverOnMap(lat, lng, name) {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+    if (typeof showToast === 'function') showToast('Kein Standort verfügbar');
+    return;
+  }
+  // Flag setzen DAMIT autoZoomToWork den Sprung nicht überschreibt
+  window._pendingDriverJump = true;
   closeDriverOverview();
   showDashMap();
-  setTimeout(() => { map.setView([lat, lng], 16); }, 500);
+
+  // Mehrere Versuche damit es auch nach Map-Init sicher landet.
+  // startMode triggert autoZoomToWork erst nach ~1200ms; wir setzen
+  // unseren Sprung mehrfach, der letzte gewinnt.
+  const doJump = () => {
+    if (!map) return;
+    try {
+      map.setView([lat, lng], 16, { animate: true });
+      showDriverFocusMarker(lat, lng, name);
+    } catch (e) { console.warn('jumpToDriverOnMap:', e); }
+  };
+  setTimeout(doJump, 200);
+  setTimeout(doJump, 800);
+  setTimeout(() => {
+    doJump();
+    window._pendingDriverJump = false; // Endgültig freigeben
+  }, 1600);
 }
+window.jumpToDriverOnMap = jumpToDriverOnMap;
+window.showDriverFocusMarker = showDriverFocusMarker;
 
 // ── DATEN VERWALTEN MODAL ────────────────────────────────────────
 function openDataMgmt() {
@@ -4337,25 +4390,36 @@ async function loadDashStats() {
 
 async function loadDashDrivers() {
   const el1 = document.getElementById('dash-driver-list');
+  const elCount = document.getElementById('dash-driver-count');
+  if (!el1) { console.warn('dash-driver-list element fehlt'); return; }
+  if (!currentProfile?.company_id) {
+    el1.innerHTML = '<div style="padding:14px 16px;color:#5a8a5a;font-size:13px;">Lade Profil...</div>';
+    return;
+  }
   try {
-    const data = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&id=neq.'+currentUser.id);
-    document.getElementById('dash-driver-count').textContent = data.length + ' Fahrer';
+    const data = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&id=neq.'+currentUser.id) || [];
+    if (elCount) elCount.textContent = data.length + ' Fahrer';
     if (!data.length) {
-      el1.innerHTML = '<div style="padding:16px;color:#6a9e6a;font-size:13px;">Noch keine Fahrer angelegt.</div>';
+      el1.innerHTML = '<div style="padding:14px 16px;color:#6a9e6a;font-size:13px;">Noch keine Fahrer angelegt.</div>';
       return;
     }
-    document.getElementById('dash-driver-count').textContent = data.length + ' Fahrer';
-    el1.innerHTML = data.map(d => `
+    el1.innerHTML = data.map(d => {
+      const isActive = d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime() < 15*60*1000);
+      const name = (d.name || '(ohne Name)').replace(/</g,'&lt;');
+      return `
       <div class="adash-driver-row" onclick="openDriversScreen()">
         <div class="adash-driver-icon ${d.role==='harvester'?'h':'f'}">${d.role==='harvester'?'🪵':'🚜'}</div>
         <div style="flex:1;min-width:0;">
-          <div class="adash-driver-name">${d.name}</div>
+          <div class="adash-driver-name">${name}</div>
           <div class="adash-driver-role">${d.role==='harvester'?'Harvester-Fahrer':'Forwarder-Fahrer'}</div>
         </div>
-        <span class="adash-driver-status ${d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime() < 15*60*1000) ? '' : 'offline'}">${d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime() < 15*60*1000) ? 'Aktiv' : 'Offline'}</span>
-      </div>`).join('');
-  } catch {
-    el1.innerHTML = '<div style="padding:16px;color:#e05555;font-size:13px;">Fehler beim Laden.</div>';
+        <span class="adash-driver-status ${isActive ? '' : 'offline'}">${isActive ? 'Aktiv' : 'Offline'}</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.warn('loadDashDrivers Fehler:', e);
+    if (elCount) elCount.textContent = '–';
+    el1.innerHTML = '<div style="padding:14px 16px;color:#c8860a;font-size:13px;">Konnte Fahrerliste nicht laden. Erneut versuchen?</div>';
   }
 }
 
@@ -5516,12 +5580,21 @@ function startMode(mode) {
 }
 
 function autoZoomToWork() {
+  // Wenn gerade ein expliziter Sprung zu einem Fahrer gemacht wurde,
+  // diesen NICHT überschreiben (Bug: Auto-Zoom warf den Fokus zurück).
+  if (window._pendingDriverJump) {
+    window._pendingDriverJump = false;
+    return;
+  }
   // 1. Wenn GPS verfügbar → GPS-Position
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
+      // Während des Aufrufs könnte ein Driver-Jump passiert sein
+      if (window._pendingDriverJump) { window._pendingDriverJump = false; return; }
       const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
       map.setView(ll, 14);
     }, () => {
+      if (window._pendingDriverJump) { window._pendingDriverJump = false; return; }
       // 2. Kein GPS → auf Marker zoomen
       zoomToMarkers();
     }, { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
