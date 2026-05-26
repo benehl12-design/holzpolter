@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.3">
+  <meta name="app-version" content="4.4">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1546,7 +1546,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.3'")) {
+        if (!txt.includes("APP_VERSION = '4.4'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3553,7 +3553,7 @@ function renderDriverOverview(drivers) {
 
       '<div class="dov-actions">' +
         (hasLocation ?
-          '<button class="dov-action-btn" onclick="jumpToDriverOnMap(' + d.last_lat + ',' + d.last_lng + ',' + JSON.stringify(d.name || '') + ')">🗺 Auf Karte</button>' +
+          '<button class="dov-action-btn" onclick="jumpToDriverOnMap(' + d.last_lat + ',' + d.last_lng + ',' + JSON.stringify(d.name || '').replace(/"/g, '&quot;') + ')">🗺 Auf Karte</button>' +
           '<a href="https://maps.google.com/?q=' + d.last_lat + ',' + d.last_lng + '" target="_blank" class="dov-action-btn" style="text-align:center;text-decoration:none;display:block;padding:9px;">🧭 Navigation</a>'
         : '') +
       '</div>' +
