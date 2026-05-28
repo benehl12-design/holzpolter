@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.4">
+  <meta name="app-version" content="4.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1546,7 +1546,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.4'")) {
+        if (!txt.includes("APP_VERSION = '4.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1904,6 +1904,11 @@ if ('serviceWorker' in navigator) {
     <button id="btn-export" class="hidden"></button>
     <button class="qbtn" id="btn-track">⏺</button>
     <button class="qbtn red hidden" id="btn-stop">⏹</button>
+    <!-- EUDR: Flächen-Erfassung Stop -->
+    <button class="qbtn hidden" id="btn-area-capture" style="display:none;"></button>
+    <button class="qbtn hidden" id="btn-area-stop"
+            style="background:#e67e22;"
+            onclick="stopAreaCapture();">⏹ Fläche</button>
     <!-- Polter hinzufügen -->
     <button class="qbtn green" id="btn-add">＋</button>
   </div>
@@ -1976,6 +1981,32 @@ if ('serviceWorker' in navigator) {
       </select>
       <button onclick="openNewAreaDialog();closeSlideMenu();" style="padding:9px 12px;border-radius:9px;border:none;background:rgba(45,90,39,.4);color:#a0d89a;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;white-space:nowrap;">+ Neu</button>
     </div>
+
+    <!-- EUDR: Erntefläche erfassen (nur Harvester + Admin im Fahrer-Modus) -->
+    <button class="slide-btn" id="smenu-area-capture"
+            onclick="startAreaCapture();closeSlideMenu();">
+      <div class="slide-btn-icon" style="background:rgba(230,126,34,.25);color:#e8954a;">📐</div>
+      <div class="slide-btn-info">
+        <div class="slide-btn-label">Erntefläche ablaufen</div>
+        <div class="slide-btn-desc">GPS-Grenze für EUDR aufzeichnen</div>
+      </div>
+    </button>
+    <button class="slide-btn" id="smenu-area-draw"
+            onclick="startAreaDrawing();closeSlideMenu();">
+      <div class="slide-btn-icon" style="background:rgba(230,126,34,.18);color:#e8954a;">✏️</div>
+      <div class="slide-btn-info">
+        <div class="slide-btn-label">Erntefläche zeichnen</div>
+        <div class="slide-btn-desc">Ecken auf der Karte antippen</div>
+      </div>
+    </button>
+    <button class="slide-btn" id="smenu-area-geojson"
+            onclick="downloadAreaGeoJSON(currentAreaId, document.getElementById('area-select')?.selectedOptions[0]?.text);closeSlideMenu();">
+      <div class="slide-btn-icon" style="background:rgba(45,90,39,.4);color:#a0d89a;">⬇</div>
+      <div class="slide-btn-info">
+        <div class="slide-btn-label">GeoJSON exportieren</div>
+        <div class="slide-btn-desc">Für TRACES-Upload (EUDR)</div>
+      </div>
+    </button>
 
     <!-- Harvester -->
     <div class="slide-section-title" id="smenu-sec-harvester">Harvester</div>
@@ -5485,6 +5516,12 @@ function startMode(mode) {
   const fwSec = document.getElementById('smenu-sec-forwarder-wrap');
   if (fwSec) fwSec.style.display = isForward ? '' : 'none';
 
+  // EUDR Modul 1: Erntefläche-Buttons nur für Harvester + Admin (nicht für reine Forwarder)
+  ['smenu-area-capture','smenu-area-draw','smenu-area-geojson'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isForward ? 'none' : '';
+  });
+
   const topbar    = document.getElementById('topbar');
   const statusbar = document.getElementById('statusbar');
 
@@ -5761,6 +5798,346 @@ document.getElementById('btn-stop').addEventListener('click', async () => {
   setDot('ok');setTxt('GPS ±'+Math.round(ac)+'m');trackLine=[];trackPoly=null;renderLog();
 });
 
+// ══════════════════════════════════════════════════════════════════════
+// ── EUDR MODUL 1 — ERNTEFLÄCHE / POLYGON-ERFASSUNG ────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  EUDR MODUL 1 — ERNTEFLÄCHE / POLYGON-ERFASSUNG                    ║
+// ║  Einfügen INNERHALB der bestehenden IIFE (async()=>{...})()        ║
+// ║  am besten direkt nach dem Track-Recording-Block.                  ║
+// ║                                                                    ║
+// ║  Nutzt vorhandene Bausteine: kalman, hav(), setTxt(), setDot(),    ║
+// ║  GPS_OPTS, GPS_ERR, map, dbFetch, currentProfile, currentUser,     ║
+// ║  currentAreaId, loadAreas().                                       ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+// ── Zustand ─────────────────────────────────────────────────────────
+let isAreaCapturing = false;     // Walk-Mode aktiv
+let isAreaDrawing   = false;     // Manueller Zeichen-Modus aktiv
+let areaBoundary    = [];        // [[lat,lng],...] der erfassten Grenze
+let areaPoly        = null;      // L.polygon Live-Vorschau
+let areaWatchId     = null;      // GPS watch-Handle
+let areaForId       = null;      // an welche area die Grenze gehängt wird
+
+// Vorschau-Polygone bereits gespeicherter Erntefläche-Grenzen
+const areaBoundaryLayers = {};   // { areaId: L.polygon }
+
+// ── GEODÄSIE (ohne externe Library) ─────────────────────────────────
+
+// Geodätische Polygonfläche in Hektar (gleiche Formel wie Leaflet.GeometryUtil).
+// Funktioniert direkt mit WGS84 lat/lng.
+function polygonHectares(latlngs) {
+  if (!latlngs || latlngs.length < 3) return 0;
+  const R = 6378137;                 // WGS84 Äquatorradius (m)
+  const d2r = Math.PI / 180;
+  let area = 0;
+  const n = latlngs.length;
+  for (let i = 0; i < n; i++) {
+    const p1 = latlngs[i];
+    const p2 = latlngs[(i + 1) % n];
+    area += (p2[1] - p1[1]) * d2r *
+            (2 + Math.sin(p1[0] * d2r) + Math.sin(p2[0] * d2r));
+  }
+  area = Math.abs(area * R * R / 2);
+  return area / 10000;               // m² → Hektar
+}
+
+// Schwerpunkt (für <4 ha Centroid-Punkt)
+function polygonCentroid(latlngs) {
+  let lat = 0, lng = 0;
+  latlngs.forEach(p => { lat += p[0]; lng += p[1]; });
+  return [lat / latlngs.length, lng / latlngs.length];
+}
+
+// Selbstüberschneidung prüfen (häufigster DDS-Ablehnungsgrund).
+// O(n²) — bei realen Erntefläche-Polygonen (< paar hundert Punkte) unkritisch.
+function segmentsIntersect(p1, p2, p3, p4) {
+  const ccw = (a, b, c) =>
+    (c[0] - a[0]) * (b[1] - a[1]) > (b[0] - a[0]) * (c[1] - a[1]);
+  return ccw(p1, p3, p4) !== ccw(p2, p3, p4) &&
+         ccw(p1, p2, p3) !== ccw(p1, p2, p4);
+}
+function polygonSelfIntersects(latlngs) {
+  const n = latlngs.length;
+  if (n < 4) return false;
+  for (let i = 0; i < n; i++) {
+    const a1 = latlngs[i], a2 = latlngs[(i + 1) % n];
+    for (let j = i + 1; j < n; j++) {
+      if (Math.abs(i - j) <= 1 || (i === 0 && j === n - 1)) continue; // Nachbarn überspringen
+      const b1 = latlngs[j], b2 = latlngs[(j + 1) % n];
+      if (segmentsIntersect(a1, a2, b1, b2)) return true;
+    }
+  }
+  return false;
+}
+
+// ── EUDR-GEOJSON BAUEN ──────────────────────────────────────────────
+// WICHTIG: GeoJSON benutzt [longitude, latitude] — Leaflet [lat, lng]!
+// Diese Funktion dreht das korrekt um. TRACES erwartet WGS84/EPSG:4326.
+function buildEudrGeoJSON(latlngs, props) {
+  const r6 = x => Number(x.toFixed(6));   // 6 Dezimalstellen Pflicht
+  const ha = polygonHectares(latlngs);
+  let geometry;
+
+  if (ha < 4) {
+    // <4 ha → ein Centroid-Punkt genügt laut EUDR
+    const c = polygonCentroid(latlngs);
+    geometry = { type: 'Point', coordinates: [r6(c[1]), r6(c[0])] };
+  } else {
+    // ≥4 ha → geschlossenes Polygon
+    const ring = latlngs.map(p => [r6(p[1]), r6(p[0])]);
+    const first = ring[0], last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first]); // Ring schließen
+    geometry = { type: 'Polygon', coordinates: [ring] };
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: Object.assign({
+        area_hectares: Number(ha.toFixed(4)),
+        crs: 'EPSG:4326'
+      }, props || {}),
+      geometry
+    }]
+  };
+}
+
+// ── WALK-MODE: GRENZE ABLAUFEN/ABFAHREN ─────────────────────────────
+function startAreaCapture(forAreaId) {
+  if (isAreaCapturing || isAreaDrawing) { showToast('Erfassung läuft bereits'); return; }
+  if (!navigator.geolocation) { alert('GPS nicht verfügbar'); return; }
+
+  areaForId = forAreaId || currentAreaId || null;
+  if (!areaForId) { alert('Bitte zuerst ein Einschlagsgebiet wählen oder anlegen.'); return; }
+
+  isAreaCapturing = true;
+  areaBoundary = [];
+  kalman.reset();
+  areaPoly = L.polygon([], {
+    color: '#e67e22', weight: 3, opacity: .9,
+    fillColor: '#e67e22', fillOpacity: .12, dashArray: '6,5'
+  }).addTo(map);
+
+  // UI umschalten
+  const bStart = document.getElementById('btn-area-capture');
+  const bStop  = document.getElementById('btn-area-stop');
+  if (bStart) bStart.classList.add('hidden');
+  if (bStop)  bStop.classList.remove('hidden');
+  setTxt('Erntefläche: Grenze ablaufen...'); setDot('trk');
+
+  areaWatchId = navigator.geolocation.watchPosition(pos => {
+    const { latitude: rLat, longitude: rLng, accuracy: acc } = pos.coords;
+    const ts = pos.timestamp || Date.now();
+    if (acc > 15) { setTxt('GPS schwach (±' + Math.round(acc) + 'm)...'); return; }
+
+    const f = kalman.process(rLat, rLng, acc, ts);
+    if (typeof updateDriverLocation === 'function') updateDriverLocation(rLat, rLng);
+
+    // Punkt nur setzen wenn ≥2 m vom letzten entfernt → kein GPS-Rauschen-Stau
+    const last = areaBoundary[areaBoundary.length - 1];
+    if (!last || hav(last, [f.lat, f.lng]) >= 2) {
+      areaBoundary.push([f.lat, f.lng]);
+      areaPoly.setLatLngs(areaBoundary);
+    }
+    const ll = L.latLng(f.lat, f.lng);
+    if (typeof updateUM === 'function') updateUM(ll, acc, 'trk');
+    map.panTo(ll);
+
+    if (areaBoundary.length >= 3) {
+      const ha = polygonHectares(areaBoundary);
+      setTxt('±' + Math.round(acc) + 'm · ' + ha.toFixed(2) + ' ha · ' +
+             areaBoundary.length + ' Pkt');
+    } else {
+      setTxt('±' + Math.round(acc) + 'm · ' + areaBoundary.length + ' Pkt');
+    }
+  }, err => setTxt(GPS_ERR[err.code] || 'GPS Fehler'), GPS_OPTS);
+}
+
+async function stopAreaCapture() {
+  if (areaWatchId !== null) { navigator.geolocation.clearWatch(areaWatchId); areaWatchId = null; }
+  isAreaCapturing = false;
+  kalman.reset();
+
+  const bStart = document.getElementById('btn-area-capture');
+  const bStop  = document.getElementById('btn-area-stop');
+  if (bStop)  bStop.classList.add('hidden');
+  if (bStart) bStart.classList.remove('hidden');
+  setDot('ok');
+
+  await finalizeAreaBoundary();
+}
+
+// ── MANUELLER ZEICHEN-MODUS (Antippen auf Karte) ────────────────────
+function startAreaDrawing(forAreaId) {
+  if (isAreaCapturing || isAreaDrawing) { showToast('Erfassung läuft bereits'); return; }
+  areaForId = forAreaId || currentAreaId || null;
+  if (!areaForId) { alert('Bitte zuerst ein Einschlagsgebiet wählen oder anlegen.'); return; }
+
+  isAreaDrawing = true;
+  areaBoundary = [];
+  areaPoly = L.polygon([], {
+    color: '#e67e22', weight: 3, opacity: .9,
+    fillColor: '#e67e22', fillOpacity: .12, dashArray: '6,5'
+  }).addTo(map);
+
+  map.on('click', onAreaDrawClick);
+  setTxt('Erntefläche zeichnen: Ecken antippen');
+
+  // UI: Zeichnen-Buttons zeigen
+  const dBar = document.getElementById('area-draw-bar');
+  if (dBar) dBar.classList.remove('hidden');
+}
+
+function onAreaDrawClick(e) {
+  if (!isAreaDrawing) return;
+  areaBoundary.push([e.latlng.lat, e.latlng.lng]);
+  areaPoly.setLatLngs(areaBoundary);
+  if (areaBoundary.length >= 3) {
+    setTxt('Erntefläche: ' + polygonHectares(areaBoundary).toFixed(2) + ' ha · ' +
+           areaBoundary.length + ' Ecken');
+  } else {
+    setTxt('Erntefläche: ' + areaBoundary.length + ' Ecken (min. 3)');
+  }
+}
+
+function undoAreaDrawPoint() {
+  if (!isAreaDrawing || !areaBoundary.length) return;
+  areaBoundary.pop();
+  areaPoly.setLatLngs(areaBoundary);
+  setTxt('Erntefläche: ' + areaBoundary.length + ' Ecken');
+}
+
+async function finishAreaDrawing() {
+  map.off('click', onAreaDrawClick);
+  isAreaDrawing = false;
+  const dBar = document.getElementById('area-draw-bar');
+  if (dBar) dBar.classList.add('hidden');
+  await finalizeAreaBoundary();
+}
+
+function cancelAreaDrawing() {
+  map.off('click', onAreaDrawClick);
+  isAreaDrawing = false;
+  if (areaPoly) { map.removeLayer(areaPoly); areaPoly = null; }
+  areaBoundary = [];
+  const dBar = document.getElementById('area-draw-bar');
+  if (dBar) dBar.classList.add('hidden');
+  setTxt('Erfassung abgebrochen');
+}
+
+// ── ABSCHLUSS: VALIDIEREN, BERECHNEN, SPEICHERN ─────────────────────
+async function finalizeAreaBoundary() {
+  if (areaBoundary.length < 3) {
+    if (areaPoly) { map.removeLayer(areaPoly); areaPoly = null; }
+    areaBoundary = [];
+    setTxt('Zu wenige Punkte — Erfassung verworfen');
+    return;
+  }
+
+  // Validierung 1: Selbstüberschneidung
+  if (polygonSelfIntersects(areaBoundary)) {
+    const ok = confirm('⚠ Das Polygon überschneidet sich selbst.\n' +
+      'Solche Polygone werden vom EU-System (TRACES) abgelehnt.\n\n' +
+      'Trotzdem speichern? (Empfehlung: Abbrechen und neu erfassen)');
+    if (!ok) {
+      if (areaPoly) { map.removeLayer(areaPoly); areaPoly = null; }
+      areaBoundary = [];
+      setTxt('Erfassung verworfen — bitte neu ablaufen');
+      return;
+    }
+  }
+
+  const ha = polygonHectares(areaBoundary);
+  const geojson = buildEudrGeoJSON(areaBoundary, { area_id: areaForId });
+
+  // Hinweis zur EUDR-Regel direkt im UI
+  const typ = ha < 4 ? 'Punkt (Fläche <4 ha)' : 'Polygon (Fläche ≥4 ha)';
+  showToast('Erntefläche erfasst: ' + ha.toFixed(2) + ' ha → ' + typ);
+
+  // In Supabase speichern (erweitert die areas-Zeile)
+  try {
+    const saved = await dbFetch('areas?id=eq.' + areaForId, {
+      method: 'PATCH',
+      prefer: 'return=representation',
+      body: {
+        boundary: areaBoundary,                    // [[lat,lng],...] roh
+        area_hectares: Number(ha.toFixed(4)),
+        eudr_geojson: geojson,                     // fertig für Export
+        captured_by: currentUser.id,
+        captured_at: new Date().toISOString()
+      }
+    });
+    if (saved && saved[0]) {
+      // Live-Layer dauerhaft anzeigen
+      if (areaBoundaryLayers[areaForId]) map.removeLayer(areaBoundaryLayers[areaForId]);
+      areaBoundaryLayers[areaForId] = areaPoly;
+      areaPoly.setStyle({ dashArray: null, fillOpacity: .08 });
+      areaPoly = null;
+      setTxt('Erntefläche gespeichert: ' + ha.toFixed(2) + ' ha');
+      if (typeof loadAreas === 'function') loadAreas();
+    }
+  } catch (err) {
+    console.error('Erntefläche speichern fehlgeschlagen', err);
+    setTxt('Speichern fehlgeschlagen — offline?');
+    // areaPoly bleibt sichtbar, Daten gehen nicht verloren
+  }
+  areaBoundary = [];
+}
+
+// ── GESPEICHERTE GRENZEN BEIM LADEN ANZEIGEN ────────────────────────
+// In eurer loadAreas()-Funktion aufrufen, nachdem die areas geladen sind.
+// Beispiel: renderAreaBoundaries(areasArray);
+function renderAreaBoundaries(areas) {
+  Object.keys(areaBoundaryLayers).forEach(id => {
+    try { map.removeLayer(areaBoundaryLayers[id]); } catch {}
+    delete areaBoundaryLayers[id];
+  });
+  (areas || []).forEach(a => {
+    if (a.boundary && Array.isArray(a.boundary) && a.boundary.length >= 3) {
+      const poly = L.polygon(a.boundary, {
+        color: '#e67e22', weight: 2, opacity: .8,
+        fillColor: '#e67e22', fillOpacity: .07
+      }).addTo(map);
+      poly.bindPopup(
+        '<b>📐 Erntefläche</b><br>' +
+        (a.name || 'Einschlagsgebiet') + '<br>' +
+        (a.area_hectares ? a.area_hectares.toFixed(2) + ' ha' : '') +
+        '<br><small>EUDR: ' + (a.area_hectares < 4 ? 'Punkt genügt' : 'Polygon-Pflicht') + '</small>'
+      );
+      areaBoundaryLayers[a.id] = poly;
+    }
+  });
+}
+
+// ── GEOJSON DOWNLOAD (für manuellen TRACES-Upload) ──────────────────
+function downloadAreaGeoJSON(areaId, areaName) {
+  const area = (typeof areas !== 'undefined' && areas.find)
+    ? areas.find(a => a.id === areaId) : null;
+  if (!area || !area.eudr_geojson) { alert('Für dieses Gebiet ist noch keine Erntefläche erfasst.'); return; }
+
+  const blob = new Blob([JSON.stringify(area.eudr_geojson, null, 2)],
+    { type: 'application/geo+json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'EUDR_' + (areaName || 'Erntefläche').replace(/[^\w-]/g, '_') + '.geojson';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── window.* Bindungen (für onclick-Handler im HTML) ────────────────
+window.startAreaCapture   = startAreaCapture;
+window.stopAreaCapture    = stopAreaCapture;
+window.startAreaDrawing   = startAreaDrawing;
+window.undoAreaDrawPoint  = undoAreaDrawPoint;
+window.finishAreaDrawing  = finishAreaDrawing;
+window.cancelAreaDrawing  = cancelAreaDrawing;
+window.downloadAreaGeoJSON = downloadAreaGeoJSON;
+
+
 // ── MARKER LÖSCHEN ────────────────────────────────────────────────
 async function delMarker(id) {
   const idx = markers.findIndex(m => m.id === id);
@@ -6024,6 +6401,10 @@ async function loadAreas() {
   if (data.length >= 0) {
     areas = data;
     renderAreaSelect();
+    // EUDR Modul 1: Erntefläche-Grenzen auf Karte zeichnen
+    if (typeof renderAreaBoundaries === 'function') {
+      try { renderAreaBoundaries(areas); } catch(e) { console.warn('renderAreaBoundaries:', e); }
+    }
   }
 }
 
@@ -8353,6 +8734,22 @@ window.runPdfExport = runPdfExport;
   </div>
 </div>
 
+<!-- EUDR: Schwebende Zeichen-Leiste (manueller Polygon-Zeichen-Modus) -->
+<div id="area-draw-bar" class="hidden" style="
+     position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+     z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
+     padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
+     backdrop-filter:blur(8px);">
+  <button onclick="undoAreaDrawPoint()" style="
+     padding:10px 14px;border:none;border-radius:10px;background:rgba(255,255,255,.12);
+     color:#fff;font-family:inherit;font-size:13px;cursor:pointer;">↩ Zurück</button>
+  <button onclick="cancelAreaDrawing()" style="
+     padding:10px 14px;border:none;border-radius:10px;background:rgba(200,60,40,.6);
+     color:#fff;font-family:inherit;font-size:13px;cursor:pointer;">✕ Abbrechen</button>
+  <button onclick="finishAreaDrawing()" style="
+     padding:10px 16px;border:none;border-radius:10px;background:#e67e22;
+     color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">✓ Fertig</button>
+</div>
 
 </body>
 </html>
