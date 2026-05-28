@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.8">
+  <meta name="app-version" content="5.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1108,6 +1108,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   overflow:hidden;
   padding-bottom:max(10px,env(safe-area-inset-bottom));
 }
+/* Am Desktop / Tablet zentrieren statt am unteren Rand kleben */
+@media (min-width: 768px) {
+  #data-mgmt-overlay{ align-items:center; padding:20px; }
+  #data-mgmt-sheet{
+    border-radius:20px;
+    max-height:85vh;
+    padding-bottom:0;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+}
 .dmgmt-header{
   padding:20px 20px 14px;
   display:flex;align-items:center;gap:12px;
@@ -1659,6 +1669,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   background:rgba(45,90,39,.25);color:#a0d89a;
   padding:5px 10px;border-radius:8px;white-space:nowrap;
 }
+
+/* Globale Lesbarkeit aller Dropdown-Optionen
+   (Browser rendern <option> sonst mit System-Hintergrund) */
+select option,
+select optgroup {
+  background-color: #1a2818;
+  color: #c8e6c0;
+}
+select option:checked,
+select option:hover,
+select option:focus {
+  background-color: #2d6a27;
+  color: #fff;
+}
+select option:disabled {
+  color: #4a6a4a;
+}
 .admin-day-driver-sum-end{display:none;}
 </style>
 <script>
@@ -1668,7 +1695,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.8'")) {
+        if (!txt.includes("APP_VERSION = '5.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4900,10 +4927,19 @@ async function loadAreasOverviewCards() {
     }
 
     el.innerHTML = aData.map(a => {
-      const polter   = mData.filter(m => m.area_id===a.id && m.typ==='harvester');
-      const done     = polter.filter(m => m.done).length;
+      const allMarkers = mData.filter(m => m.area_id===a.id);
+      const harvesterPolter = allMarkers.filter(m => m.typ === 'harvester');
+      const lkwPlaetze      = allMarkers.filter(m => m.typ === 'ruecke');
+      const polterTotal     = allMarkers.length;
+      const done            = harvesterPolter.filter(m => m.done).length;
       const strecken = tData.filter(t => t.area_id===a.id);
       const kmSum    = strecken.reduce((s,t) => s+(parseFloat(t.km)||0),0).toFixed(1);
+      // Detail-Zeile nur wenn beide Typen vorhanden
+      const polterDetail = (harvesterPolter.length > 0 && lkwPlaetze.length > 0)
+        ? `<div style="font-size:10px;color:#5a8a5a;text-align:center;margin-top:2px;">${harvesterPolter.length}P · ${lkwPlaetze.length}L</div>`
+        : (lkwPlaetze.length > 0 && harvesterPolter.length === 0)
+            ? `<div style="font-size:10px;color:#5a8a5a;text-align:center;margin-top:2px;">LKW-Plätze</div>`
+            : '';
       // EUDR-Status
       const hasBoundary = Array.isArray(a.boundary) && a.boundary.length >= 3;
       const ha = a.area_hectares ? Number(a.area_hectares) : null;
@@ -4921,8 +4957,9 @@ async function loadAreasOverviewCards() {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
             <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 4px;">
-              <div style="font-size:18px;font-weight:600;color:#c8e6c0;">${polter.length}</div>
+              <div style="font-size:18px;font-weight:600;color:#c8e6c0;">${polterTotal}</div>
               <div style="font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">Polter</div>
+              ${polterDetail}
             </div>
             <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 4px;">
               <div style="font-size:18px;font-weight:600;color:#a0d89a;">${done}</div>
@@ -8798,28 +8835,70 @@ document.getElementById('btn-grenzen').addEventListener('click',()=>{document.ge
 document.getElementById('btn-geojson').addEventListener('click',()=>{document.getElementById('geojson-input').click();});
 document.getElementById('geojson-input').addEventListener('change',function(){
   const file=this.files[0];if(!file)return;
+  const fileSizeMB = file.size / (1024*1024);
+  // Größen-Warnung: GeoJSON > 4 MB ist bei Supabase REST unzuverlässig
+  if (fileSizeMB > 4) {
+    const ok = confirm('⚠ Die GeoJSON-Datei ist ' + fileSizeMB.toFixed(1) + ' MB groß.\n\n' +
+      'Sie wird auf der Karte angezeigt, kann aber möglicherweise nicht in der Datenbank gespeichert werden ' +
+      '(Limit ca. 4 MB) — dann wäre sie auf anderen Geräten nicht sichtbar.\n\n' +
+      'Trotzdem fortfahren?\n\n(Tipp: in QGIS die Datei nach Bedarf vereinfachen oder pro Flurstück trennen.)');
+    if (!ok) { this.value=''; return; }
+  }
   const reader=new FileReader();
   reader.onload=async function(e){
-    try{
-      const geojson=JSON.parse(e.target.result);
-      const name=file.name.replace(/\.(geojson|json)$/i,'');
+    let geojson, name, color;
+    try {
+      geojson = JSON.parse(e.target.result);
+      name = file.name.replace(/\.(geojson|json)$/i,'');
       const colors=['#ffff00','#c0392b','#7b3fa0','#c87020','#1a5fa8'];
-      const color=colors[grenzenLayers.length%colors.length];
+      color = colors[grenzenLayers.length%colors.length];
       addGeoJSONLayer(geojson,name,color,null);
-      if(currentProfile&&currentProfile.company_id){
-        try{
-          const saved=await dbFetch('geojson_layers?select=*',{
-            method:'POST',
-            body:{company_id:currentProfile.company_id,name:name,geojson:geojson,color:color,created_by:currentUser.id},
-            prefer:'return=representation'
-          });
-          if(saved&&saved[0]){grenzenLayers[grenzenLayers.length-1].dbId=saved[0].id;updateLayerList();}
-        }catch(err){console.warn('GeoJSON DB:',err);}
+      // Panel zu nach erfolgreichem lokalen Add (Speichern läuft danach im Hintergrund)
+      const panel = document.getElementById('grenzen-panel');
+      if (panel) panel.classList.add('hidden');
+    } catch (parseErr) {
+      alert('Datei konnte nicht gelesen werden — kein gültiges GeoJSON?\n\n' + (parseErr.message || ''));
+      return;
+    }
+    // Lokal ist die Grenze jetzt sichtbar. Versuch Speichern in DB damit andere Geräte sie auch sehen.
+    if (!currentProfile || !currentProfile.company_id) {
+      showToast('⚠ Nicht angemeldet — Grenze nur lokal sichtbar');
+      return;
+    }
+    try {
+      const saved = await dbFetch('geojson_layers?select=*', {
+        method:'POST',
+        body:{ company_id: currentProfile.company_id, name: name, geojson: geojson, color: color, created_by: currentUser.id },
+        prefer:'return=representation'
+      });
+      if (saved && saved[0]) {
+        grenzenLayers[grenzenLayers.length-1].dbId = saved[0].id;
+        updateLayerList();
+        showToast('✓ Grenze gespeichert — auf allen Geräten sichtbar');
+      } else {
+        showToast('⚠ Speichern unklar — auf anderem Gerät prüfen');
       }
-      document.getElementById('grenzen-panel').classList.add('hidden');
-    }catch{alert('Fehler beim Lesen der GeoJSON-Datei.');}
+    } catch (err) {
+      console.warn('GeoJSON DB-Insert fehlgeschlagen:', err);
+      const msg = String(err && err.message || err);
+      let userMsg = 'Konnte nicht in DB gespeichert werden';
+      if (msg.toLowerCase().includes('too large') || msg.includes('413')) {
+        userMsg = 'Datei zu groß für DB — vereinfachen';
+      } else if (msg.toLowerCase().includes('permission') || msg.includes('403')) {
+        userMsg = 'Keine Schreibrechte';
+      } else if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
+        userMsg = 'Kein Netz — Grenze nur lokal';
+      }
+      // Detail-Modal mit Fehlerursache
+      alert('⚠ Grenze konnte nicht zentral gespeichert werden\n\n' + userMsg + '\n\n' +
+            'Die Grenze ist auf diesem Gerät sichtbar, andere Geräte sehen sie nicht.\n\nDetails:\n' + msg);
+    }
   };
-  reader.readAsText(file);this.value='';
+  reader.onerror = function() {
+    alert('Datei konnte nicht gelesen werden.');
+  };
+  reader.readAsText(file);
+  this.value='';
 });
 
 function addGeoJSONLayer(geojson,name,color,dbId){
@@ -8838,6 +8917,42 @@ function addGeoJSONLayer(geojson,name,color,dbId){
   grenzenLayers.push({name:name,color:color,count:count,layer:layer,dbId:dbId});
   updateLayerList();
 }
+
+// Liste der geladenen Ebenen im Grenzen-Panel rendern
+function updateLayerList(){
+  const el = document.getElementById('layer-list');
+  if (!el) return;
+  if (!grenzenLayers || grenzenLayers.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:#888;font-style:italic;">Keine Ebenen geladen.</div>';
+    return;
+  }
+  el.innerHTML = grenzenLayers.map((l, idx) => {
+    const safeName = (l.name || 'Ebene').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(0,0,0,.05);">' +
+      '<span style="color:' + l.color + ';font-size:18px;line-height:1;">●</span>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:13px;color:#2d4a28;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + safeName + '</div>' +
+        '<div style="font-size:11px;color:#6a8a6a;">' + (l.count || 0) + ' ' + (l.count === 1 ? 'Fläche' : 'Flächen') + '</div>' +
+      '</div>' +
+      '<button onclick="removeGeoJSONLayer(' + idx + ')" style="background:rgba(163,32,32,.1);border:1px solid rgba(163,32,32,.25);color:#a32020;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;font-family:inherit;">×</button>' +
+    '</div>';
+  }).join('');
+}
+
+// Einzelne Ebene entfernen (von Karte + aus DB falls gespeichert)
+async function removeGeoJSONLayer(index){
+  if (index < 0 || index >= grenzenLayers.length) return;
+  const l = grenzenLayers[index];
+  try { map.removeLayer(l.layer); } catch {}
+  if (l.dbId && currentProfile && currentProfile.company_id) {
+    try { await dbFetch('geojson_layers?id=eq.' + l.dbId, { method:'DELETE' }); } catch(e) { console.warn('GeoJSON DB-Delete:', e); }
+  }
+  grenzenLayers.splice(index, 1);
+  updateLayerList();
+}
+
+window.updateLayerList = updateLayerList;
+window.removeGeoJSONLayer = removeGeoJSONLayer;
 
 async function loadGeoJSONLayers(){
   if(!currentProfile||!currentProfile.company_id)return;
