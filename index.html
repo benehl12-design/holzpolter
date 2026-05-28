@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="5.5">
+  <meta name="app-version" content="5.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1817,7 +1817,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '5.5'")) {
+        if (!txt.includes("APP_VERSION = '5.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7242,7 +7242,7 @@ function renderLog() {
       areas.forEach(area => {
         const g = grouped[area.id];
         if (!g || (!g.markers.length && !g.tracks.length)) return;
-        html += `<div style="background:#f0f6ee;padding:5px 10px;font-size:11px;font-weight:600;color:#2d5a27;border-bottom:1px solid rgba(45,90,39,.15);">📍 ${area.name} · ${g.markers.length} Polter · ${g.tracks.length} Strecken</div>`;
+        html += `<div style="background:rgba(74,170,74,.10);padding:7px 14px;font-size:11px;font-weight:600;color:#a0d89a;border-bottom:1px solid rgba(74,170,74,.18);border-top:1px solid rgba(74,170,74,.18);">📍 ${area.name} · ${g.markers.length} Polter · ${g.tracks.length} Strecken</div>`;
         html += g.markers.map(m => mkRow(m)).join('');
         html += g.tracks.map(t => `<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div><button class="ldel" onclick="delTrack('${t.id}')">✕</button></div>`).join('');
       });
@@ -7250,7 +7250,7 @@ function renderLog() {
       // Ohne Gebiet
       const none = grouped['__none__'];
       if (none && (none.markers.length || none.tracks.length)) {
-        html += `<div style="background:#f5f5f5;padding:5px 10px;font-size:11px;font-weight:600;color:#888;border-bottom:1px solid rgba(0,0,0,.08);">Kein Einschlagsgebiet</div>`;
+        html += `<div style="background:rgba(255,255,255,.04);padding:7px 14px;font-size:11px;font-weight:600;color:#7a9a7a;border-bottom:1px solid rgba(255,255,255,.06);border-top:1px solid rgba(255,255,255,.06);font-style:italic;">Kein Einschlagsgebiet</div>`;
         html += none.markers.map(m => mkRow(m)).join('');
         html += none.tracks.map(t => `<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div><button class="ldel" onclick="delTrack('${t.id}')">✕</button></div>`).join('');
       }
