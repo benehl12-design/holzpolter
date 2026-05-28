@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.7">
+  <meta name="app-version" content="4.8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1668,7 +1668,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.7'")) {
+        if (!txt.includes("APP_VERSION = '4.8'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2853,13 +2853,20 @@ if ('serviceWorker' in navigator) {
               <div class="settings-row-desc">Sitzung beenden</div>
             </div>
           </div>
+          <div class="settings-row" onclick="openDeleteAccountDialog()">
+            <div class="settings-icon red">🗑</div>
+            <div class="settings-row-info">
+              <div class="settings-row-title" style="color:#f5a0a0;">Konto löschen</div>
+              <div class="settings-row-desc">Mein Konto und persönliche Daten endgültig entfernen</div>
+            </div>
+          </div>
         </div>
 
       </div>
     </div>
   </div>
 
-  <!-- ── LÖSCH-BESTÄTIGUNG ── -->
+  <!-- ── LÖSCH-BESTÄTIGUNG (alle Daten / Test) ── -->
   <div id="delete-all-overlay" style="display:none;">
     <div id="delete-all-dialog">
       <h3 id="delete-all-title">⚠️ Wirklich löschen?</h3>
@@ -2867,6 +2874,36 @@ if ('serviceWorker' in navigator) {
       <div class="delete-all-row">
         <button class="delete-cancel-btn" onclick="closeDeleteDialog()">Abbrechen</button>
         <button class="delete-confirm-btn" id="delete-all-confirm-btn" onclick="executeDeleteAll()">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── KONTO LÖSCHEN: 2-STUFEN-BESTÄTIGUNG ── -->
+  <div id="delete-account-overlay" style="display:none;position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:18px;" onclick="if(event.target===this)closeDeleteAccountDialog()">
+    <div style="background:linear-gradient(175deg,#2a1a1a,#1a0f0f);border:1px solid rgba(245,160,160,.3);border-radius:18px;max-width:420px;width:100%;padding:24px 22px;">
+      <h2 style="color:#f5a0a0;font-size:18px;font-weight:600;margin:0 0 14px;">🗑 Konto endgültig löschen</h2>
+      <p style="color:#d8b0b0;font-size:13px;line-height:1.55;margin:0 0 14px;">
+        Du löschst dein eigenes Lignum-Konto.<br><br>
+        <b>Wird gelöscht:</b><br>
+        • Dein Login (E-Mail + Passwort)<br>
+        • Dein Profil (Name, Einstellungen)<br>
+        • Deine persönlichen Worktime-Einträge<br><br>
+        <b>Bleibt erhalten (gehört dem Forstbetrieb):</b><br>
+        • Polter und Strecken die du markiert hast<br>
+        • Audit-Log deiner Arbeitszeiten (rechtliche Aufbewahrung)
+      </p>
+      <p style="color:#e8c8c8;font-size:12px;margin:0 0 14px;">Diese Aktion ist <b>nicht rückgängig zu machen</b>.</p>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:11px;font-weight:600;color:#c8a0a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
+          Tippe <code style="background:rgba(255,255,255,.08);padding:2px 7px;border-radius:5px;color:#f5a0a0;font-family:inherit;">LÖSCHEN</code> zur Bestätigung
+        </label>
+        <input type="text" id="delete-account-confirm-input" autocorrect="off" autocapitalize="characters"
+          style="width:100%;font-size:14px;padding:11px 13px;border-radius:9px;border:1px solid rgba(245,160,160,.3);background:rgba(255,255,255,.05);color:#f5a0a0;font-family:inherit;-webkit-appearance:none;letter-spacing:.1em;text-align:center;">
+      </div>
+      <div id="delete-account-error" style="font-size:12px;color:#f5a0a0;margin-bottom:10px;min-height:16px;text-align:center;"></div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeDeleteAccountDialog()" style="flex:1;padding:13px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#d8d8d8;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Abbrechen</button>
+        <button onclick="executeAccountDeletion()" style="flex:1;padding:13px;border-radius:10px;border:none;background:#a32020;color:#fff;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;">Endgültig löschen</button>
       </div>
     </div>
   </div>
@@ -3125,6 +3162,15 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 // ── AUTH STATE ────────────────────────────────────────────────────
 let currentUser = null;
 let currentProfile = null;
+
+// Zentrale Admin-Erkennung: berücksichtigt sowohl alte role='admin' Konten
+// als auch neue is_admin=true Flag (kann an jeden Fahrer vergeben werden).
+function isAdminUser(profile) {
+  const p = profile || currentProfile;
+  if (!p) return false;
+  return p.is_admin === true || p.role === 'admin';
+}
+window.isAdminUser = isAdminUser;
 let realtimeChannel = null;
 let accessToken  = null;
 let refreshToken = null;
@@ -3290,7 +3336,7 @@ async function doLogin() {
     } catch {}
     
     // Profil direkt via fetch laden (kein Supabase-Client nötig)
-    const profResp = await fetch(SUPABASE_URL + '/rest/v1/profiles?id=eq.' + userId + '&select=id,name,role,company_id&limit=1', {
+    const profResp = await fetch(SUPABASE_URL + '/rest/v1/profiles?id=eq.' + userId + '&select=id,name,role,company_id,is_admin&limit=1', {
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': 'Bearer ' + testData.access_token
@@ -3368,7 +3414,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
     for (let i = 0; i < 3; i++) {
       await new Promise(r => setTimeout(r, i === 0 ? 0 : 600));
       try {
-        const r = await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+currentUser.id+'&select=id,name,role,company_id&limit=1', {
+        const r = await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+currentUser.id+'&select=id,name,role,company_id,is_admin&limit=1', {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+sessToken }
         });
         const arr = await r.json();
@@ -4080,9 +4126,9 @@ function openSettings() {
   if (emailEl) emailEl.value = settingsEmail;
   // Admin-Bereich nur für Admins
   const adminSec = document.getElementById('settings-admin-section');
-  if (adminSec) adminSec.style.display = currentProfile?.role === 'admin' ? 'block' : 'none';
+  if (adminSec) adminSec.style.display = isAdminUser() ? 'block' : 'none';
   const locSec = document.getElementById('settings-admin-location');
-  if (locSec) locSec.style.display = currentProfile?.role === 'admin' ? 'block' : 'none';
+  if (locSec) locSec.style.display = isAdminUser() ? 'block' : 'none';
   // Aktuellen Firmenstandort anzeigen
   const locStatus = document.getElementById('company-location-status');
   if (locStatus) {
@@ -4508,7 +4554,7 @@ function hideAllScreens() {
 
 async function showModeScreen() {
   hideAllScreens();
-  if (currentProfile?.role === 'admin') {
+  if (isAdminUser()) {
     await showAdminDashboard();
   } else {
     showDriverStart();
@@ -4738,7 +4784,7 @@ async function loadDashDrivers() {
     return;
   }
   try {
-    const data = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&id=neq.'+currentUser.id) || [];
+    const data = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&id=neq.'+currentUser.id+'&deleted_at=is.null') || [];
     if (elCount) elCount.textContent = data.length + ' Fahrer';
     if (!data.length) {
       el1.innerHTML = '<div style="padding:14px 16px;color:#6a9e6a;font-size:13px;">Noch keine Fahrer angelegt.</div>';
@@ -5121,23 +5167,36 @@ function startDriverMode() {
 async function loadDrivers() {
   const el = document.getElementById('driver-list');
   el.innerHTML = '<div style="color:#aaa;font-size:13px;">Wird geladen...</div>';
-  const data = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&id=neq.'+currentUser.id).catch(()=>[]);
+  // gelöschte Profile ausfiltern
+  const data = await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&id=neq.'+currentUser.id+'&deleted_at=is.null').catch(()=>[]);
   if (!data.length) {
     el.innerHTML = '<div style="color:#aaa;font-size:13px;">Noch keine Fahrer angelegt.</div>';
     return;
   }
-  el.innerHTML = data.map(d => `
+  el.innerHTML = data.map(d => {
+    const isAdminFlag = d.is_admin === true || d.role === 'admin';
+    const adminBadge = isAdminFlag
+      ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(230,126,34,.18);color:#e8954a;border:1px solid rgba(230,126,34,.3);margin-left:6px;">ADMIN</span>'
+      : '';
+    const adminBtn = isAdminFlag
+      ? `<button onclick="toggleAdminStatus('${d.id}', false)" style="background:rgba(230,126,34,.12);border:1px solid rgba(230,126,34,.3);border-radius:6px;padding:4px 9px;color:#e8954a;font-size:11px;cursor:pointer;font-family:inherit;">Admin entziehen</button>`
+      : `<button onclick="toggleAdminStatus('${d.id}', true)" style="background:rgba(74,170,74,.12);border:1px solid rgba(74,170,74,.3);border-radius:6px;padding:4px 9px;color:#a0d89a;font-size:11px;cursor:pointer;font-family:inherit;">Zum Admin machen</button>`;
+    return `
     <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);">
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="adash-driver-icon ${d.role === 'harvester' ? 'h' : 'f'}">${d.role === 'harvester' ? '🪵' : '🚜'}</div>
-        <div style="flex:1;">
-          <div class="adash-driver-name">${d.name}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="adash-driver-name" style="display:flex;align-items:center;flex-wrap:wrap;">${d.name}${adminBadge}</div>
           <div class="adash-driver-role">${d.role === 'harvester' ? 'Harvester-Fahrer' : 'Forwarder-Fahrer'}</div>
         </div>
         <button style="background:rgba(163,32,32,.2);border:1px solid rgba(163,32,32,.3);border-radius:6px;padding:4px 10px;color:#f5a0a0;font-size:11px;cursor:pointer;font-family:inherit;" onclick="deleteDriver('${d.id}')">✕</button>
       </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        ${adminBtn}
+      </div>
       <div id="dtime-${d.id}" style="margin-top:6px;padding:8px;background:rgba(255,255,255,.03);border-radius:8px;font-size:11px;color:#5a8a5a;">⏱ Lädt...</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   // Zeiteinträge pro Fahrer asynchron laden
   data.forEach(d => loadDriverTimeEntries(d.id));
 }
@@ -6074,7 +6133,7 @@ document.getElementById('btn-switch-mode').addEventListener('click', () => {
   if(typeof closeSidebar==='function') closeSidebar();
   if(typeof closeLkwSidebar==='function') closeLkwSidebar();
   hideMainApp();
-  if (currentProfile?.role === 'admin') showAdminDashboard();
+  if (isAdminUser()) showAdminDashboard();
   else showDriverStart();
 });
 
@@ -6806,6 +6865,136 @@ window.closePartnerEdit = closePartnerEdit;
 window.selectPartnerType = selectPartnerType;
 window.savePartner = savePartner;
 window.deletePartner = deletePartner;
+
+// ══════════════════════════════════════════════════════════════════════
+// ── ACCOUNT LÖSCHEN + ADMIN-RECHTE VERGABE ────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+// ── ADMIN-RECHTE GEBEN/ENTZIEHEN ──────────────────────────────────────
+// Nutzt die SECURITY-DEFINER-Funktion set_admin_status(uuid, boolean).
+// Server prüft: Caller muss Admin sein, kein Self-Demote, kein Last-Admin.
+
+async function toggleAdminStatus(targetUserId, makeAdmin) {
+  if (!targetUserId) return;
+  const confirmMsg = makeAdmin
+    ? 'Diesem Fahrer Admin-Rechte geben?\n\nEr/Sie sieht nach dem nächsten Login das Admin-Dashboard und kann alle Daten verwalten.'
+    : 'Admin-Rechte wirklich entziehen?\n\nDer Fahrer hat danach kein Admin-Dashboard mehr.';
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    // Supabase RPC via REST
+    const resp = await fetch(SUPABASE_URL + '/rest/v1/rpc/set_admin_status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + accessToken
+      },
+      body: JSON.stringify({ target_user_id: targetUserId, make_admin: !!makeAdmin })
+    });
+    const text = await resp.text();
+    let result = text;
+    try { result = JSON.parse(text); } catch {}
+    if (!resp.ok) {
+      showToast('⚠️ Fehler (' + resp.status + '): ' + text);
+      return;
+    }
+    // Auswertung des Funktions-Rückgabewerts
+    if (result === 'ok') {
+      showToast(makeAdmin ? '✓ Admin-Rechte vergeben' : '✓ Admin-Rechte entzogen');
+      await loadDrivers();
+      if (typeof loadDashDrivers === 'function') await loadDashDrivers().catch(()=>{});
+    } else if (result === 'not_authorized') {
+      showToast('⚠️ Nur Admins können andere zu Admin machen');
+    } else if (result === 'cannot_demote_self') {
+      showToast('⚠️ Du kannst dir selbst die Admin-Rechte nicht entziehen');
+    } else if (result === 'last_admin') {
+      showToast('⚠️ Letzter Admin – kann nicht entzogen werden');
+    } else if (result === 'wrong_company') {
+      showToast('⚠️ Fahrer gehört zu einer anderen Firma');
+    } else {
+      showToast('⚠️ Fehler: ' + result);
+    }
+  } catch (e) {
+    showToast('⚠️ Netzwerkfehler: ' + (e.message || e));
+  }
+}
+
+// ── EIGENES KONTO LÖSCHEN ─────────────────────────────────────────────
+// 2-Stufen-Bestätigung: Modal → "LÖSCHEN" tippen → Funktionsaufruf.
+
+function openDeleteAccountDialog() {
+  closeSettings();
+  const overlay = document.getElementById('delete-account-overlay');
+  if (!overlay) return;
+  const input = document.getElementById('delete-account-confirm-input');
+  const err   = document.getElementById('delete-account-error');
+  if (input) input.value = '';
+  if (err)   err.textContent = '';
+  overlay.style.display = 'flex';
+  setTimeout(() => { if (input) input.focus(); }, 200);
+}
+
+function closeDeleteAccountDialog() {
+  const overlay = document.getElementById('delete-account-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function executeAccountDeletion() {
+  const input = document.getElementById('delete-account-confirm-input');
+  const err   = document.getElementById('delete-account-error');
+  if (!input) return;
+  const txt = (input.value || '').trim().toUpperCase();
+  if (txt !== 'LÖSCHEN' && txt !== 'LOESCHEN') {
+    if (err) err.textContent = 'Bitte das Wort LÖSCHEN exakt eintippen.';
+    return;
+  }
+  if (err) err.textContent = '';
+
+  try {
+    const resp = await fetch(SUPABASE_URL + '/rest/v1/rpc/delete_my_account', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + accessToken
+      },
+      body: JSON.stringify({})
+    });
+    const text = await resp.text();
+    let result = text;
+    try { result = JSON.parse(text); } catch {}
+    if (!resp.ok) {
+      if (err) err.textContent = 'Fehler (' + resp.status + '): ' + text;
+      return;
+    }
+    if (result === 'last_admin') {
+      if (err) err.textContent = 'Du bist der letzte Admin dieser Firma. Übertrage erst die Admin-Rechte auf jemand anderen.';
+      return;
+    }
+    if (result === 'ok') {
+      // Lokale Sitzung wegputzen + auf Login zurück
+      try { localStorage.removeItem('hp_access'); } catch {}
+      try { localStorage.removeItem('hp_refresh'); } catch {}
+      try { localStorage.removeItem('hp_user'); } catch {}
+      try { localStorage.removeItem('hp_profile'); } catch {}
+      closeDeleteAccountDialog();
+      alert('Dein Konto wurde gelöscht. Auf Wiedersehen!');
+      // Volles Reload damit nichts hängen bleibt
+      location.href = location.pathname;
+      return;
+    }
+    if (err) err.textContent = 'Unerwartete Antwort: ' + result;
+  } catch (e) {
+    if (err) err.textContent = 'Netzwerkfehler: ' + (e.message || e);
+  }
+}
+
+// ── WINDOW-BINDINGS ───────────────────────────────────────────────────
+window.toggleAdminStatus           = toggleAdminStatus;
+window.openDeleteAccountDialog     = openDeleteAccountDialog;
+window.closeDeleteAccountDialog    = closeDeleteAccountDialog;
+window.executeAccountDeletion      = executeAccountDeletion;
 
 
 // ── MARKER LÖSCHEN ────────────────────────────────────────────────
