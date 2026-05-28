@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="5.3">
+  <meta name="app-version" content="5.4">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -413,25 +413,129 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .gpbtn.del {background:#fde8e8;color:var(--red);border:1px solid rgba(163,32,32,.2);margin-bottom:0;}
 
 /* ── BOTTOMBAR ── */
-#bottombar{background:#fff;border-top:1px solid var(--border);flex-shrink:0;padding-bottom:max(0px,var(--safe-bottom));}
+#bottombar{
+  background: linear-gradient(180deg, rgba(22,40,24,.94), rgba(15,30,16,.94));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  color: #c8e6c0;
+  flex-shrink: 0;
+  padding-bottom: max(0px, var(--safe-bottom));
+  transition: max-height .3s ease;
+}
 
 /* ── LOG ── */
-#log-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px 4px;border-bottom:1px solid var(--border);}
-#log-title{font-size:11px;color:var(--text2);margin-right:auto;font-weight:500;}
-#art-filter{display:flex;gap:5px;flex-wrap:wrap;padding:5px 10px;border-bottom:1px solid rgba(45,90,39,.08);background:var(--surface2);}
-.af-chip{padding:3px 10px;border-radius:20px;font-size:11px;border:1px solid var(--border2);background:#fff;color:var(--green);cursor:pointer;font-family:inherit;touch-action:manipulation;-webkit-appearance:none;font-weight:500;transition:all .15s;}
-.af-chip.on{background:var(--green);color:#e8f5e4;border-color:var(--green-dim);}
-#log-list{overflow-y:auto;max-height:120px;-webkit-overflow-scrolling:touch;}
-.lrow{display:flex;align-items:flex-start;gap:6px;padding:6px 10px;border-bottom:1px solid rgba(0,0,0,.04);font-size:11px;}
-.tag{font-size:9px;padding:2px 7px;border-radius:10px;white-space:nowrap;font-weight:700;flex-shrink:0;margin-top:1px;letter-spacing:.02em;}
-.th{background:#ddeeff;color:#1a5fa8;}.tr{background:#d4edcc;color:#2d6a27;}.tt{background:#fce8e8;color:#a32020;}
-.linfo{flex:1;color:var(--text);line-height:1.4;}.lcoord{color:#bbb;font-size:9px;}
-.ldel{background:none;border:1px solid rgba(0,0,0,.1);border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;color:#888;min-height:24px;font-family:inherit;}
-.lcheck{background:#d4edcc;border:1px solid rgba(74,140,63,.4);border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;color:#2d6a27;min-height:24px;margin-right:2px;font-family:inherit;}
-.lrow.done .linfo{opacity:.4;text-decoration:line-through;}
+#log-head{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background .15s;
+}
+#log-head:active{ background: rgba(255,255,255,.04); }
+.log-chevron{
+  font-size: 13px;
+  color: #8ab882;
+  display: inline-block;
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+#bottombar.log-collapsed .log-chevron{ transform: rotate(-90deg); }
+#log-title{
+  font-size: 12px;
+  color: #c8e6c0;
+  font-weight: 600;
+  margin-right: auto;
+  letter-spacing: .01em;
+}
+#art-filter{
+  display:flex;gap:5px;flex-wrap:wrap;padding:6px 12px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  background:rgba(0,0,0,.18);
+}
+.af-chip{
+  padding:4px 11px;border-radius:20px;font-size:11px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);
+  color:#a0d89a;cursor:pointer;font-family:inherit;
+  touch-action:manipulation;-webkit-appearance:none;
+  font-weight:500;transition:all .15s;
+}
+.af-chip.on{
+  background:rgba(74,170,74,.2);color:#e8f5e4;
+  border-color:rgba(74,170,74,.45);
+}
+
+#log-list{
+  overflow-y:auto;
+  max-height:200px;
+  -webkit-overflow-scrolling:touch;
+  background: rgba(0,0,0,.15);
+  transition: max-height .3s cubic-bezier(.4,0,.2,1), opacity .2s, padding .3s;
+}
+#bottombar.log-collapsed #log-list,
+#bottombar.log-collapsed #log-forwarder{
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.lrow{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:9px 14px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  font-size:12px;
+  color: #c8e6c0;
+}
+.tag{
+  font-size:9px;padding:2px 8px;border-radius:10px;white-space:nowrap;
+  font-weight:700;flex-shrink:0;margin-top:1px;letter-spacing:.03em;
+  text-transform:uppercase;
+}
+.th{background:rgba(26,95,168,.22);color:#7eaeec;}
+.tr{background:rgba(74,170,74,.2);color:#a0d89a;}
+.tt{background:rgba(163,32,32,.2);color:#f5a0a0;}
+.linfo{flex:1;color:#c8e6c0;line-height:1.4;font-size:12px;}
+.lcoord{color:#5a8a5a;font-size:10px;margin-top:1px;font-variant-numeric:tabular-nums;}
+.ldel{
+  background:rgba(163,32,32,.12);
+  border:1px solid rgba(163,32,32,.28);
+  border-radius:7px;padding:4px 9px;cursor:pointer;
+  font-size:11px;color:#f5a0a0;min-height:26px;
+  font-family:inherit;font-weight:600;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  transition: background .15s;
+}
+.ldel:active{ background:rgba(163,32,32,.25); }
+.lcheck{
+  background:rgba(74,170,74,.15);
+  border:1px solid rgba(74,170,74,.35);
+  border-radius:7px;padding:4px 10px;cursor:pointer;
+  font-size:11px;color:#a0d89a;min-height:26px;
+  margin-right:2px;font-family:inherit;font-weight:600;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.lrow.done .linfo{opacity:.45;text-decoration:line-through;}
 
 /* ── FORWARDER BOTTOMBAR ── */
-#log-forwarder{background:var(--surface);}
+#log-forwarder{background:transparent;}
+#fwd-head-arbeit, #fwd-head-polter{
+  background:rgba(0,0,0,.2) !important;
+  border-bottom:1px solid rgba(255,255,255,.05) !important;
+}
+#fwd-head-arbeit > span:first-child{ color:#a0d89a !important; }
+#fwd-head-polter > span:first-child{ color:#7eaeec !important; }
+#fwd-count-arbeit, #fwd-count-polter{ color:#6a9a6a !important; }
+#log-arbeit, #log-polter{ background:rgba(0,0,0,.12); }
 
 /* ── SIDEBAR ── */
 #sidebar-overlay{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s;backdrop-filter:blur(2px);}
@@ -1695,7 +1799,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '5.3'")) {
+        if (!txt.includes("APP_VERSION = '5.4'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2270,14 +2374,16 @@ if ('serviceWorker' in navigator) {
 <div id="bottombar" class="hidden">
   <div id="log-harvester">
     <div id="log-head">
+      <span class="log-chevron">▾</span>
       <span id="log-title">Markierungen: 0 · Strecken: 0</span>
       <button class="ldel" id="btn-clear-all" style="min-height:28px;">Alles löschen</button>
     </div>
     <div id="log-list"><div class="lrow" style="color:#aaa;font-style:italic;">Noch keine Einträge.</div></div>
   </div>
   <div id="log-forwarder" style="display:none;">
-    <div id="fwd-head-arbeit" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 10px 3px;border-bottom:1px solid rgba(45,90,39,.15);background:#f0f6ee;">
-      <span style="font-size:11px;font-weight:600;color:#2d5a27;">🪵 Einzusammeln</span>
+    <div id="fwd-head-arbeit" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;" onclick="if(event.target.closest('.ldel,.af-chip'))return;toggleLogPanel();">
+      <span class="log-chevron">▾</span>
+      <span style="font-size:11px;font-weight:600;color:#a0d89a;">🪵 Einzusammeln</span>
       <span id="fwd-count-arbeit" style="font-size:10px;color:#4a6044;margin-right:auto;"></span>
       <button class="ldel" id="btn-clear-arbeit" style="min-height:24px;font-size:10px;">Löschen</button>
     </div>
@@ -7151,6 +7257,28 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
   for(const t of tracks){map.removeLayer(t.poly);await dbFetch('tracks?id=eq.'+t.id,{method:'DELETE'}).catch(()=>{});}
   markers=[];tracks=[];document.getElementById('km-txt').textContent='';renderLog();
 });
+
+// ── LOG-PANEL: AUSKLAPPEN/EINKLAPPEN ────────────────────────────
+function toggleLogPanel() {
+  const bb = document.getElementById('bottombar');
+  if (!bb) return;
+  const collapsed = bb.classList.toggle('log-collapsed');
+  try { localStorage.setItem('lignum_log_collapsed', collapsed ? '1' : '0'); } catch {}
+}
+window.toggleLogPanel = toggleLogPanel;
+
+// Klick auf Harvester-Header — aber nicht wenn auf "Alles löschen"-Button geklickt wurde
+document.getElementById('log-head').addEventListener('click', (e) => {
+  if (e.target.closest('.ldel')) return;
+  toggleLogPanel();
+});
+
+// Beim Start: gespeicherten Zustand wiederherstellen
+try {
+  if (localStorage.getItem('lignum_log_collapsed') === '1') {
+    document.getElementById('bottombar').classList.add('log-collapsed');
+  }
+} catch {}
 document.getElementById('btn-clear-arbeit').addEventListener('click', async () => {
   if(!confirm('Alle Harvester-Polter löschen?'))return;
   const keep=[];
