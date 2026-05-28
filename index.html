@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="6.5">
+  <meta name="app-version" content="6.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '6.5'")) {
+        if (!txt.includes("APP_VERSION = '6.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7512,6 +7512,17 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
     .filter(p => Array.isArray(p) && p.length >= 2)
     .map(p => p.map(pt => proj.toLocal(pt[0], pt[1], cLat, cLng)));
 
+  // ── Wege klassifizieren: Anschluss-Weg (außen) vs Erschließungsweg (durchs Polygon) ──
+  // Ein Erschließungsweg ist ein Weg der MINDESTENS ZU 30% durchs Polygon verläuft —
+  // das ist eine Forststraße/Schneise von der Stichgassen abzweigen sollen.
+  // Bei diesen Wegen sollten Gassen SENKRECHT verlaufen, nicht parallel.
+  const pathsIsErschliessung = pathsM.map(pM => {
+    const internalCount = pM.filter(pt => trailPointInPolygon(pt.x, pt.y, polyM)).length;
+    return (internalCount / pM.length) > 0.3;
+  });
+  const erschliessungIdx = pathsIsErschliessung.indexOf(true);
+  const hasErschliessung = erschliessungIdx >= 0;
+
   // ── Orientierung bestimmen ──
   let angle = principalAxis;
   let note = '';
@@ -7525,47 +7536,50 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
 
   let roadAngle = null;
   if (orientationMode === 'smart') {
-    // ── BRUTE-FORCE: probiere mehrere Kandidaten-Winkel ──
-    // Score = durchschnittliche Gassenlänge (avgLen) — bestraft kurze, belohnt lange Gassen
-    const longestEdgeAngle = trailLongestEdge(polyM);
-    const candidates = [
-      { angle: principalAxis,         label: 'Hauptachse (PCA)' },
-      { angle: principalAxis + 90,    label: 'Senkrecht zur Hauptachse' },
-      { angle: longestEdgeAngle,      label: 'Längste Polygon-Kante' },
-      { angle: longestEdgeAngle + 90, label: 'Senkrecht zur längsten Kante' }
-    ];
-    // Pro Anschluss-Weg: zwei Kandidaten (parallel + senkrecht)
-    pathHintAngles.forEach((pa, idx) => {
-      const wegNr = idx + 1;
-      candidates.push({ angle: pa,      label: 'parallel zu Weg ' + wegNr });
-      candidates.push({ angle: pa + 90, label: 'senkrecht zu Weg ' + wegNr });
-    });
-    // Achsen-ausgerichtete Varianten als Fallback
-    candidates.push({ angle: 0,  label: 'Ost-West' });
-    candidates.push({ angle: 90, label: 'Nord-Süd' });
+    if (hasErschliessung) {
+      // ── ERSCHLIESSUNGSWEG-MODUS: Stichgassen SENKRECHT zum durchführenden Weg ──
+      // Forsttechnisch korrekt: vom Weg abzweigende Gassen, in die Harvester einbiegen kann
+      angle = pathHintAngles[erschliessungIdx] + 90;
+      const sim = _trailSimulateAngle(polyM, angle, spacingM);
+      const erschlCount = pathsIsErschliessung.filter(x => x).length;
+      note = '🚜 Stichgassen senkrecht zum Erschließungsweg' +
+             (erschlCount > 1 ? ' (' + erschlCount + ' Wege durchs Polygon)' : '') +
+             ' — ' + sim.count + ' Gassen, Ø ' + Math.round(sim.avgLen) + ' m';
+    } else {
+      // ── ANSCHLUSS-WEG- oder REINER GEOMETRIE-MODUS: Brute-Force für lange Gassen ──
+      const longestEdgeAngle = trailLongestEdge(polyM);
+      const candidates = [
+        { angle: principalAxis,         label: 'Hauptachse (PCA)' },
+        { angle: principalAxis + 90,    label: 'Senkrecht zur Hauptachse' },
+        { angle: longestEdgeAngle,      label: 'Längste Polygon-Kante' },
+        { angle: longestEdgeAngle + 90, label: 'Senkrecht zur längsten Kante' }
+      ];
+      pathHintAngles.forEach((pa, idx) => {
+        const wegNr = idx + 1;
+        candidates.push({ angle: pa,      label: 'parallel zu Weg ' + wegNr });
+        candidates.push({ angle: pa + 90, label: 'senkrecht zu Weg ' + wegNr });
+      });
+      candidates.push({ angle: 0,  label: 'Ost-West' });
+      candidates.push({ angle: 90, label: 'Nord-Süd' });
 
-    let bestScore = -1;
-    let bestCandidate = candidates[0];
-    let bestSim = null;
-    candidates.forEach(c => {
-      const sim = _trailSimulateAngle(polyM, c.angle, spacingM);
-      // Mindestens 2 Gassen — sonst macht's keinen Sinn
-      if (sim.count < 2) return;
-      // Score: durchschnittliche Linienlänge (=> lange Gassen werden bevorzugt)
-      let score = sim.avgLen;
-      // Kleiner Bonus für Weg-bezogene Kandidaten wenn Wege vorhanden
-      if (pathHintAngles.length > 0 && c.label.includes('zu Weg')) {
-        score *= 1.04;
-      }
-      if (score > bestScore) { bestScore = score; bestCandidate = c; bestSim = sim; }
-    });
-    angle = bestCandidate.angle;
-    const wegInfo = pathHintAngles.length > 0
-      ? ' · ' + pathHintAngles.length + ' Weg' + (pathHintAngles.length === 1 ? '' : 'e') + ' berücksichtigt'
-      : '';
-    note  = '🧠 Beste Variante: ' + bestCandidate.label +
-            ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' +
-            (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)' + wegInfo;
+      let bestScore = -1;
+      let bestCandidate = candidates[0];
+      let bestSim = null;
+      candidates.forEach(c => {
+        const sim = _trailSimulateAngle(polyM, c.angle, spacingM);
+        if (sim.count < 2) return;
+        let score = sim.avgLen;
+        if (pathHintAngles.length > 0 && c.label.includes('zu Weg')) score *= 1.04;
+        if (score > bestScore) { bestScore = score; bestCandidate = c; bestSim = sim; }
+      });
+      angle = bestCandidate.angle;
+      const wegInfo = pathHintAngles.length > 0
+        ? ' · ' + pathHintAngles.length + ' Anschluss-Weg' + (pathHintAngles.length === 1 ? '' : 'e')
+        : '';
+      note  = '🧠 Beste Variante: ' + bestCandidate.label +
+              ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' +
+              (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)' + wegInfo;
+    }
   } else if (orientationMode === 'auto') {
     angle = principalAxis;
   } else if (orientationMode === 'ns') {
