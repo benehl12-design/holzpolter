@@ -1,6 +1,6 @@
 const TILE_CACHE = 'lignum-tiles-v5';
 const SAT_CACHE  = 'lignum-sat-v5';
-const APP_VERSION = '6.2';
+const APP_VERSION = '6.4';
 const MAX_OSM = 600; const MAX_SAT = 1200;
 
 self.addEventListener('install',  () => self.skipWaiting());
