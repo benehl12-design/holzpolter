@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="5.8">
+  <meta name="app-version" content="5.9">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1864,7 +1864,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '5.8'")) {
+        if (!txt.includes("APP_VERSION = '5.9'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -5896,7 +5896,12 @@ document.querySelectorAll('[data-sf]').forEach(chip=>{chip.addEventListener('cli
 // ── PANEL ─────────────────────────────────────────────────────────
 function openPanel(ll,auto=false){pendingLL=ll;document.getElementById('f-menge').value='';document.getElementById('f-notiz').value='';document.getElementById('f-art').style.display='none';document.getElementById('f-art').value='';document.querySelectorAll('.art-chip').forEach(c=>c.classList.remove('sel'));selArt='';const tr=document.getElementById('typ-row'),tf=document.getElementById('typ-fixed'),ts=document.getElementById('f-typ');if(currentMode==='harvester'){tr.style.display='none';ts.value='harvester';}else{tr.style.display='block';ts.style.display='none';tf.style.display='block';ts.value='ruecke';}document.getElementById('auto-chip').classList.toggle('hidden',!auto);document.getElementById('panel').classList.remove('hidden');}
 document.getElementById('btn-add').addEventListener('click',()=>{const p=document.getElementById('panel');p.classList.contains('hidden')?openPanel(map.getCenter(),false):p.classList.add('hidden');});
-map.on('click',e=>{if(document.getElementById('panel').classList.contains('hidden'))openPanel(e.latlng,false);});
+map.on('click',e=>{
+  // Skip wenn gerade ein Polygon gezeichnet wird (EUDR oder Fahrgassen)
+  if (typeof isAreaDrawing !== 'undefined' && isAreaDrawing) return;
+  if (typeof _trailDrawing !== 'undefined' && _trailDrawing) return;
+  if(document.getElementById('panel').classList.contains('hidden'))openPanel(e.latlng,false);
+});
 
 // ── MARKER SPEICHERN ──────────────────────────────────────────────
 document.getElementById('btn-save').addEventListener('click', async () => {
@@ -7237,6 +7242,7 @@ window.executeAccountDeletion      = executeAccountDeletion;
 let _trailDrawing      = false;
 let _trailPolygon      = [];      // [[lat,lng],...]
 let _trailPolyLayer    = null;    // L.polygon (Vorschau Bestand)
+let _trailPointMarkers = [];      // L.marker[] (sichtbare Eckpunkte)
 let _trailLineLayers   = [];      // L.polyline[] (Vorschau Fahrgassen)
 let _trailGenerated    = [];      // [[ [lat,lng], [lat,lng] ], ...] generated lines
 let _trailSpacing      = 20;      // Meter
@@ -7445,6 +7451,7 @@ function startTrailPlanning() {
   if (_trailDrawing) { showToast('Planung läuft bereits'); return; }
   // Eventuell alte Vorschauen wegputzen
   _clearTrailPreview();
+  _clearTrailPointMarkers();
   _trailPolygon = [];
   _trailDrawing = true;
   _trailPolyLayer = L.polygon([], {
@@ -7460,16 +7467,61 @@ function startTrailPlanning() {
 
 function _onTrailDrawClick(e) {
   if (!_trailDrawing) return;
+
+  // Auto-Close: wenn 3+ Punkte UND der Klick nahe am ersten Punkt liegt
+  // → Polygon schließen statt neuen Punkt setzen
+  if (_trailPolygon.length >= 3) {
+    const first = _trailPolygon[0];
+    const firstPx = map.latLngToContainerPoint([first[0], first[1]]);
+    const clickPx = map.latLngToContainerPoint(e.latlng);
+    const pxDist = Math.hypot(firstPx.x - clickPx.x, firstPx.y - clickPx.y);
+    if (pxDist < 25) {
+      finishTrailPolygon();
+      return;
+    }
+  }
+
   _trailPolygon.push([e.latlng.lat, e.latlng.lng]);
   _trailPolyLayer.setLatLngs(_trailPolygon);
-  setTxt('Bestand: ' + _trailPolygon.length + ' Ecken');
+
+  // Sichtbarer Eckpunkt-Marker
+  const idx = _trailPolygon.length - 1;
+  const isFirst = idx === 0;
+  const html = isFirst
+    ? `<div style="background:#e8b070;color:#1a1a1a;width:22px;height:22px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;font-family:system-ui;">1</div>`
+    : `<div style="background:#d8a060;color:#fff;width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.95);box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:system-ui;">${idx + 1}</div>`;
+
+  const marker = L.marker([e.latlng.lat, e.latlng.lng], {
+    icon: L.divIcon({
+      className: 'trail-pt-marker',
+      html: html,
+      iconSize: isFirst ? [28, 28] : [20, 20],
+      iconAnchor: isFirst ? [14, 14] : [10, 10]
+    }),
+    interactive: false,
+    keyboard: false
+  }).addTo(map);
+  _trailPointMarkers.push(marker);
+
+  setTxt(_trailPolygon.length >= 3
+    ? 'Bestand: ' + _trailPolygon.length + ' Ecken · Tippe auf "1" zum Schließen'
+    : 'Bestand: ' + _trailPolygon.length + ' Ecken'
+  );
 }
 
 function undoTrailPolygonPoint() {
   if (!_trailDrawing || !_trailPolygon.length) return;
   _trailPolygon.pop();
   _trailPolyLayer.setLatLngs(_trailPolygon);
+  // Letzten Eckpunkt-Marker entfernen
+  const m = _trailPointMarkers.pop();
+  if (m) { try { map.removeLayer(m); } catch {} }
   setTxt('Bestand: ' + _trailPolygon.length + ' Ecken');
+}
+
+function _clearTrailPointMarkers() {
+  _trailPointMarkers.forEach(m => { try { map.removeLayer(m); } catch {} });
+  _trailPointMarkers = [];
 }
 
 function finishTrailPolygon() {
@@ -7482,6 +7534,9 @@ function finishTrailPolygon() {
   const bar = document.getElementById('trail-draw-bar');
   if (bar) bar.classList.add('hidden');
 
+  // Eckpunkt-Marker aufräumen — Polygon ist jetzt durch das Layer sichtbar
+  _clearTrailPointMarkers();
+
   // Optionen-Sheet öffnen + Vorschau berechnen
   _renderTrailPreview();
   const ov = document.getElementById('trail-opts-overlay');
@@ -7492,6 +7547,7 @@ function cancelTrailPlanning() {
   _trailDrawing = false;
   try { map.off('click', _onTrailDrawClick); } catch {}
   _trailPolygon = [];
+  _clearTrailPointMarkers();
   _clearTrailPreview();
   const bar = document.getElementById('trail-draw-bar');
   if (bar) bar.classList.add('hidden');
