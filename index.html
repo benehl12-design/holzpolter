@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="5.9">
+  <meta name="app-version" content="6.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1811,6 +1811,18 @@ select option:disabled {
 .admin-day-driver-sum-end{display:none;}
 
 /* ── FAHRGASSEN-PLANER ── */
+/* Während Polygon gezeichnet wird: alle Karten-Vektoren (GeoJSON-Grenzen,
+   EUDR-Polygone, gespeicherte Trail-Pläne) klick-durchlässig machen,
+   damit Klicks zuverlässig auf der Karte landen statt im Popup eines Polygons */
+body.trail-drawing .leaflet-overlay-pane svg path,
+body.trail-drawing .leaflet-overlay-pane svg polygon,
+body.trail-drawing .leaflet-overlay-pane svg polyline {
+  pointer-events: none !important;
+}
+/* Eigener Cursor zeigt dass gerade ein Polygon gezeichnet wird */
+body.trail-drawing .leaflet-container {
+  cursor: crosshair !important;
+}
 .tspc-chip, .tort-chip{
   padding:9px 14px;border-radius:10px;
   border:1px solid rgba(255,255,255,.1);
@@ -1864,7 +1876,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '5.9'")) {
+        if (!txt.includes("APP_VERSION = '6.0'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7454,6 +7466,8 @@ function startTrailPlanning() {
   _clearTrailPointMarkers();
   _trailPolygon = [];
   _trailDrawing = true;
+  // Body-Klasse aktiviert CSS das alle Karten-Vektoren klick-durchlässig macht
+  document.body.classList.add('trail-drawing');
   _trailPolyLayer = L.polygon([], {
     color: '#d8a060', weight: 3, opacity: .9,
     fillColor: '#d8a060', fillOpacity: .12, dashArray: '6,5'
@@ -7531,6 +7545,7 @@ function finishTrailPolygon() {
   }
   map.off('click', _onTrailDrawClick);
   _trailDrawing = false;
+  document.body.classList.remove('trail-drawing');
   const bar = document.getElementById('trail-draw-bar');
   if (bar) bar.classList.add('hidden');
 
@@ -7545,6 +7560,7 @@ function finishTrailPolygon() {
 
 function cancelTrailPlanning() {
   _trailDrawing = false;
+  document.body.classList.remove('trail-drawing');
   try { map.off('click', _onTrailDrawClick); } catch {}
   _trailPolygon = [];
   _clearTrailPointMarkers();
