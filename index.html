@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="6.2">
+  <meta name="app-version" content="6.4">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1239,6 +1239,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     padding-bottom:0;
     box-shadow:0 10px 40px rgba(0,0,0,.5);
   }
+  /* Fahrgassen-Sheets: auf Desktop zentriert statt Bottom-Sheet */
+  #trail-opts-overlay,
+  #trail-list-overlay {
+    align-items: center !important;
+    padding: 20px !important;
+  }
+  #trail-opts-overlay > div,
+  #trail-list-overlay > div {
+    border-radius: 20px !important;
+    max-height: 85vh !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  #trail-opts-overlay > div {
+    padding-bottom: 18px !important;
+  }
 }
 .dmgmt-header{
   padding:20px 20px 14px;
@@ -1876,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '6.2'")) {
+        if (!txt.includes("APP_VERSION = '6.4'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7438,6 +7453,31 @@ function trailNearestRoadAngle(polyM, polyLatLng, lat0, lng0) {
 // ── ALGORITHMUS: PARALLEL-LINIEN ──────────────────────────────────────
 // Gibt Linien-Array zurück: [[ [lat,lng], [lat,lng] ], ...]
 // Plus Diagnose-Info: usedAngle, mode, avgLineLength, roadOffset, edgeLines
+// Simuliert eine Gassen-Generierung für einen gegebenen Winkel — gibt nur Metriken
+// zurück (keine sichtbaren Layer, kein Coordinate-Backconvert). Schnell genug um
+// mehrere Winkel in <50ms zu vergleichen → Basis für die Brute-Force-Optimierung.
+function _trailSimulateAngle(polyM, angle, spacingM) {
+  const a = -angle * Math.PI / 180;
+  const cosA = Math.cos(a), sinA = Math.sin(a);
+  const polyR = polyM.map(p => ({
+    x: p.x * cosA - p.y * sinA,
+    y: p.x * sinA + p.y * cosA
+  }));
+  let minX =  Infinity, maxX = -Infinity, minY =  Infinity, maxY = -Infinity;
+  polyR.forEach(p => {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  });
+  let totalLen = 0, count = 0;
+  for (let y = minY + spacingM * 0.5; y < maxY; y += spacingM) {
+    trailClipLineToPolygon(minX - 1, y, maxX + 1, y, polyR).forEach(seg => {
+      totalLen += Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y);
+      count++;
+    });
+  }
+  return { totalLen, count, avgLen: count ? totalLen / count : 0 };
+}
+
 function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, accessPath) {
   if (polygonLatLng.length < 3) return { lines: [], edges: [], usedAngle: 0, modeUsed: orientationMode, avgLen: 0, note: '' };
 
@@ -7460,35 +7500,58 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
   // ── Orientierung bestimmen ──
   let angle = principalAxis;
   let note = '';
-  let pathHintAngle = null;     // Winkel der letzten Path-Strecke (für Anschluss-Hinweis)
+  let pathHintAngle = null;     // Gesamtrichtung des Wegs (Anfang → Ende)
   let pathEndM      = null;     // Endpunkt des Wegs im lokalen System
 
   if (pathM) {
-    const last2 = pathM[pathM.length - 1];
-    const last1 = pathM[pathM.length - 2];
-    pathHintAngle = trailEdgeAngleDeg(last1, last2);
-    pathEndM      = last2;
+    // Wichtig: NICHT nur das letzte Segment — Gesamt-Richtung vom Anfang zum Ende ist
+    // robuster bei zickzack-Wegen
+    const first = pathM[0];
+    const last  = pathM[pathM.length - 1];
+    pathHintAngle = trailEdgeAngleDeg(first, last);
+    pathEndM      = last;
   }
 
   let roadAngle = null;
   if (orientationMode === 'smart') {
-    // Smart: PCA für Orientierung (lange Gassen), aber Start am Weg
-    angle = principalAxis;
+    // ── BRUTE-FORCE: probiere mehrere Kandidaten-Winkel, wähle den mit den meisten
+    //    Gesamtstreckenmetern — das ist die "AI"-Logik die der User erwartet.
+    //    Vorteile gegenüber reiner PCA: robust auch wenn Polygon-Vertices ungleich
+    //    verteilt sind oder PCA wegen Vertex-Häufung den "falschen" Eigenvektor wählt.
+    const longestEdgeAngle = trailLongestEdge(polyM);
+    const candidates = [
+      { angle: principalAxis,         label: 'Hauptachse (PCA)' },
+      { angle: principalAxis + 90,    label: 'Senkrecht zur Hauptachse' },
+      { angle: longestEdgeAngle,      label: 'Längste Polygon-Kante' },
+      { angle: longestEdgeAngle + 90, label: 'Senkrecht zur längsten Kante' }
+    ];
     if (pathHintAngle !== null) {
-      const diff = Math.abs(((principalAxis - pathHintAngle) % 180 + 180) % 180);
-      const angleDiff = Math.min(diff, 180 - diff);
-      if (angleDiff < 25) {
-        // Weg läuft parallel zur Hauptachse → Hauptachse vom Weg übernehmen für sauberen Anschluss
-        angle = pathHintAngle;
-        note = 'Weg verläuft längs zur Bestandsachse — perfekter Anschluss';
-      } else if (angleDiff > 65) {
-        note = 'Weg quer zur Bestandsachse — Gassen längs, erste Gasse am Wegende';
-      } else {
-        note = 'Weg in moderatem Winkel — Gassen folgen Bestandsachse';
-      }
-    } else {
-      note = 'Kein Weg gezeichnet — Gassen folgen Bestandsachse';
+      candidates.push({ angle: pathHintAngle,      label: 'parallel zum Weg' });
+      candidates.push({ angle: pathHintAngle + 90, label: 'senkrecht zum Weg (vom Weg ab)' });
     }
+    // Achsen-ausgerichtete Varianten auch testen
+    candidates.push({ angle: 0,  label: 'Ost-West' });
+    candidates.push({ angle: 90, label: 'Nord-Süd' });
+
+    // Simulieren und Sieger wählen — Score = Gesamt-Streckenmeter
+    let bestScore = -1;
+    let bestCandidate = candidates[0];
+    let bestSim = null;
+    candidates.forEach(c => {
+      const sim = _trailSimulateAngle(polyM, c.angle, spacingM);
+      // Score: totalLen (gleichbedeutend mit "Maschinen-Streckenmeter").
+      // Bonus: wenn ein Weg gezeichnet ist und dieser Kandidat zur Weg-Anschluss-Logik passt
+      let bonus = 1;
+      if (pathHintAngle !== null && (c.label.includes('zum Weg') || c.label.includes('Hauptachse'))) {
+        bonus = 1.05;
+      }
+      const score = sim.totalLen * bonus;
+      if (score > bestScore) { bestScore = score; bestCandidate = c; bestSim = sim; }
+    });
+    angle = bestCandidate.angle;
+    note  = '🧠 Beste Variante: ' + bestCandidate.label +
+            ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' +
+            (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)';
   } else if (orientationMode === 'auto') {
     angle = principalAxis;
   } else if (orientationMode === 'ns') {
