@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="5.4">
+  <meta name="app-version" content="5.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -414,16 +414,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 
 /* ── BOTTOMBAR ── */
 #bottombar{
+  position: fixed;
+  top: calc(var(--safe-top, 0px) + 96px);
+  right: 8px;
+  width: min(520px, calc(100vw - 16px));
+  max-height: min(60vh, 500px);
+  z-index: 1500;
   background: linear-gradient(180deg, rgba(22,40,24,.94), rgba(15,30,16,.94));
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
-  border-top: 1px solid rgba(255,255,255,.06);
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4);
   color: #c8e6c0;
-  flex-shrink: 0;
-  padding-bottom: max(0px, var(--safe-bottom));
-  transition: max-height .3s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px) scale(.98);
+  transition: opacity .2s, transform .2s;
 }
+#bottombar.log-visible{
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+#bottombar.hidden{ display: none !important; }
 
 /* ── LOG ── */
 #log-head{
@@ -431,35 +448,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 9px 14px;
-  cursor: pointer;
+  padding: 11px 14px;
   user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: background .15s;
-}
-#log-head:active{ background: rgba(255,255,255,.04); }
-.log-chevron{
-  font-size: 13px;
-  color: #8ab882;
-  display: inline-block;
-  transition: transform .28s cubic-bezier(.4,0,.2,1);
-  width: 14px;
-  text-align: center;
   flex-shrink: 0;
+  background: rgba(0,0,0,.18);
+  border-bottom: 1px solid rgba(255,255,255,.05);
 }
-#bottombar.log-collapsed .log-chevron{ transform: rotate(-90deg); }
+.log-chevron{ display: none; }
 #log-title{
-  font-size: 12px;
+  font-size: 13px;
   color: #c8e6c0;
   font-weight: 600;
   margin-right: auto;
   letter-spacing: .01em;
 }
+.log-close-btn{
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: #c8e6c0;
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 18px;
+  font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  padding: 0; line-height: 1;
+}
+.log-close-btn:active{ background: rgba(255,255,255,.12); }
 #art-filter{
   display:flex;gap:5px;flex-wrap:wrap;padding:6px 12px;
   border-bottom:1px solid rgba(255,255,255,.04);
   background:rgba(0,0,0,.18);
+  flex-shrink: 0;
 }
 .af-chip{
   padding:4px 11px;border-radius:20px;font-size:11px;
@@ -476,17 +498,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 
 #log-list{
   overflow-y:auto;
-  max-height:200px;
+  flex: 1;
   -webkit-overflow-scrolling:touch;
-  background: rgba(0,0,0,.15);
-  transition: max-height .3s cubic-bezier(.4,0,.2,1), opacity .2s, padding .3s;
-}
-#bottombar.log-collapsed #log-list,
-#bottombar.log-collapsed #log-forwarder{
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  overflow: hidden;
+  background: rgba(0,0,0,.1);
 }
 
 .lrow{
@@ -527,15 +541,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .lrow.done .linfo{opacity:.45;text-decoration:line-through;}
 
 /* ── FORWARDER BOTTOMBAR ── */
-#log-forwarder{background:transparent;}
+#log-forwarder{background:transparent;display:flex;flex-direction:column;flex:1;min-height:0;}
 #fwd-head-arbeit, #fwd-head-polter{
   background:rgba(0,0,0,.2) !important;
   border-bottom:1px solid rgba(255,255,255,.05) !important;
+  flex-shrink: 0;
 }
-#fwd-head-arbeit > span:first-child{ color:#a0d89a !important; }
-#fwd-head-polter > span:first-child{ color:#7eaeec !important; }
+#fwd-head-arbeit > span:nth-child(2){ color:#a0d89a !important; }
+#fwd-head-polter > span:nth-child(2){ color:#7eaeec !important; }
 #fwd-count-arbeit, #fwd-count-polter{ color:#6a9a6a !important; }
 #log-arbeit, #log-polter{ background:rgba(0,0,0,.12); }
+
+/* Badge am Listen-Toggle */
+#log-badge{ background:#2d6a27; }
 
 /* ── SIDEBAR ── */
 #sidebar-overlay{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s;backdrop-filter:blur(2px);}
@@ -1799,7 +1817,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '5.4'")) {
+        if (!txt.includes("APP_VERSION = '5.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2146,6 +2164,11 @@ if ('serviceWorker' in navigator) {
 
   <!-- Kritische Schnellbuttons (immer sichtbar) -->
   <div class="topbar-quick">
+    <!-- Liste / Logs (immer sichtbar) -->
+    <div id="btn-log-wrap" class="qbtn-wrap">
+      <button class="qbtn" id="btn-log-toggle" title="Markierungen-Liste"><span>📋</span><span class="btn-label"> Liste</span></button>
+      <span class="qbtn-badge" id="log-badge" style="display:none;">0</span>
+    </div>
     <!-- Arbeitsliste (nur Forwarder/Admin) -->
     <div id="btn-arbeit-wrap" class="qbtn-wrap hidden">
       <button class="qbtn green" id="btn-arbeit"><span>📋</span><span class="btn-label"> Arbeit</span></button>
@@ -2374,15 +2397,14 @@ if ('serviceWorker' in navigator) {
 <div id="bottombar" class="hidden">
   <div id="log-harvester">
     <div id="log-head">
-      <span class="log-chevron">▾</span>
       <span id="log-title">Markierungen: 0 · Strecken: 0</span>
       <button class="ldel" id="btn-clear-all" style="min-height:28px;">Alles löschen</button>
+      <button class="log-close-btn" onclick="closeLogPanel()" title="Schließen">×</button>
     </div>
     <div id="log-list"><div class="lrow" style="color:#aaa;font-style:italic;">Noch keine Einträge.</div></div>
   </div>
   <div id="log-forwarder" style="display:none;">
-    <div id="fwd-head-arbeit" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;" onclick="if(event.target.closest('.ldel,.af-chip'))return;toggleLogPanel();">
-      <span class="log-chevron">▾</span>
+    <div id="fwd-head-arbeit" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.2);">
       <span style="font-size:11px;font-weight:600;color:#a0d89a;">🪵 Einzusammeln</span>
       <span id="fwd-count-arbeit" style="font-size:10px;color:#4a6044;margin-right:auto;"></span>
       <button class="ldel" id="btn-clear-arbeit" style="min-height:24px;font-size:10px;">Löschen</button>
@@ -6156,8 +6178,9 @@ function startMode(mode) {
   });
   document.getElementById('auth-screen').style.display = 'none';
 
-  ['topbar','statusbar','map','bottombar','pwa-bar'].forEach(id =>
+  ['topbar','statusbar','map','pwa-bar'].forEach(id =>
     document.getElementById(id).classList.remove('hidden'));
+  // bottombar bleibt versteckt — wird über den 'Liste'-Topbar-Button geöffnet
 
   // area-bar und timer-bar sind jetzt im Slide-Menu — nicht mehr in der Hauptansicht
   showAuthErr('');
@@ -7191,6 +7214,8 @@ function mkRow(m) {
 }
 
 function renderLog() {
+  // Badge im Topbar-Button mit Anzahl aktualisieren
+  try { if (typeof updateLogBadge === 'function') updateLogBadge(); } catch {}
   if (currentMode === 'harvester' || currentMode === 'admin') {
     document.getElementById('log-title').textContent='Markierungen: '+markers.length+' · Strecken: '+tracks.length;
     const el=document.getElementById('log-list');
@@ -7258,27 +7283,49 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
   markers=[];tracks=[];document.getElementById('km-txt').textContent='';renderLog();
 });
 
-// ── LOG-PANEL: AUSKLAPPEN/EINKLAPPEN ────────────────────────────
+// ── LOG-PANEL: SHOW / HIDE ALS OVERLAY ──────────────────────────
+function openLogPanel() {
+  const bb = document.getElementById('bottombar');
+  if (!bb) return;
+  bb.classList.remove('hidden');
+  // doppelt rAF damit der Browser den display-Switch verarbeitet bevor wir animieren
+  requestAnimationFrame(() => requestAnimationFrame(() => bb.classList.add('log-visible')));
+}
+function closeLogPanel() {
+  const bb = document.getElementById('bottombar');
+  if (!bb) return;
+  bb.classList.remove('log-visible');
+  // Nach Animation komplett ausblenden damit's keine Map-Klicks abfängt
+  setTimeout(() => {
+    if (!bb.classList.contains('log-visible')) bb.classList.add('hidden');
+  }, 220);
+}
 function toggleLogPanel() {
   const bb = document.getElementById('bottombar');
   if (!bb) return;
-  const collapsed = bb.classList.toggle('log-collapsed');
-  try { localStorage.setItem('lignum_log_collapsed', collapsed ? '1' : '0'); } catch {}
+  if (bb.classList.contains('log-visible')) closeLogPanel();
+  else openLogPanel();
 }
 window.toggleLogPanel = toggleLogPanel;
+window.openLogPanel = openLogPanel;
+window.closeLogPanel = closeLogPanel;
 
-// Klick auf Harvester-Header — aber nicht wenn auf "Alles löschen"-Button geklickt wurde
-document.getElementById('log-head').addEventListener('click', (e) => {
-  if (e.target.closest('.ldel')) return;
-  toggleLogPanel();
-});
+document.getElementById('btn-log-toggle').addEventListener('click', toggleLogPanel);
 
-// Beim Start: gespeicherten Zustand wiederherstellen
-try {
-  if (localStorage.getItem('lignum_log_collapsed') === '1') {
-    document.getElementById('bottombar').classList.add('log-collapsed');
+// Badge mit Anzahl Markierungen + Strecken
+function updateLogBadge() {
+  const badge = document.getElementById('log-badge');
+  if (!badge) return;
+  const count = (Array.isArray(markers) ? markers.length : 0) +
+                (Array.isArray(tracks)  ? tracks.length  : 0);
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
   }
-} catch {}
+}
+window.updateLogBadge = updateLogBadge;
 document.getElementById('btn-clear-arbeit').addEventListener('click', async () => {
   if(!confirm('Alle Harvester-Polter löschen?'))return;
   const keep=[];
