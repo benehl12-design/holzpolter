@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="4.5">
+  <meta name="app-version" content="4.7">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1538,6 +1538,128 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .admin-day-driver-name{color:#c8e6c0;}
 .admin-day-driver-sum{color:#8ab882;font-variant-numeric:tabular-nums;}
+
+/* ══════ EUDR MODUL 2 — STAMMDATEN ══════ */
+.std-tabs{
+  display:flex;gap:4px;padding:8px 10px;
+  background:rgba(0,0,0,.25);border-bottom:1px solid rgba(255,255,255,.05);
+  flex-shrink:0;
+}
+.std-tab{
+  flex:1;padding:9px 6px;border-radius:9px;border:none;
+  background:transparent;color:#6a9a6a;font-family:inherit;font-size:12px;
+  cursor:pointer;font-weight:600;transition:all .15s;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.std-tab.on{background:rgba(74,170,74,.18);color:#c8e6c0;}
+
+.std-body{
+  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:14px;padding-bottom:max(20px,var(--safe-bottom));
+}
+.std-page{display:none;}
+.std-page.on{display:block;}
+
+.std-info-box{
+  background:rgba(74,170,74,.08);border:1px solid rgba(74,170,74,.2);
+  border-radius:11px;padding:11px 13px;font-size:12px;color:#a0c8a0;
+  line-height:1.5;margin-bottom:14px;
+}
+
+.std-label{
+  display:block;font-size:11px;font-weight:600;color:#6a9a6a;
+  text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;
+}
+.std-label:first-child{margin-top:0;}
+
+.std-input{
+  width:100%;font-size:14px;padding:11px 13px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:#c8e6c0;font-family:inherit;-webkit-appearance:none;
+}
+.std-input:focus{outline:none;border-color:rgba(74,170,74,.5);background:rgba(255,255,255,.07);}
+.std-textarea{resize:vertical;min-height:50px;}
+
+.std-save-btn{
+  width:100%;margin-top:18px;padding:13px;border-radius:11px;border:none;
+  background:linear-gradient(135deg,#2d6a27,#3a8030);color:#e8f5e4;
+  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  box-shadow:0 3px 10px rgba(45,90,39,.4);
+}
+.std-save-btn:active{transform:scale(.98);}
+.std-status{
+  margin-top:10px;font-size:12px;text-align:center;min-height:18px;
+}
+.std-status.ok{color:#7ab070;}
+.std-status.err{color:#f5a0a0;}
+
+/* Partner */
+.std-partner-head{
+  display:flex;flex-direction:column;gap:10px;margin-bottom:10px;
+}
+.std-add-btn{
+  width:100%;padding:11px;border-radius:10px;border:1px dashed rgba(74,170,74,.4);
+  background:rgba(45,90,39,.12);color:#a0d89a;font-family:inherit;font-size:13px;
+  font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.std-add-btn:active{background:rgba(45,90,39,.2);}
+
+.std-partner-filter{display:flex;gap:6px;margin-bottom:12px;}
+.std-filter-chip{
+  flex:1;padding:8px;border-radius:9px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:#8ab882;font-family:inherit;
+  font-size:12px;font-weight:600;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.std-filter-chip.on{background:rgba(74,170,74,.18);color:#c8e6c0;border-color:rgba(74,170,74,.4);}
+
+.std-partner-card{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  border-radius:13px;padding:12px 14px;margin-bottom:10px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  transition:background .15s;
+}
+.std-partner-card:active{background:rgba(255,255,255,.07);}
+.std-partner-card-head{
+  display:flex;align-items:center;gap:9px;margin-bottom:5px;
+}
+.std-partner-card-name{
+  flex:1;font-size:14px;font-weight:600;color:#c8e6c0;
+}
+.std-partner-card-type{
+  font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600;
+}
+.std-partner-card-type.supplier{background:rgba(176,112,16,.2);color:#dba84b;}
+.std-partner-card-type.customer{background:rgba(26,95,168,.2);color:#7eaeec;}
+.std-partner-card-type.both{background:rgba(74,170,74,.2);color:#7ad06f;}
+.std-partner-card-meta{font-size:11px;color:#6a9a6a;line-height:1.5;}
+
+/* Partner Edit Modal */
+.std-partner-type-chips{display:flex;gap:6px;flex-wrap:wrap;}
+.std-ptype-chip{
+  flex:1;min-width:80px;padding:9px;border-radius:9px;
+  border:1.5px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  color:#a0c8a0;font-family:inherit;font-size:12px;cursor:pointer;font-weight:500;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.std-ptype-chip.on{border-color:rgba(74,170,74,.5);background:rgba(74,170,74,.15);color:#c8e6c0;font-weight:700;}
+
+/* Baumarten Tabelle */
+.std-baumart-row{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  border-radius:11px;padding:12px 14px;margin-bottom:8px;align-items:center;
+}
+.std-baumart-emoji{font-size:24px;}
+.std-baumart-info{min-width:0;}
+.std-baumart-name{font-size:14px;font-weight:600;color:#c8e6c0;}
+.std-baumart-latin{font-size:11px;font-style:italic;color:#8ab882;margin-top:1px;}
+.std-baumart-hs{
+  font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;
+  background:rgba(45,90,39,.25);color:#a0d89a;
+  padding:5px 10px;border-radius:8px;white-space:nowrap;
+}
+.admin-day-driver-sum-end{display:none;}
 </style>
 <script>
 // Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
@@ -1546,7 +1668,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '4.5'")) {
+        if (!txt.includes("APP_VERSION = '4.7'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1667,8 +1789,8 @@ if ('serviceWorker' in navigator) {
   <!-- Scrollbarer Inhalt -->
   <div class="adash-body">
 
-    <!-- 3 symmetrische Haupt-Buttons -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+    <!-- 4 Haupt-Buttons im 2x2-Grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <button class="adash-main-btn" onclick="openDriversScreen()">
         <span class="adash-main-icon">👷</span>
         <span class="adash-main-label">Fahrer</span>
@@ -1678,6 +1800,11 @@ if ('serviceWorker' in navigator) {
         <span class="adash-main-icon">📍</span>
         <span class="adash-main-label">Gebiete</span>
         <span class="adash-main-desc">Einschlag & Karte</span>
+      </button>
+      <button class="adash-main-btn" onclick="openStammdaten()">
+        <span class="adash-main-icon">🏢</span>
+        <span class="adash-main-label">Stammdaten</span>
+        <span class="adash-main-desc">Firma & Partner</span>
       </button>
       <button class="adash-main-btn" onclick="showDashWork()">
         <span class="adash-main-icon">🚜</span>
@@ -2383,6 +2510,189 @@ if ('serviceWorker' in navigator) {
         <button class="wt-edit-close" onclick="closeAdminCalDayDetail()">&times;</button>
       </div>
       <div class="wt-edit-body" id="admin-cal-day-body"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       EUDR MODUL 2 — STAMMDATEN (Firma, Partner, Baumarten)
+       ══════════════════════════════════════════════════════════════════ -->
+  <div id="stammdaten-screen" style="display:none;position:fixed;inset:0;z-index:9300;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+    <div class="wt-header">
+      <button class="wt-back" onclick="closeStammdaten()">&#8592;</button>
+      <div class="wt-title">🏢 Stammdaten</div>
+    </div>
+
+    <!-- Tab-Navigation -->
+    <div class="std-tabs">
+      <button class="std-tab on" data-tab="firma" onclick="switchStdTab('firma')">Firma</button>
+      <button class="std-tab" data-tab="partner" onclick="switchStdTab('partner')">Geschäftspartner</button>
+      <button class="std-tab" data-tab="baumarten" onclick="switchStdTab('baumarten')">Baumarten</button>
+    </div>
+
+    <div class="std-body">
+
+      <!-- ─── TAB: FIRMA ─── -->
+      <div class="std-page on" id="std-page-firma">
+        <div class="std-info-box">
+          📋 Diese Daten werden in jede EUDR-Sorgfaltserklärung (DDS) übernommen.<br>
+          USt-IdNr und EORI-Nummer sind <b>für Erstinverkehrbringer Pflicht</b>.
+        </div>
+
+        <label class="std-label">Firmenname</label>
+        <input type="text" id="std-firma-name" class="std-input" placeholder="Mustermann Forst GmbH">
+
+        <label class="std-label">USt-IdNr / VAT</label>
+        <input type="text" id="std-firma-vat" class="std-input" placeholder="z.B. SE556677889901">
+
+        <label class="std-label">EORI-Nummer (für Zoll)</label>
+        <input type="text" id="std-firma-eori" class="std-input" placeholder="z.B. SE5566778899">
+
+        <label class="std-label">Land (ISO 2-Letter)</label>
+        <select id="std-firma-country" class="std-input">
+          <option value="SE">Schweden (SE)</option>
+          <option value="DE">Deutschland (DE)</option>
+          <option value="AT">Österreich (AT)</option>
+          <option value="FI">Finnland (FI)</option>
+          <option value="NO">Norwegen (NO)</option>
+          <option value="DK">Dänemark (DK)</option>
+          <option value="PL">Polen (PL)</option>
+          <option value="EE">Estland (EE)</option>
+          <option value="LV">Lettland (LV)</option>
+          <option value="LT">Litauen (LT)</option>
+        </select>
+
+        <label class="std-label">Straße</label>
+        <input type="text" id="std-firma-street" class="std-input" placeholder="Skogsvägen 12">
+
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;">
+          <div>
+            <label class="std-label">PLZ</label>
+            <input type="text" id="std-firma-postal" class="std-input">
+          </div>
+          <div>
+            <label class="std-label">Ort</label>
+            <input type="text" id="std-firma-city" class="std-input">
+          </div>
+        </div>
+
+        <label class="std-label">Kontakt-E-Mail</label>
+        <input type="email" id="std-firma-email" class="std-input" autocorrect="off">
+
+        <label class="std-label">Kontakt-Telefon</label>
+        <input type="tel" id="std-firma-phone" class="std-input">
+
+        <button class="std-save-btn" onclick="saveFirmaStammdaten()">💾 Speichern</button>
+        <div id="std-firma-status" class="std-status"></div>
+      </div>
+
+      <!-- ─── TAB: PARTNER ─── -->
+      <div class="std-page" id="std-page-partner">
+        <div class="std-partner-head">
+          <div class="std-info-box" style="margin-bottom:0;">
+            👥 Lieferanten (woher kommt das Holz?) und Käufer (wer kauft es?). Für jede EUDR-Sorgfaltserklärung muss mindestens ein Käufer ausgewählt werden.
+          </div>
+          <button class="std-add-btn" onclick="openPartnerEdit(null)">+ Neuer Partner</button>
+        </div>
+
+        <!-- Filter-Chips -->
+        <div class="std-partner-filter">
+          <button class="std-filter-chip on" data-filter="all" onclick="filterPartners('all')">Alle</button>
+          <button class="std-filter-chip" data-filter="supplier" onclick="filterPartners('supplier')">Lieferanten</button>
+          <button class="std-filter-chip" data-filter="customer" onclick="filterPartners('customer')">Käufer</button>
+        </div>
+
+        <div id="std-partner-list">
+          <div style="padding:20px;text-align:center;color:#5a8a5a;font-size:13px;">Wird geladen…</div>
+        </div>
+      </div>
+
+      <!-- ─── TAB: BAUMARTEN ─── -->
+      <div class="std-page" id="std-page-baumarten">
+        <div class="std-info-box">
+          🌲 Mapping zwischen den App-Baumarten und den EUDR-Pflichtangaben (wissenschaftlicher Name + HS-Code).<br>
+          Wird automatisch in jede DDS übernommen — du musst hier nichts ändern.
+        </div>
+
+        <div id="std-baumarten-list"></div>
+
+        <div class="std-info-box" style="background:rgba(230,126,34,.1);border-color:rgba(230,126,34,.3);color:#e8b070;margin-top:14px;">
+          💡 Bei <b>„Sonstige"</b> kommt beim DDS-Export eine Rückfrage welche Baumart konkret gemeint war.
+          So bleiben Polter-Markierungen schnell, ohne dass dabei EUDR-Details verloren gehen.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PARTNER EDIT MODAL ── -->
+  <div id="partner-edit-overlay" style="display:none;position:fixed;inset:0;z-index:9700;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closePartnerEdit()">
+    <div class="wt-edit-sheet">
+      <div class="wt-edit-header">
+        <h2 id="partner-edit-title">Partner anlegen</h2>
+        <button class="wt-edit-close" onclick="closePartnerEdit()">&times;</button>
+      </div>
+      <div class="wt-edit-body">
+        <label class="std-label">Typ</label>
+        <div class="std-partner-type-chips">
+          <button class="std-ptype-chip" data-type="supplier" onclick="selectPartnerType('supplier')">🚛 Lieferant</button>
+          <button class="std-ptype-chip" data-type="customer" onclick="selectPartnerType('customer')">🏭 Käufer</button>
+          <button class="std-ptype-chip" data-type="both" onclick="selectPartnerType('both')">↔ Beides</button>
+        </div>
+
+        <label class="std-label">Name *</label>
+        <input type="text" id="partner-name" class="std-input">
+
+        <label class="std-label">USt-IdNr / VAT</label>
+        <input type="text" id="partner-vat" class="std-input">
+
+        <label class="std-label">EORI-Nummer</label>
+        <input type="text" id="partner-eori" class="std-input">
+
+        <label class="std-label">Land (ISO)</label>
+        <select id="partner-country" class="std-input">
+          <option value="">– wählen –</option>
+          <option value="SE">Schweden (SE)</option>
+          <option value="DE">Deutschland (DE)</option>
+          <option value="AT">Österreich (AT)</option>
+          <option value="FI">Finnland (FI)</option>
+          <option value="NO">Norwegen (NO)</option>
+          <option value="DK">Dänemark (DK)</option>
+          <option value="PL">Polen (PL)</option>
+          <option value="EE">Estland (EE)</option>
+          <option value="LV">Lettland (LV)</option>
+          <option value="LT">Litauen (LT)</option>
+          <option value="OTHER">Anderes Land</option>
+        </select>
+
+        <label class="std-label">Straße</label>
+        <input type="text" id="partner-street" class="std-input">
+
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;">
+          <div>
+            <label class="std-label">PLZ</label>
+            <input type="text" id="partner-postal" class="std-input">
+          </div>
+          <div>
+            <label class="std-label">Ort</label>
+            <input type="text" id="partner-city" class="std-input">
+          </div>
+        </div>
+
+        <label class="std-label">E-Mail</label>
+        <input type="email" id="partner-email" class="std-input" autocorrect="off">
+
+        <label class="std-label">Telefon</label>
+        <input type="tel" id="partner-phone" class="std-input">
+
+        <label class="std-label">Notiz</label>
+        <textarea id="partner-notes" rows="2" class="std-input std-textarea" placeholder="Optional…"></textarea>
+
+        <div class="wt-edit-actions">
+          <button class="wt-edit-btn wt-edit-cancel" onclick="closePartnerEdit()">Abbrechen</button>
+          <button class="wt-edit-btn wt-edit-save" onclick="savePartner()">Speichern</button>
+        </div>
+        <button id="partner-delete-btn" class="wt-edit-btn wt-edit-delete" onclick="deletePartner()">🗑 Partner löschen</button>
+      </div>
     </div>
   </div>
 
@@ -4548,26 +4858,46 @@ async function loadAreasOverviewCards() {
       const done     = polter.filter(m => m.done).length;
       const strecken = tData.filter(t => t.area_id===a.id);
       const kmSum    = strecken.reduce((s,t) => s+(parseFloat(t.km)||0),0).toFixed(1);
+      // EUDR-Status
+      const hasBoundary = Array.isArray(a.boundary) && a.boundary.length >= 3;
+      const ha = a.area_hectares ? Number(a.area_hectares) : null;
+      const eudrType = ha != null ? (ha < 4 ? 'Punkt (<4 ha)' : 'Polygon (≥4 ha)') : '';
+      const capturedDate = a.captured_at ? new Date(a.captured_at).toLocaleDateString('de-DE') : '';
+      // Name sicher für inline-onclick escapen
+      const safeName = (a.name || '').replace(/[\\'"<>&]/g, c => ({'\\':'\\\\','\'':'\\\'','"':'&quot;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
       return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;margin-bottom:10px;">
         <div style="padding:14px 16px;">
-          <div style="font-size:15px;font-weight:600;color:#c8e6c0;margin-bottom:8px;">📍 ${a.name}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-            <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 6px;">
-              <div style="font-size:20px;font-weight:600;color:#c8e6c0;">${polter.length}</div>
-              <div style="font-size:10px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">Polter</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
+            <div style="font-size:15px;font-weight:600;color:#c8e6c0;">📍 ${a.name}</div>
+            ${hasBoundary
+              ? `<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;background:rgba(230,126,34,.18);color:#e8954a;border:1px solid rgba(230,126,34,.35);white-space:nowrap;">📐 EUDR ✓</span>`
+              : `<span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:7px;background:rgba(255,255,255,.04);color:#6a8a6a;border:1px solid rgba(255,255,255,.08);white-space:nowrap;">EUDR offen</span>`}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+            <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 4px;">
+              <div style="font-size:18px;font-weight:600;color:#c8e6c0;">${polter.length}</div>
+              <div style="font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">Polter</div>
             </div>
-            <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 6px;">
-              <div style="font-size:20px;font-weight:600;color:#a0d89a;">${done}</div>
-              <div style="font-size:10px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">Einges.</div>
+            <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 4px;">
+              <div style="font-size:18px;font-weight:600;color:#a0d89a;">${done}</div>
+              <div style="font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">Einges.</div>
             </div>
-            <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 6px;">
-              <div style="font-size:20px;font-weight:600;color:#b5d4f4;">${kmSum}</div>
-              <div style="font-size:10px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">km</div>
+            <div style="text-align:center;background:rgba(255,255,255,.04);border-radius:9px;padding:10px 4px;">
+              <div style="font-size:18px;font-weight:600;color:#b5d4f4;">${kmSum}</div>
+              <div style="font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">km</div>
+            </div>
+            <div style="text-align:center;background:${hasBoundary?'rgba(230,126,34,.10)':'rgba(255,255,255,.04)'};border-radius:9px;padding:10px 4px;">
+              <div style="font-size:18px;font-weight:600;color:${hasBoundary?'#e8954a':'#3a5a3a'};">${ha != null ? ha.toFixed(1) : '–'}</div>
+              <div style="font-size:9px;color:#5a8a5a;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">Hektar</div>
             </div>
           </div>
-          <div style="display:flex;gap:8px;">
-            <button onclick="showDashMap()" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:12px;font-family:inherit;cursor:pointer;">🗺 Karte</button>
-            <button onclick="deleteArea('${a.id}')" style="flex:1;padding:9px;border-radius:8px;border:1px solid rgba(163,32,32,.3);background:rgba(163,32,32,.08);color:#f5a0a0;font-size:12px;font-family:inherit;cursor:pointer;">🗑 Löschen</button>
+          ${hasBoundary ? `<div style="font-size:11px;color:#7ab070;margin-bottom:10px;">📐 ${eudrType}${capturedDate ? ' · erfasst am ' + capturedDate : ''}</div>` : ''}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button onclick="${hasBoundary ? `adminJumpToAreaBoundary('${a.id}')` : 'showDashMap()'}" style="flex:1;min-width:90px;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#c8e6c0;font-size:12px;font-family:inherit;cursor:pointer;">🗺 Karte</button>
+            ${hasBoundary
+              ? `<button onclick="downloadAreaGeoJSON('${a.id}','${safeName}')" style="flex:1;min-width:90px;padding:9px;border-radius:8px;border:1px solid rgba(230,126,34,.3);background:rgba(230,126,34,.1);color:#e8954a;font-size:12px;font-family:inherit;cursor:pointer;">⬇ GeoJSON</button>`
+              : ''}
+            <button onclick="deleteArea('${a.id}')" style="flex:1;min-width:90px;padding:9px;border-radius:8px;border:1px solid rgba(163,32,32,.3);background:rgba(163,32,32,.08);color:#f5a0a0;font-size:12px;font-family:inherit;cursor:pointer;">🗑 Löschen</button>
           </div>
         </div>
       </div>`;
@@ -4576,6 +4906,42 @@ async function loadAreasOverviewCards() {
     el.innerHTML = '<div style="padding:16px;color:#e05555;font-size:13px;">Fehler: '+e.message+'</div>';
   }
 }
+
+// Admin: Springt auf der Karte zur erfassten Erntefläche eines Gebiets.
+// Nutzt das gleiche Suppression-Flag wie der Fahrer-Sprung, damit
+// autoZoomToWork() den Fokus nicht wieder klaut.
+function adminJumpToAreaBoundary(areaId) {
+  const area = (typeof areas !== 'undefined' && areas.find) ? areas.find(a => a.id === areaId) : null;
+  if (!area || !Array.isArray(area.boundary) || area.boundary.length < 3) {
+    if (typeof showToast === 'function') showToast('Keine Erntefläche erfasst');
+    return;
+  }
+  window._pendingDriverJump = true; // gleicher Mechanismus wie bei Fahrer-Sprung
+  // Areas-Overview schließen
+  const aov = document.getElementById('areas-overview-screen');
+  if (aov) aov.style.display = 'none';
+  // In Karten-Modus wechseln
+  if (typeof showDashMap === 'function') showDashMap();
+  const doJump = () => {
+    if (!map) return;
+    try {
+      const bounds = L.latLngBounds(area.boundary);
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+      // Polygon-Layer (falls vorhanden) kurz hervorheben
+      const layer = (typeof areaBoundaryLayers !== 'undefined') ? areaBoundaryLayers[areaId] : null;
+      if (layer) {
+        const orig = layer.options.weight || 2;
+        layer.setStyle({ weight: 5, fillOpacity: 0.18 });
+        setTimeout(() => { try { layer.setStyle({ weight: orig, fillOpacity: 0.07 }); } catch {} }, 2500);
+        try { layer.openPopup(); } catch {}
+      }
+    } catch(e) { console.warn('adminJumpToAreaBoundary:', e); }
+  };
+  setTimeout(doJump, 300);
+  setTimeout(doJump, 900);
+  setTimeout(() => { doJump(); window._pendingDriverJump = false; }, 1700);
+}
+window.adminJumpToAreaBoundary = adminJumpToAreaBoundary;
 
 function openNewAreaDialog() {
   const overlay = document.getElementById('area-overlay');
@@ -6136,6 +6502,310 @@ window.undoAreaDrawPoint  = undoAreaDrawPoint;
 window.finishAreaDrawing  = finishAreaDrawing;
 window.cancelAreaDrawing  = cancelAreaDrawing;
 window.downloadAreaGeoJSON = downloadAreaGeoJSON;
+
+// ══════════════════════════════════════════════════════════════════════
+// ── EUDR MODUL 2 — STAMMDATEN (Firma, Partner, Baumarten) ─────────────
+// ══════════════════════════════════════════════════════════════════════
+
+// Baumart-Mapping (HS-Codes nach WCO 2022)
+const BAUMART_MAPPING = {
+  'Fichte':   { latin: 'Picea abies',      hsCode: '4403.23', emoji: '🌲' },
+  'Kiefer':   { latin: 'Pinus sylvestris', hsCode: '4403.21', emoji: '🌲' },
+  'Birke':    { latin: 'Betula pendula',   hsCode: '4403.95', emoji: '🪾' },
+  'Sonstige': { latin: 'Mixed / various',  hsCode: '4403.99', emoji: '🌳' }
+};
+window.BAUMART_MAPPING = BAUMART_MAPPING;
+
+let _partnerEditingId = null;
+let _partners = [];
+let _partnerFilter = 'all';
+
+// ── SCREEN OPEN/CLOSE ─────────────────────────────────────────────────
+
+async function openStammdaten() {
+  const scr = document.getElementById('stammdaten-screen');
+  if (!scr) return;
+  scr.style.display = 'flex';
+  // Default-Tab anzeigen
+  switchStdTab('firma');
+  // Daten parallel laden
+  loadFirmaStammdaten();
+  loadPartners();
+  renderBaumarten();
+}
+
+function closeStammdaten() {
+  const scr = document.getElementById('stammdaten-screen');
+  if (scr) scr.style.display = 'none';
+}
+
+function switchStdTab(tabId) {
+  document.querySelectorAll('.std-tab').forEach(t => {
+    t.classList.toggle('on', t.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.std-page').forEach(p => {
+    p.classList.toggle('on', p.id === 'std-page-' + tabId);
+  });
+}
+
+// ── FIRMA-STAMMDATEN ──────────────────────────────────────────────────
+
+async function loadFirmaStammdaten() {
+  if (!currentProfile || !currentProfile.company_id) return;
+  try {
+    const data = await dbFetch('companies?id=eq.' + currentProfile.company_id + '&select=*');
+    if (!data || !data[0]) return;
+    const c = data[0];
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('std-firma-name', c.name);
+    set('std-firma-vat', c.vat_id);
+    set('std-firma-eori', c.eori_number);
+    set('std-firma-country', c.country_iso || 'SE');
+    set('std-firma-street', c.address_street);
+    set('std-firma-postal', c.address_postal);
+    set('std-firma-city', c.address_city);
+    set('std-firma-email', c.contact_email);
+    set('std-firma-phone', c.contact_phone);
+  } catch (e) {
+    console.warn('loadFirmaStammdaten:', e);
+  }
+}
+
+async function saveFirmaStammdaten() {
+  if (!currentProfile || !currentProfile.company_id) return;
+  const get = id => (document.getElementById(id)?.value || '').trim() || null;
+  const status = document.getElementById('std-firma-status');
+  const name = get('std-firma-name');
+  if (!name) {
+    if (status) { status.className = 'std-status err'; status.textContent = '⚠️ Firmenname erforderlich'; }
+    return;
+  }
+  try {
+    await dbFetch('companies?id=eq.' + currentProfile.company_id, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: {
+        name,
+        vat_id: get('std-firma-vat'),
+        eori_number: get('std-firma-eori'),
+        country_iso: get('std-firma-country'),
+        address_street: get('std-firma-street'),
+        address_postal: get('std-firma-postal'),
+        address_city: get('std-firma-city'),
+        contact_email: get('std-firma-email'),
+        contact_phone: get('std-firma-phone')
+      }
+    });
+    if (status) { status.className = 'std-status ok'; status.textContent = '✓ Gespeichert'; }
+    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+    showToast('✓ Firmendaten aktualisiert');
+  } catch (e) {
+    if (status) { status.className = 'std-status err'; status.textContent = '⚠️ Fehler: ' + e.message; }
+  }
+}
+
+// ── PARTNER-VERWALTUNG ────────────────────────────────────────────────
+
+async function loadPartners() {
+  if (!currentProfile || !currentProfile.company_id) return;
+  try {
+    const data = await dbFetch(
+      'business_partners?company_id=eq.' + currentProfile.company_id +
+      '&deleted_at=is.null&order=name.asc'
+    );
+    _partners = data || [];
+    renderPartners();
+  } catch (e) {
+    console.warn('loadPartners:', e);
+    const el = document.getElementById('std-partner-list');
+    if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:#f5a0a0;font-size:13px;">Fehler beim Laden</div>';
+  }
+}
+
+function filterPartners(filter) {
+  _partnerFilter = filter;
+  document.querySelectorAll('.std-filter-chip').forEach(c => {
+    c.classList.toggle('on', c.dataset.filter === filter);
+  });
+  renderPartners();
+}
+
+function renderPartners() {
+  const el = document.getElementById('std-partner-list');
+  if (!el) return;
+  const filtered = _partners.filter(p => {
+    if (_partnerFilter === 'all') return true;
+    if (_partnerFilter === 'supplier') return p.partner_type === 'supplier' || p.partner_type === 'both';
+    if (_partnerFilter === 'customer') return p.partner_type === 'customer' || p.partner_type === 'both';
+    return true;
+  });
+  if (filtered.length === 0) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:#5a8a5a;font-size:13px;font-style:italic;">' +
+      (_partners.length === 0 ? 'Noch keine Geschäftspartner angelegt.' : 'Keine Treffer im Filter.') +
+      '</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(p => {
+    const typeBadge = p.partner_type === 'supplier' ? '🚛 Lieferant'
+                    : p.partner_type === 'customer' ? '🏭 Käufer'
+                    : '↔ Beides';
+    const country = p.country_iso ? ' · ' + p.country_iso : '';
+    const city = p.address_city ? ' · ' + escapeHtml(p.address_city) : '';
+    const vat = p.vat_id ? ' · ' + escapeHtml(p.vat_id) : '';
+    return `<div class="std-partner-card" onclick="openPartnerEdit('${p.id}')">
+      <div class="std-partner-card-head">
+        <div class="std-partner-card-name">${escapeHtml(p.name)}</div>
+        <span class="std-partner-card-type ${p.partner_type}">${typeBadge}</span>
+      </div>
+      <div class="std-partner-card-meta">${country}${city}${vat}</div>
+    </div>`;
+  }).join('');
+}
+
+function openPartnerEdit(partnerId) {
+  _partnerEditingId = partnerId;
+  const overlay = document.getElementById('partner-edit-overlay');
+  const titleEl = document.getElementById('partner-edit-title');
+  const delBtn  = document.getElementById('partner-delete-btn');
+  if (!overlay) return;
+  const partner = partnerId ? _partners.find(p => p.id === partnerId) : null;
+  if (partner) {
+    titleEl.textContent = 'Partner bearbeiten';
+    if (delBtn) delBtn.style.display = 'block';
+    document.getElementById('partner-name').value    = partner.name || '';
+    document.getElementById('partner-vat').value     = partner.vat_id || '';
+    document.getElementById('partner-eori').value    = partner.eori_number || '';
+    document.getElementById('partner-country').value = partner.country_iso || '';
+    document.getElementById('partner-street').value  = partner.address_street || '';
+    document.getElementById('partner-postal').value  = partner.address_postal || '';
+    document.getElementById('partner-city').value    = partner.address_city || '';
+    document.getElementById('partner-email').value   = partner.contact_email || '';
+    document.getElementById('partner-phone').value   = partner.contact_phone || '';
+    document.getElementById('partner-notes').value   = partner.notes || '';
+    document.querySelectorAll('.std-ptype-chip').forEach(c => {
+      c.classList.toggle('on', c.dataset.type === partner.partner_type);
+    });
+  } else {
+    titleEl.textContent = 'Neuer Partner';
+    if (delBtn) delBtn.style.display = 'none';
+    ['partner-name','partner-vat','partner-eori','partner-street','partner-postal',
+     'partner-city','partner-email','partner-phone','partner-notes'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('partner-country').value = '';
+    document.querySelectorAll('.std-ptype-chip').forEach(c => {
+      c.classList.toggle('on', c.dataset.type === 'customer'); // Default: Käufer
+    });
+  }
+  overlay.style.display = 'flex';
+}
+
+function closePartnerEdit() {
+  const overlay = document.getElementById('partner-edit-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _partnerEditingId = null;
+}
+
+function selectPartnerType(type) {
+  document.querySelectorAll('.std-ptype-chip').forEach(c => {
+    c.classList.toggle('on', c.dataset.type === type);
+  });
+}
+
+async function savePartner() {
+  const name = document.getElementById('partner-name').value.trim();
+  if (!name) { showToast('⚠️ Name erforderlich'); return; }
+  const typeChip = document.querySelector('.std-ptype-chip.on');
+  if (!typeChip) { showToast('⚠️ Typ auswählen'); return; }
+  const partner_type = typeChip.dataset.type;
+  const get = id => (document.getElementById(id).value || '').trim() || null;
+  const body = {
+    company_id: currentProfile.company_id,
+    partner_type,
+    name,
+    vat_id: get('partner-vat'),
+    eori_number: get('partner-eori'),
+    country_iso: get('partner-country'),
+    address_street: get('partner-street'),
+    address_postal: get('partner-postal'),
+    address_city: get('partner-city'),
+    contact_email: get('partner-email'),
+    contact_phone: get('partner-phone'),
+    notes: get('partner-notes')
+  };
+  try {
+    if (_partnerEditingId) {
+      await dbFetch('business_partners?id=eq.' + _partnerEditingId, {
+        method: 'PATCH',
+        prefer: 'return=minimal',
+        body
+      });
+      showToast('✓ Partner aktualisiert');
+    } else {
+      body.created_by = currentUser.id;
+      await dbFetch('business_partners?select=*', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body
+      });
+      showToast('✓ Partner angelegt');
+    }
+    closePartnerEdit();
+    await loadPartners();
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen: ' + (e.message || ''));
+  }
+}
+
+async function deletePartner() {
+  if (!_partnerEditingId) return;
+  const partner = _partners.find(p => p.id === _partnerEditingId);
+  if (!partner) return;
+  const ok = confirm('Partner wirklich löschen?\n\n' + partner.name);
+  if (!ok) return;
+  try {
+    // Soft-Delete um Referenzen aus späteren DDS-Einträgen nicht zu zerstören
+    await dbFetch('business_partners?id=eq.' + _partnerEditingId, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { deleted_at: new Date().toISOString() }
+    });
+    showToast('✓ Partner gelöscht');
+    closePartnerEdit();
+    await loadPartners();
+  } catch (e) {
+    showToast('⚠️ Löschen fehlgeschlagen: ' + (e.message || ''));
+  }
+}
+
+// ── BAUMARTEN ─────────────────────────────────────────────────────────
+
+function renderBaumarten() {
+  const el = document.getElementById('std-baumarten-list');
+  if (!el) return;
+  el.innerHTML = Object.entries(BAUMART_MAPPING).map(([key, b]) => `
+    <div class="std-baumart-row">
+      <div class="std-baumart-emoji">${b.emoji}</div>
+      <div class="std-baumart-info">
+        <div class="std-baumart-name">${key}</div>
+        <div class="std-baumart-latin">${b.latin}</div>
+      </div>
+      <div class="std-baumart-hs">HS ${b.hsCode}</div>
+    </div>
+  `).join('');
+}
+
+// ── WINDOW-BINDINGS ───────────────────────────────────────────────────
+window.openStammdaten = openStammdaten;
+window.closeStammdaten = closeStammdaten;
+window.switchStdTab = switchStdTab;
+window.saveFirmaStammdaten = saveFirmaStammdaten;
+window.filterPartners = filterPartners;
+window.openPartnerEdit = openPartnerEdit;
+window.closePartnerEdit = closePartnerEdit;
+window.selectPartnerType = selectPartnerType;
+window.savePartner = savePartner;
+window.deletePartner = deletePartner;
 
 
 // ── MARKER LÖSCHEN ────────────────────────────────────────────────
