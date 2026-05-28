@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="6.4">
+  <meta name="app-version" content="6.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '6.4'")) {
+        if (!txt.includes("APP_VERSION = '6.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7278,11 +7278,13 @@ let _trailGeneratedEdges = [];    // [[ [lat,lng], [lat,lng] ], ...] generated e
 let _trailSpacing      = 20;      // Meter
 let _trailOrientationMode = 'smart'; // 'smart'|'auto'|'road'|'ns'|'ew'
 
-// Wegezug-State (optionaler Anschluss-Weg, vom User vor den Optionen gezeichnet)
+// Wegezug-State (optionale Anschluss-Wege, vom User vor den Optionen gezeichnet)
 let _trailPathDrawing   = false;
-let _trailPath          = [];     // [[lat,lng],...] gezeichneter Anschluss-Weg
-let _trailPathLayer     = null;   // L.polyline
-let _trailPathMarkers   = [];     // L.marker[] sichtbare Weg-Eckpunkte
+let _trailPaths         = [];     // [ [[lat,lng],...], [[lat,lng],...], ... ] mehrere Wege
+let _trailPathLayers    = [];     // L.polyline[] (eine pro Weg)
+let _trailCurrentPath   = [];     // aktuell in Zeichnung befindlicher Weg
+let _trailCurrentPathLayer = null; // L.polyline der gerade gezeichneten Weg-Vorschau
+let _trailPathMarkers   = [];     // L.marker[] sichtbare Weg-Eckpunkte (nur aktueller Weg)
 
 // Sichtbare gespeicherte Pläne (für Karten-Anzeige)
 const _trailPlanLayers = {};  // { planId: { polygon, lines: L.polyline[], edges: L.polyline[], path: L.polyline } }
@@ -7478,7 +7480,7 @@ function _trailSimulateAngle(polyM, angle, spacingM) {
   return { totalLen, count, avgLen: count ? totalLen / count : 0 };
 }
 
-function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, accessPath) {
+function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, accessPaths) {
   if (polygonLatLng.length < 3) return { lines: [], edges: [], usedAngle: 0, modeUsed: orientationMode, avgLen: 0, note: '' };
 
   // Lokales metrisches System um Polygon-Schwerpunkt
@@ -7492,32 +7494,39 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
   // ── Hauptachse via PCA (= Linien längs zur langen Bestands-Achse) ──
   const principalAxis = trailPrincipalAxisAngle(polyM);
 
-  // ── Wegezug im lokalen System (falls vorhanden) ──
-  const pathM = (Array.isArray(accessPath) && accessPath.length >= 2)
-    ? accessPath.map(p => proj.toLocal(p[0], p[1], cLat, cLng))
-    : null;
+  // ── Anschluss-Wege im lokalen System (falls vorhanden) ──
+  // accessPaths kann ein Array von Pfaden ODER (alt) ein einzelner Pfad sein
+  let pathsArr = [];
+  if (Array.isArray(accessPaths)) {
+    if (accessPaths.length > 0 && Array.isArray(accessPaths[0]) && accessPaths[0].length > 0) {
+      if (typeof accessPaths[0][0] === 'number') {
+        // alter Format: ein einzelner Pfad = Array von [lat,lng]
+        pathsArr = [accessPaths];
+      } else {
+        // neuer Format: Array von Pfaden
+        pathsArr = accessPaths;
+      }
+    }
+  }
+  const pathsM = pathsArr
+    .filter(p => Array.isArray(p) && p.length >= 2)
+    .map(p => p.map(pt => proj.toLocal(pt[0], pt[1], cLat, cLng)));
 
   // ── Orientierung bestimmen ──
   let angle = principalAxis;
   let note = '';
-  let pathHintAngle = null;     // Gesamtrichtung des Wegs (Anfang → Ende)
-  let pathEndM      = null;     // Endpunkt des Wegs im lokalen System
-
-  if (pathM) {
-    // Wichtig: NICHT nur das letzte Segment — Gesamt-Richtung vom Anfang zum Ende ist
-    // robuster bei zickzack-Wegen
-    const first = pathM[0];
-    const last  = pathM[pathM.length - 1];
-    pathHintAngle = trailEdgeAngleDeg(first, last);
-    pathEndM      = last;
-  }
+  // Liste aller Weg-Richtungen (Anfang → Ende, je Pfad)
+  const pathHintAngles = pathsM.map(pM => {
+    const first = pM[0], last = pM[pM.length - 1];
+    return trailEdgeAngleDeg(first, last);
+  });
+  // Endpunkte für Start-Logik
+  const pathEndsM = pathsM.map(pM => pM[pM.length - 1]);
 
   let roadAngle = null;
   if (orientationMode === 'smart') {
-    // ── BRUTE-FORCE: probiere mehrere Kandidaten-Winkel, wähle den mit den meisten
-    //    Gesamtstreckenmetern — das ist die "AI"-Logik die der User erwartet.
-    //    Vorteile gegenüber reiner PCA: robust auch wenn Polygon-Vertices ungleich
-    //    verteilt sind oder PCA wegen Vertex-Häufung den "falschen" Eigenvektor wählt.
+    // ── BRUTE-FORCE: probiere mehrere Kandidaten-Winkel ──
+    // Score = durchschnittliche Gassenlänge (avgLen) — bestraft kurze, belohnt lange Gassen
     const longestEdgeAngle = trailLongestEdge(polyM);
     const candidates = [
       { angle: principalAxis,         label: 'Hauptachse (PCA)' },
@@ -7525,33 +7534,38 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
       { angle: longestEdgeAngle,      label: 'Längste Polygon-Kante' },
       { angle: longestEdgeAngle + 90, label: 'Senkrecht zur längsten Kante' }
     ];
-    if (pathHintAngle !== null) {
-      candidates.push({ angle: pathHintAngle,      label: 'parallel zum Weg' });
-      candidates.push({ angle: pathHintAngle + 90, label: 'senkrecht zum Weg (vom Weg ab)' });
-    }
-    // Achsen-ausgerichtete Varianten auch testen
+    // Pro Anschluss-Weg: zwei Kandidaten (parallel + senkrecht)
+    pathHintAngles.forEach((pa, idx) => {
+      const wegNr = idx + 1;
+      candidates.push({ angle: pa,      label: 'parallel zu Weg ' + wegNr });
+      candidates.push({ angle: pa + 90, label: 'senkrecht zu Weg ' + wegNr });
+    });
+    // Achsen-ausgerichtete Varianten als Fallback
     candidates.push({ angle: 0,  label: 'Ost-West' });
     candidates.push({ angle: 90, label: 'Nord-Süd' });
 
-    // Simulieren und Sieger wählen — Score = Gesamt-Streckenmeter
     let bestScore = -1;
     let bestCandidate = candidates[0];
     let bestSim = null;
     candidates.forEach(c => {
       const sim = _trailSimulateAngle(polyM, c.angle, spacingM);
-      // Score: totalLen (gleichbedeutend mit "Maschinen-Streckenmeter").
-      // Bonus: wenn ein Weg gezeichnet ist und dieser Kandidat zur Weg-Anschluss-Logik passt
-      let bonus = 1;
-      if (pathHintAngle !== null && (c.label.includes('zum Weg') || c.label.includes('Hauptachse'))) {
-        bonus = 1.05;
+      // Mindestens 2 Gassen — sonst macht's keinen Sinn
+      if (sim.count < 2) return;
+      // Score: durchschnittliche Linienlänge (=> lange Gassen werden bevorzugt)
+      let score = sim.avgLen;
+      // Kleiner Bonus für Weg-bezogene Kandidaten wenn Wege vorhanden
+      if (pathHintAngles.length > 0 && c.label.includes('zu Weg')) {
+        score *= 1.04;
       }
-      const score = sim.totalLen * bonus;
       if (score > bestScore) { bestScore = score; bestCandidate = c; bestSim = sim; }
     });
     angle = bestCandidate.angle;
+    const wegInfo = pathHintAngles.length > 0
+      ? ' · ' + pathHintAngles.length + ' Weg' + (pathHintAngles.length === 1 ? '' : 'e') + ' berücksichtigt'
+      : '';
     note  = '🧠 Beste Variante: ' + bestCandidate.label +
             ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' +
-            (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)';
+            (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)' + wegInfo;
   } else if (orientationMode === 'auto') {
     angle = principalAxis;
   } else if (orientationMode === 'ns') {
@@ -7594,13 +7608,18 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
   let yStart = minY + spacingM * 0.5;
   let direction = +1;
 
-  if (orientationMode === 'smart' && pathEndM) {
-    // Weg-Endpunkt rotieren, prüfen ob näher am unteren oder oberen Rand
-    const endR = rot(pathEndM);
-    const distToMin = Math.abs(endR.y - minY);
-    const distToMax = Math.abs(endR.y - maxY);
-    if (distToMax < distToMin) {
-      // Erste Gasse oben (am Weg), nach unten füllen
+  if (orientationMode === 'smart' && pathEndsM.length > 0) {
+    // Bei mehreren Wegen: nehme den Endpunkt der näher an einem Polygon-Rand liegt
+    // (in y-Richtung im rotierten System). Erste Gasse startet an diesem Rand.
+    let bestDistToMin = Infinity, bestDistToMax = Infinity;
+    pathEndsM.forEach(ep => {
+      const endR = rot(ep);
+      const dMin = Math.abs(endR.y - minY);
+      const dMax = Math.abs(endR.y - maxY);
+      if (dMin < bestDistToMin) bestDistToMin = dMin;
+      if (dMax < bestDistToMax) bestDistToMax = dMax;
+    });
+    if (bestDistToMax < bestDistToMin) {
       yStart    = maxY - spacingM * 0.5;
       direction = -1;
     } else {
@@ -7730,11 +7749,11 @@ function startTrailPlanning() {
   _clearTrailPreview();
   _clearTrailPointMarkers();
   _clearTrailPathMarkers();
-  if (_trailPathLayer) { try { map.removeLayer(_trailPathLayer); } catch {} _trailPathLayer = null; }
+  _clearTrailPathLayers();
   _trailPolygon = [];
-  _trailPath = [];
+  _trailPaths = [];
+  _trailCurrentPath = [];
   _trailDrawing = true;
-  // Body-Klasse aktiviert CSS das alle Karten-Vektoren klick-durchlässig macht
   document.body.classList.add('trail-drawing');
   _trailPolyLayer = L.polygon([], {
     color: '#d8a060', weight: 3, opacity: .9,
@@ -7845,27 +7864,43 @@ function skipTrailPath() {
 }
 
 function startTrailPathDrawing() {
+  // Verbirgt das initiale "Wegezug zeichnen?"-Sheet
   const choice = document.getElementById('trail-path-choice');
   if (choice) choice.style.display = 'none';
+  _startSingleTrailPath();
+}
+
+function startNextTrailPath() {
+  // Wird vom "Noch einen Weg?"-Sheet aufgerufen
+  const more = document.getElementById('trail-path-more');
+  if (more) more.style.display = 'none';
+  _startSingleTrailPath();
+}
+
+// Gemeinsame Logik: einen neuen Weg starten (wird vom ersten und allen weiteren Wegen genutzt)
+function _startSingleTrailPath() {
   _trailPathDrawing = true;
-  document.body.classList.add('trail-drawing');  // gleiches CSS für klick-durchlässige Karte
-  _trailPath = [];
-  _trailPathLayer = L.polyline([], {
+  document.body.classList.add('trail-drawing');
+  _trailCurrentPath = [];
+  _trailCurrentPathLayer = L.polyline([], {
     color: '#5294d0', weight: 4, opacity: .9, dashArray: '8,4'
   }).addTo(map);
   map.on('click', _onTrailPathClick);
-  setTxt('Wegezug: Punkte entlang des Wegs antippen');
+  const wegNr = _trailPaths.length + 1;
+  setTxt('Weg ' + wegNr + ': Punkte entlang des Wegs antippen');
+  const label = document.getElementById('trail-path-bar-label');
+  if (label) label.textContent = '🛣 Weg ' + wegNr + ':';
   const bar = document.getElementById('trail-path-bar');
   if (bar) bar.classList.remove('hidden');
 }
 
 function _onTrailPathClick(e) {
   if (!_trailPathDrawing) return;
-  _trailPath.push([e.latlng.lat, e.latlng.lng]);
-  _trailPathLayer.setLatLngs(_trailPath);
+  _trailCurrentPath.push([e.latlng.lat, e.latlng.lng]);
+  _trailCurrentPathLayer.setLatLngs(_trailCurrentPath);
 
-  // Sichtbarer Punkt-Marker (Pfeil-Style — blau)
-  const idx = _trailPath.length - 1;
+  // Sichtbarer Punkt-Marker
+  const idx = _trailCurrentPath.length - 1;
   const m = L.marker([e.latlng.lat, e.latlng.lng], {
     icon: L.divIcon({
       className: 'trail-pt-marker',
@@ -7876,36 +7911,66 @@ function _onTrailPathClick(e) {
   }).addTo(map);
   _trailPathMarkers.push(m);
 
-  setTxt('Wegezug: ' + _trailPath.length + ' Punkt' + (_trailPath.length === 1 ? '' : 'e'));
+  const wegNr = _trailPaths.length + 1;
+  setTxt('Weg ' + wegNr + ': ' + _trailCurrentPath.length + ' Punkt' + (_trailCurrentPath.length === 1 ? '' : 'e'));
 }
 
 function undoTrailPathPoint() {
-  if (!_trailPathDrawing || !_trailPath.length) return;
-  _trailPath.pop();
-  _trailPathLayer.setLatLngs(_trailPath);
+  if (!_trailPathDrawing || !_trailCurrentPath.length) return;
+  _trailCurrentPath.pop();
+  _trailCurrentPathLayer.setLatLngs(_trailCurrentPath);
   const m = _trailPathMarkers.pop();
   if (m) { try { map.removeLayer(m); } catch {} }
-  setTxt('Wegezug: ' + _trailPath.length + ' Punkte');
+  const wegNr = _trailPaths.length + 1;
+  setTxt('Weg ' + wegNr + ': ' + _trailCurrentPath.length + ' Punkte');
 }
 
 function finishTrailPath() {
-  if (_trailPath.length < 2) {
+  if (_trailCurrentPath.length < 2) {
     showToast('Mindestens 2 Punkte für einen Weg');
     return;
   }
+  // Aktuellen Weg in die Liste übernehmen
+  _trailPaths.push(_trailCurrentPath.slice());
+  // Das gezeichnete Layer übernimmt jetzt einen "fertigen" Look und kommt in die Layers-Liste
+  if (_trailCurrentPathLayer) {
+    _trailCurrentPathLayer.setStyle({ dashArray: null, opacity: .85 });
+    _trailPathLayers.push(_trailCurrentPathLayer);
+  }
+  _trailCurrentPath = [];
+  _trailCurrentPathLayer = null;
+
+  // Klick-Handler vom Weg-Modus abmelden, Cleanup
   map.off('click', _onTrailPathClick);
   _trailPathDrawing = false;
   document.body.classList.remove('trail-drawing');
+  _clearTrailPathMarkers();
   const bar = document.getElementById('trail-path-bar');
   if (bar) bar.classList.add('hidden');
-  // Weg-Eckpunkt-Marker aufräumen — Weg ist durch die Polyline sichtbar
-  _clearTrailPathMarkers();
+
+  // "Noch einen?" Sheet zeigen
+  const more  = document.getElementById('trail-path-more');
+  const label = document.getElementById('trail-path-count-label');
+  if (label) label.textContent = _trailPaths.length + '. Weg';
+  if (more)  more.style.display = 'flex';
+}
+
+function finishAllTrailPaths() {
+  const more = document.getElementById('trail-path-more');
+  if (more) more.style.display = 'none';
   _openTrailOptionsSheet();
 }
 
 function _clearTrailPathMarkers() {
   _trailPathMarkers.forEach(m => { try { map.removeLayer(m); } catch {} });
   _trailPathMarkers = [];
+}
+
+// Alle Weg-Layer wegputzen (alle abgeschlossenen + aktueller in Bearbeitung)
+function _clearTrailPathLayers() {
+  _trailPathLayers.forEach(l => { try { map.removeLayer(l); } catch {} });
+  _trailPathLayers = [];
+  if (_trailCurrentPathLayer) { try { map.removeLayer(_trailCurrentPathLayer); } catch {} _trailCurrentPathLayer = null; }
 }
 
 function cancelTrailPlanning() {
@@ -7915,10 +7980,11 @@ function cancelTrailPlanning() {
   try { map.off('click', _onTrailDrawClick); } catch {}
   try { map.off('click', _onTrailPathClick); } catch {}
   _trailPolygon = [];
-  _trailPath = [];
+  _trailPaths = [];
+  _trailCurrentPath = [];
   _clearTrailPointMarkers();
   _clearTrailPathMarkers();
-  if (_trailPathLayer) { try { map.removeLayer(_trailPathLayer); } catch {} _trailPathLayer = null; }
+  _clearTrailPathLayers();
   _clearTrailPreview();
   const bar1 = document.getElementById('trail-draw-bar');
   if (bar1) bar1.classList.add('hidden');
@@ -7926,6 +7992,8 @@ function cancelTrailPlanning() {
   if (bar2) bar2.classList.add('hidden');
   const choice = document.getElementById('trail-path-choice');
   if (choice) choice.style.display = 'none';
+  const more = document.getElementById('trail-path-more');
+  if (more) more.style.display = 'none';
   const ov = document.getElementById('trail-opts-overlay');
   if (ov) ov.style.display = 'none';
   setTxt('Planung abgebrochen');
@@ -7984,7 +8052,8 @@ function _renderTrailPreview() {
   if (_trailPolygon.length < 3) return;
 
   const { lines, edges, usedAngle, avgLen, note } = trailGenerateParallels(
-    _trailPolygon, _trailSpacing, _trailOrientationMode, _trailPath.length >= 2 ? _trailPath : null
+    _trailPolygon, _trailSpacing, _trailOrientationMode,
+    _trailPaths.length > 0 ? _trailPaths : null
   );
   _trailGenerated      = lines;
   _trailGeneratedEdges = edges;
@@ -8016,8 +8085,8 @@ function _renderTrailPreview() {
     }[_trailOrientationMode] || _trailOrientationMode;
     let aDisplay = ((usedAngle % 180) + 180) % 180;
     if (aDisplay > 90) aDisplay -= 180;
-    const pathBadge = _trailPath.length >= 2
-      ? '<span style="color:#7eaeec;">🛣 Anschluss-Weg gezeichnet</span><br>'
+    const pathBadge = _trailPaths.length > 0
+      ? '<span style="color:#7eaeec;">🛣 ' + _trailPaths.length + ' Anschluss-Weg' + (_trailPaths.length === 1 ? '' : 'e') + ' gezeichnet</span><br>'
       : '';
     const edgeBadge = edges.length > 0
       ? '<br><span style="color:#ff8b6d;">+ ' + edges.length + ' Eckgasse' + (edges.length === 1 ? '' : 'n') + ' (Coverage)</span>'
@@ -8076,7 +8145,7 @@ async function saveTrailPlan() {
         polygon: _trailPolygon,
         lines: _trailGenerated,
         edge_lines:  _trailGeneratedEdges.length ? _trailGeneratedEdges : null,
-        access_path: _trailPath.length >= 2 ? _trailPath : null,
+        access_path: _trailPaths.length > 0 ? _trailPaths : null,
         spacing_m: _trailSpacing,
         orientation_deg: 0,
         trail_count: _trailGenerated.length + _trailGeneratedEdges.length,
@@ -8090,9 +8159,10 @@ async function saveTrailPlan() {
       _trailPolygon = [];
       _trailGenerated = [];
       _trailGeneratedEdges = [];
-      _trailPath = [];
+      _trailPaths = [];
+      _trailCurrentPath = [];
       if (_trailPolyLayer)  { try { map.removeLayer(_trailPolyLayer); } catch {} _trailPolyLayer = null; }
-      if (_trailPathLayer)  { try { map.removeLayer(_trailPathLayer); } catch {} _trailPathLayer = null; }
+      _clearTrailPathLayers();
       _trailLineLayers.forEach(l => { try { map.removeLayer(l); } catch {} });
       _trailLineLayers = [];
       _trailEdgeLayers.forEach(l => { try { map.removeLayer(l); } catch {} });
@@ -8116,7 +8186,17 @@ function _renderSavedTrailPlan(plan) {
   const polygon  = Array.isArray(plan.polygon)     ? plan.polygon     : [];
   const lines    = Array.isArray(plan.lines)       ? plan.lines       : [];
   const edges    = Array.isArray(plan.edge_lines)  ? plan.edge_lines  : [];
-  const accPath  = Array.isArray(plan.access_path) ? plan.access_path : [];
+
+  // access_path: kann altes Format (einzelner Pfad) oder neues (Array von Pfaden) sein
+  let accPaths = [];
+  const stored = plan.access_path;
+  if (Array.isArray(stored) && stored.length > 0 && Array.isArray(stored[0]) && stored[0].length > 0) {
+    if (typeof stored[0][0] === 'number') {
+      accPaths = [stored];                    // alter Format
+    } else {
+      accPaths = stored;                      // neuer Format
+    }
+  }
 
   const polyLayer = polygon.length >= 3
     ? L.polygon(polygon, {
@@ -8136,17 +8216,18 @@ function _renderSavedTrailPlan(plan) {
   const edgeLayers = edges.map(seg =>
     L.polyline(seg, { color: '#ff6b3d', weight: 2.5, opacity: .85, dashArray: '6,2' }).addTo(map)
   );
-  const pathLayer = accPath.length >= 2
-    ? L.polyline(accPath, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4' }).addTo(map)
-    : null;
-  _trailPlanLayers[plan.id] = { polygon: polyLayer, lines: lineLayers, edges: edgeLayers, path: pathLayer };
+  const pathLayers = accPaths
+    .filter(p => Array.isArray(p) && p.length >= 2)
+    .map(p => L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4' }).addTo(map));
+
+  _trailPlanLayers[plan.id] = { polygon: polyLayer, lines: lineLayers, edges: edgeLayers, paths: pathLayers };
 }
 
 function _removeSavedTrailPlan(planId) {
   const entry = _trailPlanLayers[planId];
   if (!entry) return;
   if (entry.polygon) { try { map.removeLayer(entry.polygon); } catch {} }
-  if (entry.path)    { try { map.removeLayer(entry.path); }    catch {} }
+  (entry.paths || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   (entry.lines || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   (entry.edges || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   delete _trailPlanLayers[planId];
@@ -8267,7 +8348,13 @@ async function exportTrailPlanGpx(planId) {
     const plan = data[0];
     const lines   = Array.isArray(plan.lines)       ? plan.lines       : [];
     const edges   = Array.isArray(plan.edge_lines)  ? plan.edge_lines  : [];
-    const accPath = Array.isArray(plan.access_path) ? plan.access_path : [];
+    // access_path Multi-Format Detection
+    let accPaths = [];
+    const stored = plan.access_path;
+    if (Array.isArray(stored) && stored.length > 0 && Array.isArray(stored[0]) && stored[0].length > 0) {
+      if (typeof stored[0][0] === 'number') accPaths = [stored];
+      else accPaths = stored;
+    }
     if (lines.length === 0 && edges.length === 0) { showToast('Keine Fahrgassen im Plan'); return; }
     const now = new Date().toISOString();
     const escapeXml = s => String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
@@ -8277,14 +8364,15 @@ async function exportTrailPlanGpx(planId) {
     gpx += '    <name>' + escapeXml(plan.name || 'Fahrgassen') + '</name>\n';
     gpx += '    <time>' + now + '</time>\n';
     gpx += '  </metadata>\n';
-    // Anschluss-Weg zuerst (wenn vorhanden)
-    if (accPath.length >= 2) {
-      gpx += '  <trk>\n    <name>Anschluss-Weg</name>\n    <trkseg>\n';
-      accPath.forEach(p => {
+    // Anschluss-Wege zuerst (alle)
+    accPaths.forEach((path, idx) => {
+      if (!Array.isArray(path) || path.length < 2) return;
+      gpx += '  <trk>\n    <name>Anschluss-Weg ' + (accPaths.length > 1 ? (idx + 1) : '') + '</name>\n    <trkseg>\n';
+      path.forEach(p => {
         gpx += '      <trkpt lat="' + p[0].toFixed(6) + '" lon="' + p[1].toFixed(6) + '"></trkpt>\n';
       });
       gpx += '    </trkseg>\n  </trk>\n';
-    }
+    });
     // Hauptgassen
     lines.forEach((seg, idx) => {
       gpx += '  <trk>\n    <name>Gasse ' + (idx + 1) + '</name>\n    <trkseg>\n';
@@ -8322,6 +8410,8 @@ window.finishTrailPolygon   = finishTrailPolygon;
 window.cancelTrailPlanning  = cancelTrailPlanning;
 window.skipTrailPath        = skipTrailPath;
 window.startTrailPathDrawing = startTrailPathDrawing;
+window.startNextTrailPath   = startNextTrailPath;
+window.finishAllTrailPaths  = finishAllTrailPaths;
 window.undoTrailPathPoint   = undoTrailPathPoint;
 window.finishTrailPath      = finishTrailPath;
 window.setTrailSpacing      = setTrailSpacing;
@@ -11095,7 +11185,7 @@ window.runPdfExport = runPdfExport;
      z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
      padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
      -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
-  <span style="color:#7eaeec;font-size:12px;font-weight:600;align-self:center;margin-right:4px;">🛣 Wegezug:</span>
+  <span id="trail-path-bar-label" style="color:#7eaeec;font-size:12px;font-weight:600;align-self:center;margin-right:4px;">🛣 Weg 1:</span>
   <button onclick="undoTrailPathPoint()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;cursor:pointer;">↩ Zurück</button>
   <button onclick="cancelTrailPlanning()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(200,60,40,.6);color:#fff;font-family:inherit;font-size:13px;cursor:pointer;">✕ Abbrechen</button>
   <button onclick="finishTrailPath()" style="padding:10px 16px;border:none;border-radius:10px;background:#3a7abc;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">✓ Weg fertig</button>
@@ -11104,11 +11194,23 @@ window.runPdfExport = runPdfExport;
 <!-- Sheet zur Frage "Wegezug zeichnen?" zwischen Polygon und Optionen -->
 <div id="trail-path-choice" style="display:none;position:fixed;inset:0;z-index:9745;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)cancelTrailPlanning()">
   <div style="background:linear-gradient(175deg,#1e2818,#0f1f10);border:1px solid rgba(255,255,255,.07);border-radius:18px;max-width:440px;width:100%;padding:24px;color:#c8e6c0;box-shadow:0 12px 40px rgba(0,0,0,.5);">
-    <h3 style="margin:0 0 10px;font-size:17px;font-weight:600;color:#d8a060;">🛣 Wegezug einzeichnen?</h3>
-    <p style="font-size:13px;color:#a0c8a0;line-height:1.55;margin:0 0 18px;">Tippe ein paar Punkte entlang des Anschluss-Wegs zum Bestand. Der Smart-Algorithmus orientiert die erste Gasse dann am Ende dieses Wegs.<br><br><span style="color:#7a9a7a;font-size:12px;">Optional — du kannst auch direkt zu den Gassen-Optionen.</span></p>
+    <h3 style="margin:0 0 10px;font-size:17px;font-weight:600;color:#d8a060;">🛣 Anschluss-Wege einzeichnen?</h3>
+    <p style="font-size:13px;color:#a0c8a0;line-height:1.55;margin:0 0 18px;">Tippe Punkte entlang der Anschluss-Wege zum Bestand. Du kannst auch <b>mehrere Wege</b> nacheinander zeichnen — der Smart-Algorithmus berücksichtigt alle und sucht das beste Gassen-Layout.<br><br><span style="color:#7a9a7a;font-size:12px;">Optional — überspringen geht direkt zu den Optionen.</span></p>
     <div style="display:flex;gap:8px;">
       <button onclick="skipTrailPath()" style="flex:1;padding:13px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#d8d8d8;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Überspringen</button>
       <button onclick="startTrailPathDrawing()" style="flex:2;padding:13px;border-radius:11px;border:none;background:linear-gradient(135deg,#3a7abc,#5294d0);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">🛣 Weg zeichnen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sheet zur Frage "Noch einen Weg zeichnen?" zwischen zwei Wegen -->
+<div id="trail-path-more" style="display:none;position:fixed;inset:0;z-index:9745;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:linear-gradient(175deg,#1e2818,#0f1f10);border:1px solid rgba(255,255,255,.07);border-radius:18px;max-width:440px;width:100%;padding:24px;color:#c8e6c0;box-shadow:0 12px 40px rgba(0,0,0,.5);">
+    <h3 style="margin:0 0 10px;font-size:17px;font-weight:600;color:#5294d0;">🛣 <span id="trail-path-count-label">Weg</span> gespeichert</h3>
+    <p style="font-size:13px;color:#a0c8a0;line-height:1.55;margin:0 0 18px;">Möchtest du noch einen Weg zeichnen? Mehrere Anschlüsse helfen dem Smart-Algorithmus die beste Gassen-Orientierung zu finden.</p>
+    <div style="display:flex;gap:8px;">
+      <button onclick="finishAllTrailPaths()" style="flex:1;padding:13px;border-radius:11px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#d8d8d8;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">✓ Fertig</button>
+      <button onclick="startNextTrailPath()" style="flex:2;padding:13px;border-radius:11px;border:none;background:linear-gradient(135deg,#3a7abc,#5294d0);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">+ Noch ein Weg</button>
     </div>
   </div>
 </div>
