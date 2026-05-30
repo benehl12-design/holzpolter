@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.4">
+  <meta name="app-version" content="9.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.4'")) {
+        if (!txt.includes("APP_VERSION = '9.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9248,16 +9248,8 @@ function cmpGenerateRibsAlongRoad(polygonLatLng, roadLatLng, spacingM, splitAtRo
   return out;
 }
 
-// Gassen für ein Abteil erzeugen — je nach Modus: dem Weg folgend (senkrecht)
-// oder festes Raster bei festem Winkel.
+// Gassen für ein Abteil erzeugen — festes Raster bei festem Winkel.
 function cmpComputeLines(cmp) {
-  if (cmp.followRoad !== false) {
-    const road = cmpNearestRoad(cmp.polygon);
-    if (road) {
-      const ribs = cmpGenerateRibsAlongRoad(cmp.polygon, road, cmp.spacing, cmp.splitAtRoad);
-      if (ribs.length) return ribs;
-    }
-  }
   return cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
 }
 
@@ -9671,6 +9663,7 @@ function cmpFinishCompartment() {
 
 function cmpSelect(id) {
   _cmpSelectedId = id;
+  _cmpPanelOpen = true;   // Steuerung zeigen
   cmpRenderAll();   // Auswahl-Hervorhebung + Eckpunkte aktualisieren
   cmpUpdatePanel();
 }
@@ -9777,49 +9770,69 @@ function _cmpShowPanel() {
   cmpUpdatePanel();
 }
 
+let _cmpPanelOpen = false;   // ausgeklappt?
+function cmpTogglePanel() { _cmpPanelOpen = !_cmpPanelOpen; cmpUpdatePanel(); }
+window.cmpTogglePanel = cmpTogglePanel;
+
 function cmpUpdatePanel() {
   const p = document.getElementById('cmp-panel');
   if (!p) return;
   const c = cmpGetSelected();
+  const n = _cmpCompartments.length;
+
+  // ── EINGEKLAPPT: schmale Leiste mit Kernaktionen ──
+  const collapsedRow =
+    '<div style="display:flex;gap:8px;align-items:center;">' +
+      '<button onclick="cmpTogglePanel()" aria-label="Aufklappen" style="flex:0 0 auto;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:18px;cursor:pointer;">' + (_cmpPanelOpen ? '▾' : '▸') + '</button>' +
+      '<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;line-height:1.3;">' +
+        '<b style="color:#fff;">🚜 ' + (n ? n + ' Abteil' + (n===1?'':'e') : 'Abteil-Editor') + '</b>' +
+        (c ? '<br><span style="color:#ffd070;font-size:12px;">Abteil ' + c.id + ' · ' + c.lines.length + ' Gassen</span>' : '<br><span style="color:#a0c8a0;font-size:12px;">Fläche zeichnen oder Auto</span>') +
+      '</div>' +
+      '<button onclick="cmpStartDrawCompartment()" style="flex:0 0 auto;height:44px;padding:0 14px;border-radius:12px;border:none;background:linear-gradient(135deg,#4aaa4a,#3a8a3a);color:#fff;font-size:20px;font-weight:700;cursor:pointer;" aria-label="Abteil zeichnen">+</button>' +
+      '<button onclick="cmpSave()" style="flex:0 0 auto;height:44px;padding:0 14px;border-radius:12px;border:none;background:linear-gradient(135deg,#e08020,#d87010);color:#fff;font-size:18px;cursor:pointer;" aria-label="Speichern">💾</button>' +
+    '</div>';
+
+  if (!_cmpPanelOpen) {
+    p.innerHTML = collapsedRow;
+    return;
+  }
+
+  // ── AUSGEKLAPPT: volle Steuerung ──
   const list = _cmpCompartments.map(x =>
-    '<button onclick="cmpSelect(' + x.id + ')" style="display:inline-flex;align-items:center;gap:5px;margin:2px;padding:5px 9px;border-radius:8px;border:1px solid ' +
+    '<button onclick="cmpSelect(' + x.id + ')" style="display:inline-flex;align-items:center;gap:6px;margin:3px;padding:9px 12px;border-radius:10px;border:1px solid ' +
     (x.id===_cmpSelectedId?'#ffd070':'rgba(255,255,255,.15)') + ';background:' +
-    (x.id===_cmpSelectedId?'rgba(255,208,112,.18)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' +
-    '<span style="width:10px;height:10px;border-radius:50%;background:' + x.color + ';"></span>Abteil ' + x.id + ' · ' + x.lines.length + '</button>'
+    (x.id===_cmpSelectedId?'rgba(255,208,112,.18)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:14px;cursor:pointer;">' +
+    '<span style="width:12px;height:12px;border-radius:50%;background:' + x.color + ';"></span>Abteil ' + x.id + '</button>'
   ).join('');
 
-  const follow = (c && c.followRoad !== false);
   const ctrl = c ? (
-    '<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);">' +
-      '<div style="font-size:12px;color:#ffd070;font-weight:600;margin-bottom:8px;">Abteil ' + c.id + ' bearbeiten</div>' +
-      '<button onclick="cmpToggleFollow()" style="width:100%;padding:9px;border-radius:9px;margin-bottom:8px;border:1px solid ' + (follow?'rgba(126,200,160,.5)':'rgba(255,255,255,.15)') + ';background:' + (follow?'rgba(126,200,160,.2)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' + (follow?'🧭 ✓ Gassen senkrecht zum Weg (folgen der Kurve)':'📐 Festes Raster (fester Winkel)') + '</button>' +
-      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">' +
-        (follow ? '' : '<button onclick="cmpRotate90()" style="flex:1;padding:9px;border-radius:9px;border:none;background:#3a7abc;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">↻ 90°</button>') +
-        '<button onclick="cmpToggleSplit()" style="flex:1;padding:9px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
-        '<button onclick="cmpDeleteSelected()" style="padding:9px 11px;border-radius:9px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.18);color:#ffb0a0;font-family:inherit;font-size:12px;cursor:pointer;">🗑</button>' +
+    '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">' +
+      '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:10px;">Abteil ' + c.id + ' (' + c.lines.length + ' Gassen)</div>' +
+      '<div style="font-size:12px;color:#a0c8a0;margin-bottom:4px;">Drehung: <b style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
+        '<button onclick="cmpRotate90()" style="flex:0 0 auto;padding:13px 16px;border-radius:12px;border:none;background:#3a7abc;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">↻ 90°</button>' +
+        '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngle(this.value)" style="flex:1;accent-color:#ffd070;">' +
       '</div>' +
-      (follow ? '' :
-        '<div style="font-size:11px;color:#a0c8a0;margin-bottom:3px;">Drehung: <b style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b></div>' +
-        '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngle(this.value)" style="width:100%;margin-bottom:8px;accent-color:#ffd070;">') +
-      '<div style="display:flex;gap:6px;align-items:center;">' +
-        '<span style="font-size:11px;color:#a0c8a0;">Abstand</span>' +
-        '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:60px;padding:6px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-family:inherit;font-size:13px;"><span style="font-size:11px;color:#a0c8a0;">m</span>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
+        '<button onclick="cmpToggleSplit()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:13px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
+        '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 12px;">' +
+          '<span style="font-size:12px;color:#a0c8a0;">Abstand</span>' +
+          '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:48px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>' +
+        '</div>' +
       '</div>' +
+      '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">🗑 Abteil löschen</button>' +
     '</div>'
-  ) : '<div style="margin-top:8px;font-size:12px;color:#a0c8a0;">Tippe ein Abteil an zum Bearbeiten, oder lege ein neues an.</div>';
+  ) : '<div style="margin-top:10px;font-size:13px;color:#a0c8a0;line-height:1.4;">Tippe ein Abteil an zum Bearbeiten — oder zeichne die ganze Fläche und nutze „🪄 Auto".</div>';
 
   p.innerHTML =
-    '<div style="font-size:14px;font-weight:600;color:#fff;margin-bottom:8px;">🚜 Abteil-Editor</div>' +
-    '<input id="cmp-name" placeholder="Name (z.B. Schlag Nord)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-family:inherit;font-size:13px;margin-bottom:8px;">' +
-    '<div style="display:flex;flex-wrap:wrap;">' + (list || '<span style="font-size:12px;color:#a0c8a0;">Noch keine Abteile</span>') + '</div>' +
-    ctrl +
-    '<div style="display:flex;gap:6px;margin-top:12px;">' +
-      '<button onclick="cmpStartDrawCompartment()" style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#4aaa4a,#3a8a3a);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">+ Abteil zeichnen</button>' +
-      '<button onclick="cmpSave()" style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#e08020,#d87010);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">💾 Speichern</button>' +
-      '<button onclick="cmpCancel()" style="flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#d8d8d8;font-family:inherit;font-size:12px;cursor:pointer;">✕</button>' +
-    '</div>' +
-    '<button onclick="cmpAutoSplit()" style="width:100%;margin-top:8px;padding:11px;border-radius:10px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.14);color:#ffd070;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">🪄 Auto: an Wegen in Abteile teilen</button>' +
-    '<div style="font-size:11px;color:#7a9a7a;margin-top:6px;line-height:1.4;">Tipp: ganze Fläche als <b>ein</b> Abteil zeichnen, dann „Auto" — wird an den Wegen geteilt, Gassen je Abteil senkrecht zum nächsten Weg. Danach frei editierbar.</div>';
+    collapsedRow +
+    '<div style="margin-top:12px;">' +
+      '<input id="cmp-name" placeholder="Name (z.B. Schlag Nord)" value="' + (document.getElementById('cmp-name')?.value || '') + '" style="width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:14px;margin-bottom:10px;">' +
+      '<div style="display:flex;flex-wrap:wrap;">' + (list || '<span style="font-size:13px;color:#a0c8a0;">Noch keine Abteile</span>') + '</div>' +
+      ctrl +
+      '<button onclick="cmpAutoSplit()" style="width:100%;margin-top:12px;padding:13px;border-radius:12px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.14);color:#ffd070;font-size:14px;font-weight:700;cursor:pointer;">🪄 Auto: an Wegen teilen</button>' +
+      '<button onclick="cmpCancel()" style="width:100%;margin-top:8px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#d8d8d8;font-size:13px;cursor:pointer;">✕ Editor schließen</button>' +
+    '</div>';
 }
 
 window.startCompartmentEditor = startCompartmentEditor;
@@ -12632,15 +12645,21 @@ window.runPdfExport = runPdfExport;
 <style>
 #cmp-panel {
   position: fixed; top: calc(env(safe-area-inset-top,0px) + 70px); right: 8px;
-  z-index: 1250; width: 320px; max-width: calc(100vw - 16px);
-  background: linear-gradient(175deg, rgba(26,40,24,.97), rgba(15,28,16,.97));
+  z-index: 1250; width: 340px; max-width: calc(100vw - 16px);
+  background: linear-gradient(175deg, rgba(26,40,24,.98), rgba(15,28,16,.98));
   border: 1px solid rgba(255,255,255,.08); border-radius: 16px;
-  padding: 14px; color: #d8e8d0; box-shadow: 0 10px 36px rgba(0,0,0,.55);
+  padding: 12px; color: #d8e8d0; box-shadow: 0 10px 36px rgba(0,0,0,.55);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   max-height: calc(100vh - 90px); overflow-y: auto;
 }
 @media (max-width: 600px) {
-  #cmp-panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; max-height: 60vh; }
+  /* Untere Leiste: eingeklappt schmal (Höhe nach Inhalt), ausgeklappt scrollbar */
+  #cmp-panel {
+    left: 0; right: 0; width: auto; max-width: none; top: auto;
+    bottom: 0; border-radius: 18px 18px 0 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom,0px));
+    max-height: 75vh;
+  }
 }
 </style>
 
