@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.6">
+  <meta name="app-version" content="9.8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.6'")) {
+        if (!txt.includes("APP_VERSION = '9.8'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -5929,6 +5929,7 @@ map.on('click',e=>{
   if (typeof _trailDrawing !== 'undefined' && _trailDrawing) return;
   if (typeof _trailPathDrawing !== 'undefined' && _trailPathDrawing) return;
   if (typeof _cmpDrawing !== 'undefined' && _cmpDrawing) return;
+  if (typeof _cmpBending !== 'undefined' && _cmpBending) return;
   if(document.getElementById('panel').classList.contains('hidden'))openPanel(e.latlng,false);
 });
 
@@ -8441,6 +8442,7 @@ function _startSingleTrailPath() {
   if (label) label.textContent = '🛣 Weg ' + wegNr + ':';
   const bar = document.getElementById('trail-path-bar');
   if (bar) bar.classList.remove('hidden');
+  if (_cmpActive) { _cmpPanelOpen = false; cmpUpdatePanel(); }   // Editor-Leiste klein halten
 }
 
 function _onTrailPathClick(e) {
@@ -9248,8 +9250,94 @@ function cmpGenerateRibsAlongRoad(polygonLatLng, roadLatLng, spacingM, splitAtRo
   return out;
 }
 
-// Gassen für ein Abteil erzeugen — festes Raster bei festem Winkel.
+// ── LEITKURVE → PARALLELE GASSEN (Offset-Kurven) ──────────────────────
+function _cmpCatmullRom(pts, samplesPerSeg) {
+  if (pts.length < 3) return pts.slice();
+  const out = []; const P = [pts[0], ...pts, pts[pts.length - 1]];
+  for (let i = 1; i < P.length - 2; i++) {
+    const p0 = P[i-1], p1 = P[i], p2 = P[i+1], p3 = P[i+2];
+    for (let j = 0; j < samplesPerSeg; j++) {
+      const t = j / samplesPerSeg, t2 = t*t, t3 = t2*t;
+      out.push({
+        x: 0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+        y: 0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3)
+      });
+    }
+  }
+  out.push(pts[pts.length-1]); return out;
+}
+function _cmpOffsetPolyline(line, d) {
+  const n = line.length, raw = [];
+  for (let i = 0; i < n; i++) {
+    const a = line[Math.max(0,i-1)], b = line[Math.min(n-1,i+1)];
+    let tx = b.x-a.x, ty = b.y-a.y; const tl = Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+    raw.push({ x: line[i].x + (-ty)*d, y: line[i].y + (tx)*d });
+  }
+  return raw;
+}
+function _cmpSegX(a, b, c, d) {
+  const rx=b.x-a.x, ry=b.y-a.y, sx=d.x-c.x, sy=d.y-c.y; const den=rx*sy-ry*sx;
+  if (Math.abs(den)<1e-12) return null;
+  const t=((c.x-a.x)*sy-(c.y-a.y)*sx)/den, u=((c.x-a.x)*ry-(c.y-a.y)*rx)/den;
+  if (t>1e-6&&t<1-1e-6&&u>1e-6&&u<1-1e-6) return {x:a.x+rx*t,y:a.y+ry*t};
+  return null;
+}
+function _cmpRemoveLoops(line) {
+  let guard=0, changed=true;
+  while (changed && guard++<500) {
+    changed=false;
+    for (let i=0;i<line.length-1&&!changed;i++) for (let j=i+2;j<line.length-1;j++) {
+      const X=_cmpSegX(line[i],line[i+1],line[j],line[j+1]);
+      if (X) { line.splice(i+1,j-i,X); changed=true; break; }
+    }
+  }
+  return line;
+}
+function _cmpClipPolylineToPolygon(line, polyM) {
+  const pip=(px,py)=>trailPointInPolygon(px,py,polyM);
+  const segInts=(a,b)=>{const ts=[];const N=polyM.length;for(let j=0;j<N;j++){const c=polyM[j],d=polyM[(j+1)%N];const rx=b.x-a.x,ry=b.y-a.y,sx=d.x-c.x,sy=d.y-c.y;const den=rx*sy-ry*sx;if(Math.abs(den)<1e-12)continue;const t=((c.x-a.x)*sy-(c.y-a.y)*sx)/den;const u=((c.x-a.x)*ry-(c.y-a.y)*rx)/den;if(t>1e-9&&t<1-1e-9&&u>=-1e-9&&u<=1+1e-9)ts.push(t);}return ts.sort((x,y)=>x-y);};
+  const pieces=[]; let cur=[];
+  for (let i=0;i<line.length-1;i++) {
+    const a=line[i], b=line[i+1]; const ts=[0,...segInts(a,b),1];
+    for (let k=0;k<ts.length-1;k++) {
+      const t0=ts[k], t1=ts[k+1]; if (t1-t0<1e-9) continue;
+      const mx=a.x+(b.x-a.x)*(t0+t1)/2, my=a.y+(b.y-a.y)*(t0+t1)/2;
+      const p0={x:a.x+(b.x-a.x)*t0,y:a.y+(b.y-a.y)*t0}, p1={x:a.x+(b.x-a.x)*t1,y:a.y+(b.y-a.y)*t1};
+      if (pip(mx,my)) { if(!cur.length)cur.push(p0); cur.push(p1); }
+      else { if(cur.length){pieces.push(cur);cur=[];} }
+    }
+  }
+  if (cur.length) pieces.push(cur);
+  return pieces;
+}
+// Parallele Gassen als Offsets der Leitkurve, an Polygon geclippt.
+function cmpGenerateParallelOffsets(polygonLatLng, guidePtsLatLng, spacingM) {
+  if (!polygonLatLng || polygonLatLng.length<3 || !guidePtsLatLng || guidePtsLatLng.length<2) return [];
+  let cLat=0,cLng=0; polygonLatLng.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=polygonLatLng.length; cLng/=polygonLatLng.length;
+  const proj=trailLocalProjection(cLat);
+  const polyM=polygonLatLng.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  const guideRaw=guidePtsLatLng.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  const guide=_cmpCatmullRom(guideRaw, 10);
+  let minX=1e18,maxX=-1e18,minY=1e18,maxY=-1e18;
+  polyM.forEach(p=>{if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;});
+  const kMax=Math.ceil(Math.hypot(maxX-minX,maxY-minY)/spacingM)+1;
+  const MIN_LEN=Math.max(spacingM*0.3,5);
+  const out=[];
+  const toLL=(seg)=>seg.map(p=>{const ll=proj.toLatLng(p.x,p.y,cLat,cLng);return [ll.lat,ll.lng];});
+  const polyLen=(seg)=>{let L=0;for(let i=0;i<seg.length-1;i++)L+=Math.hypot(seg[i+1].x-seg[i].x,seg[i+1].y-seg[i].y);return L;};
+  for (let k=-kMax;k<=kMax;k++) {
+    const off = (k===0) ? guide : _cmpRemoveLoops(_cmpOffsetPolyline(guide, k*spacingM));
+    _cmpClipPolylineToPolygon(off, polyM).forEach(seg=>{ if(seg.length>=2 && polyLen(seg)>=MIN_LEN) out.push(toLL(seg)); });
+  }
+  return out;
+}
+
+// Gassen für ein Abteil erzeugen — gebogene Leitkurve (Offsets) oder festes Raster.
 function cmpComputeLines(cmp) {
+  if (cmp.guidePts && cmp.guidePts.length >= 3) {
+    const off = cmpGenerateParallelOffsets(cmp.polygon, cmp.guidePts, cmp.spacing);
+    if (off.length) return off;
+  }
   return cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
 }
 
@@ -9617,6 +9705,7 @@ function cmpStartDrawCompartment() {
   _cmpDrawLayer = L.polygon([], { color: '#ffd070', weight: 2, dashArray: '6,5', fillOpacity: .06 }).addTo(map);
   map.on('click', _cmpOnDrawClick);
   setTxt('Abteil zeichnen: Ecken antippen, dann „Abteil fertig“');
+  _cmpPanelOpen = false;   // Panel einklappen damit die Zeichnen-Leiste frei ist
   const bar = document.getElementById('cmp-draw-bar'); if (bar) bar.classList.remove('hidden');
   cmpUpdatePanel();
 }
@@ -9682,6 +9771,158 @@ function cmpSetAngle(deg) {
   cmpRegenLines(c);
 }
 
+// Nur Linien live neu zeichnen (kein Panel-Rebuild) — flüssiges Schieben.
+function cmpSetAngleLive(deg) {
+  const c = cmpGetSelected(); if (!c) return;
+  c.angleDeg = ((parseFloat(deg) % 180) + 180) % 180;
+  (c._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  c.lines = cmpComputeLines(c);
+  const col = c.color || '#e8b070';
+  c._lineLayers = c.lines.map(seg => L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map));
+  // nur die Gradanzeige direkt updaten (kein innerHTML-Rebuild → Regler bleibt greifbar)
+  const lbl = document.getElementById('cmp-angle-val'); if (lbl) lbl.textContent = Math.round(c.angleDeg) + '°';
+  const cnt = document.getElementById('cmp-rotate-count'); if (cnt) cnt.textContent = c.lines.length + ' Gassen';
+}
+window.cmpSetAngleLive = cmpSetAngleLive;
+
+// Eigener Drehmodus: Panel schrumpft auf eine kleine Leiste, Karte bleibt sichtbar.
+function cmpStartRotate() {
+  const c = cmpGetSelected(); if (!c) return;
+  _cmpRotating = true;
+  const p = document.getElementById('cmp-panel'); if (!p) return;
+  p.classList.add('rotating');
+  p.innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;">' +
+      '<button onclick="cmpRotate90Live()" style="flex:0 0 auto;width:54px;height:48px;border-radius:12px;border:none;background:#3a7abc;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">↻90°</button>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:12px;color:#a0c8a0;">Drehung <b id="cmp-angle-val" style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b> · <span id="cmp-rotate-count">' + c.lines.length + ' Gassen</span></div>' +
+        '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngleLive(this.value)" style="width:100%;height:36px;accent-color:#ffd070;">' +
+      '</div>' +
+      '<button onclick="cmpEndRotate()" style="flex:0 0 auto;height:48px;padding:0 16px;border-radius:12px;border:none;background:#4aaa4a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✓ Fertig</button>' +
+    '</div>';
+}
+function cmpRotate90Live() {
+  const c = cmpGetSelected(); if (!c) return;
+  c.angleDeg = ((c.angleDeg + 90) % 180 + 180) % 180;
+  cmpSetAngleLive(c.angleDeg);
+  const rng = document.querySelector('#cmp-panel input[type=range]'); if (rng) rng.value = Math.round(c.angleDeg);
+}
+function cmpEndRotate() {
+  _cmpRotating = false;
+  const p = document.getElementById('cmp-panel'); if (p) p.classList.remove('rotating');
+  _cmpPanelOpen = true;
+  cmpUpdatePanel();
+}
+window.cmpStartRotate = cmpStartRotate;
+window.cmpRotate90Live = cmpRotate90Live;
+window.cmpEndRotate = cmpEndRotate;
+
+// ── LEITKURVE BIEGEN (Kurven-Modus) ───────────────────────────────────
+let _cmpBending = false;
+let _cmpGuideLayer = null;
+let _cmpGuideHandles = [];
+
+// Gerade Leitkurve durch den Schwerpunkt in Gassenrichtung (angleDeg).
+function cmpBuildStraightGuide(cmp) {
+  let cLat=0,cLng=0; cmp.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=cmp.polygon.length; cLng/=cmp.polygon.length;
+  const proj=trailLocalProjection(cLat);
+  const polyM=cmp.polygon.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  let minX=1e18,maxX=-1e18,minY=1e18,maxY=-1e18;
+  polyM.forEach(p=>{if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;});
+  const diag=Math.hypot(maxX-minX,maxY-minY);
+  const a=cmp.angleDeg*Math.PI/180; const dx=Math.cos(a), dy=Math.sin(a);
+  const A={x:-dx*diag,y:-dy*diag}, B={x:dx*diag,y:dy*diag};
+  const llA=proj.toLatLng(A.x,A.y,cLat,cLng), llB=proj.toLatLng(B.x,B.y,cLat,cLng);
+  return [[llA.lat,llA.lng],[llB.lat,llB.lng]];
+}
+
+// Stützpunkte entlang der Grundrichtung sortieren (bleibt monoton)
+function cmpSortGuide(cmp) {
+  let cLat=0,cLng=0; cmp.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=cmp.polygon.length; cLng/=cmp.polygon.length;
+  const proj=trailLocalProjection(cLat);
+  const a=cmp.angleDeg*Math.PI/180; const dx=Math.cos(a), dy=Math.sin(a);
+  cmp.guidePts.sort((p,q)=>{
+    const P=proj.toLocal(p[0],p[1],cLat,cLng), Q=proj.toLocal(q[0],q[1],cLat,cLng);
+    return (P.x*dx+P.y*dy)-(Q.x*dx+Q.y*dy);
+  });
+}
+
+function cmpStartBend() {
+  const c=cmpGetSelected(); if(!c) return;
+  if(!c.guidePts || c.guidePts.length<2) c.guidePts = cmpBuildStraightGuide(c);
+  _cmpBending=true;
+  map.on('click', _cmpOnBendClick);
+  _cmpRenderGuide(c);
+  const p=document.getElementById('cmp-panel'); if(p){ p.classList.add('rotating');
+    p.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;line-height:1.35;"><b style="color:#e0a0ff;">〰️ Kurven-Modus</b><br><span style="font-size:12px;color:#a0c8a0;">Auf die Karte tippen = Stützpunkt setzen · Punkte ziehen = biegen</span></div>' +
+        '<button onclick="cmpResetGuide()" style="flex:0 0 auto;height:48px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8e8e8;font-size:12px;cursor:pointer;">↺ Gerade</button>' +
+        '<button onclick="cmpEndBend()" style="flex:0 0 auto;height:48px;padding:0 16px;border-radius:12px;border:none;background:#4aaa4a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✓ Fertig</button>' +
+      '</div>';
+  }
+}
+
+function _cmpRenderGuide(c) {
+  // Leitkurve (lila) + Stützpunkt-Handles
+  if(_cmpGuideLayer){ try{map.removeLayer(_cmpGuideLayer);}catch{} _cmpGuideLayer=null; }
+  _cmpGuideHandles.forEach(m=>{try{map.removeLayer(m);}catch{}}); _cmpGuideHandles=[];
+  // geglättete Vorschau der Leitkurve zeichnen
+  let cLat=0,cLng=0; c.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=c.polygon.length; cLng/=c.polygon.length;
+  const proj=trailLocalProjection(cLat);
+  const gm=c.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  const sm=_cmpCatmullRom(gm,10).map(p=>{const ll=proj.toLatLng(p.x,p.y,cLat,cLng);return [ll.lat,ll.lng];});
+  _cmpGuideLayer=L.polyline(sm,{color:'#e0a0ff',weight:3,opacity:.9,dashArray:'6,5'}).addTo(map);
+  c.guidePts.forEach((pt,idx)=>{
+    const m=L.marker(pt,{draggable:true,icon:L.divIcon({className:'cmp-guide-h',html:'<div style="width:20px;height:20px;border-radius:50%;background:#e0a0ff;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5);"></div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
+    m.on('drag',e=>{ const ll=e.target.getLatLng(); c.guidePts[idx]=[ll.lat,ll.lng];
+      const g2=c.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+      const s2=_cmpCatmullRom(g2,10).map(p=>{const l=proj.toLatLng(p.x,p.y,cLat,cLng);return [l.lat,l.lng];});
+      if(_cmpGuideLayer)_cmpGuideLayer.setLatLngs(s2);
+      cmpRedrawLinesOnly(c);
+    });
+    m.on('dragend',()=>{ cmpSortGuide(c); cmpStartBend(); }); // neu sortieren + Handles neu
+    _cmpGuideHandles.push(m);
+  });
+}
+
+function _cmpOnBendClick(e) {
+  if(!_cmpBending) return;
+  const c=cmpGetSelected(); if(!c) return;
+  c.guidePts.push([e.latlng.lat, e.latlng.lng]);
+  cmpSortGuide(c);
+  _cmpRenderGuide(c);
+  cmpRedrawLinesOnly(c);
+}
+
+// Nur die Gassen-Linien neu zeichnen (live, ohne Panel/Handles anzufassen)
+function cmpRedrawLinesOnly(c) {
+  (c._lineLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}});
+  c.lines=cmpComputeLines(c);
+  const col=c.color||'#e8b070';
+  c._lineLayers=c.lines.map(seg=>L.polyline(seg,{color:col,weight:2,opacity:.9}).addTo(map));
+}
+
+function cmpResetGuide() {
+  const c=cmpGetSelected(); if(!c) return;
+  c.guidePts=cmpBuildStraightGuide(c);
+  _cmpRenderGuide(c);
+  cmpRedrawLinesOnly(c);
+}
+
+function cmpEndBend() {
+  _cmpBending=false;
+  try{map.off('click',_cmpOnBendClick);}catch{}
+  if(_cmpGuideLayer){try{map.removeLayer(_cmpGuideLayer);}catch{} _cmpGuideLayer=null;}
+  _cmpGuideHandles.forEach(m=>{try{map.removeLayer(m);}catch{}}); _cmpGuideHandles=[];
+  const c=cmpGetSelected(); if(c){ if(c.guidePts && c.guidePts.length<3) c.guidePts=null; } // gerade → kein Guide
+  const p=document.getElementById('cmp-panel'); if(p)p.classList.remove('rotating');
+  _cmpPanelOpen=true; cmpUpdatePanel();
+}
+window.cmpStartBend=cmpStartBend;
+window.cmpResetGuide=cmpResetGuide;
+window.cmpEndBend=cmpEndBend;
+
 function cmpSetSpacing(v) {
   const c = cmpGetSelected(); if (!c) return;
   const s = parseFloat(v); if (!isFinite(s) || s < 3) return;
@@ -9730,7 +9971,7 @@ async function cmpSave() {
   let total = 0;
   const comps = _cmpCompartments.map(c => {
     total += c.lines.length;
-    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), lines: c.lines };
+    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), guide_pts: c.guidePts || null, lines: c.lines };
   });
   try {
     const saved = await dbFetch('trail_plans?select=*', {
@@ -9771,6 +10012,7 @@ function _cmpShowPanel() {
 }
 
 let _cmpPanelOpen = false;   // ausgeklappt?
+let _cmpRotating = false;    // schlanker Drehmodus aktiv?
 function cmpTogglePanel() { _cmpPanelOpen = !_cmpPanelOpen; cmpUpdatePanel(); }
 window.cmpTogglePanel = cmpTogglePanel;
 
@@ -9808,11 +10050,8 @@ function cmpUpdatePanel() {
   const ctrl = c ? (
     '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">' +
       '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:10px;">Abteil ' + c.id + ' (' + c.lines.length + ' Gassen)</div>' +
-      '<div style="font-size:12px;color:#a0c8a0;margin-bottom:4px;">Drehung: <b style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b></div>' +
-      '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
-        '<button onclick="cmpRotate90()" style="flex:0 0 auto;padding:13px 16px;border-radius:12px;border:none;background:#3a7abc;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">↻ 90°</button>' +
-        '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngle(this.value)" style="flex:1;accent-color:#ffd070;">' +
-      '</div>' +
+      '<button onclick="cmpStartRotate()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:8px;border:none;background:#3a7abc;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">🧭 Gassen drehen (' + Math.round(c.angleDeg) + '°)</button>' +
+      '<button onclick="cmpStartBend()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:10px;border:none;background:#9a5ac8;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">〰️ Kurven einziehen' + (c.guidePts && c.guidePts.length>=3 ? ' ✓' : '') + '</button>' +
       '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
         '<button onclick="cmpToggleSplit()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:13px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
         '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 12px;">' +
@@ -12600,7 +12839,7 @@ window.runPdfExport = runPdfExport;
 
 <!-- EUDR: Schwebende Zeichen-Leiste (manueller Polygon-Zeichen-Modus) -->
 <div id="area-draw-bar" class="hidden" style="
-     position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+     position:fixed;bottom:150px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 16px);flex-wrap:wrap;justify-content:center;
      z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
      padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
      backdrop-filter:blur(8px);">
@@ -12621,7 +12860,7 @@ window.runPdfExport = runPdfExport;
 
 <!-- Schwebende Leiste während Polygon gezeichnet wird -->
 <div id="trail-draw-bar" class="hidden" style="
-     position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+     position:fixed;bottom:150px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 16px);flex-wrap:wrap;justify-content:center;
      z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
      padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
      -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
@@ -12633,7 +12872,7 @@ window.runPdfExport = runPdfExport;
 
 <!-- Schwebende Leiste während ein Abteil gezeichnet wird -->
 <div id="cmp-draw-bar" class="hidden" style="
-     position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+     position:fixed;bottom:150px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 16px);flex-wrap:wrap;justify-content:center;
      z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
      padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
      -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
@@ -12661,11 +12900,15 @@ window.runPdfExport = runPdfExport;
     max-height: 75vh;
   }
 }
+/* Drehmodus: nur schmale Leiste unten, Karte bleibt frei sichtbar */
+#cmp-panel.rotating {
+  max-height: none; overflow: visible;
+}
 </style>
 
 <!-- Schwebende Leiste während Wegezug gezeichnet wird -->
 <div id="trail-path-bar" class="hidden" style="
-     position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+     position:fixed;bottom:150px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 16px);flex-wrap:wrap;justify-content:center;
      z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
      padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
      -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
