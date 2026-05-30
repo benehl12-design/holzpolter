@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="8.1">
+  <meta name="app-version" content="8.2">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '8.1'")) {
+        if (!txt.includes("APP_VERSION = '8.2'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7725,53 +7725,64 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   return { ribs, suggestedRoad: [], connections };
 }
 
-// SCHLANGENLINIE aus dem Raster: verbindet die Gassen pro Wegseite zu einer
-// durchgehenden Serpentine. Jede Gasse hat ein Ende am Weg, ein Ende außen.
-// Verbinder sitzen abwechselnd: außen (Wende) und am Weg (Übergang zur nächsten).
-function trailBuildSerpentineFromGrid(ribsLatLng, pathsM, proj, cLat, cLng) {
+// SCHLANGENLINIE aus dem Raster: verbindet benachbarte Gassen zu einer Serpentine.
+// Robust gegen gegabelte/kurvige Wege: verbindet NUR Gassen-Enden die wirklich nah
+// beieinander liegen (≈ Gassenabstand), keine Sprünge quer über die Fläche.
+function trailBuildSerpentineFromGrid(ribsLatLng, pathsM, proj, cLat, cLng, spacingM) {
   const connectors = [];
   const route = [];
-  if (!ribsLatLng || ribsLatLng.length === 0) return { connectors, route };
+  if (!ribsLatLng || ribsLatLng.length < 2) return { connectors, route };
   const toM = (ll) => proj.toLocal(ll[0], ll[1], cLat, cLng);
+  const MAX_CONN = (spacingM || 20) * 1.8;   // Verbinder nie länger als ~1.8× Abstand
 
-  // Jede Gasse: bestimme welches Ende am Weg ist (roadEnd) und welches außen (outEnd)
+  // Jede Gasse: weg-seitiges Ende (roadEnd) und äußeres Ende (outEnd) bestimmen
   const ribs = ribsLatLng.map(seg => {
     const a = seg[0], b = seg[1];
     const da = _trailNearestOnPaths(toM(a), pathsM).d;
     const db = _trailNearestOnPaths(toM(b), pathsM).d;
-    const roadEnd = da <= db ? a : b;
-    const outEnd  = da <= db ? b : a;
-    const rm = toM(roadEnd);
-    return { roadEnd, outEnd, roadM: rm };
+    return {
+      roadEnd: da <= db ? a : b,
+      outEnd:  da <= db ? b : a,
+      roadM:   da <= db ? toM(a) : toM(b),
+      outM:    da <= db ? toM(b) : toM(a),
+      used: false
+    };
   });
 
-  // Seite bestimmen: auf welcher Seite des Wegs liegt die Gasse?
-  // Grobe Näherung: Vorzeichen des Kreuzprodukts (Weg-Richtung × (outEnd - roadEnd))
-  let wdx = 1, wdy = 0;
-  if (pathsM[0] && pathsM[0].length >= 2) {
-    const f = pathsM[0][0], l = pathsM[0][pathsM[0].length - 1];
-    wdx = l.x - f.x; wdy = l.y - f.y;
-    const wl = Math.hypot(wdx, wdy) || 1; wdx /= wl; wdy /= wl;
-  }
-  ribs.forEach(r => {
-    const om = toM(r.outEnd);
-    const vx = om.x - r.roadM.x, vy = om.y - r.roadM.y;
-    r.side = (wdx * vy - wdy * vx) >= 0 ? 1 : -1;
-    // Position entlang des Wegs (Projektion auf Weg-Richtung) zum Sortieren
-    r.along = r.roadM.x * wdx + r.roadM.y * wdy;
+  // Distanz zweier latlng-Punkte in Metern
+  const distM = (p, q) => {
+    const a = toM(p), b = toM(q);
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
+  // Verbinde nächste Nachbarn: für jedes äußere Ende das nächste äußere Ende einer
+  // ANDEREN Gasse, für jedes weg-seitige Ende das nächste weg-seitige — aber nur
+  // wenn der Abstand < MAX_CONN ist. Abwechselnd außen/Weg ergibt die Serpentine.
+  // Wir bauen einen einfachen Greedy-Pfad: starte an einer Gasse, hänge immer die
+  // nächste unbenutzte Gasse an deren Ende am nächsten liegt.
+  // Praktischer Ansatz hier: paarweise nächste Nachbarn an beiden Enden verbinden.
+  const ends = [];
+  ribs.forEach((r, i) => {
+    ends.push({ ribIdx: i, kind: 'out', pt: r.outEnd, m: r.outM });
+    ends.push({ ribIdx: i, kind: 'road', pt: r.roadEnd, m: r.roadM });
   });
 
-  // Pro Seite sortieren und zur Serpentine verbinden
-  [1, -1].forEach(side => {
-    const group = ribs.filter(r => r.side === side).sort((a, b) => a.along - b.along);
-    for (let i = 0; i < group.length - 1; i++) {
-      const cur = group[i], nxt = group[i + 1];
-      // Verbinder abwechselnd: gerade Gassen außen verbinden, ungerade am Weg
-      if (i % 2 === 0) {
-        connectors.push([cur.outEnd, nxt.outEnd]);   // Wende außen
-      } else {
-        connectors.push([cur.roadEnd, nxt.roadEnd]); // Übergang am Weg
-      }
+  // Für jedes Ende: finde das nächste Ende GLEICHER Art einer anderen Gasse
+  const linked = new Set();
+  ends.forEach(e => {
+    let best = null;
+    ends.forEach(f => {
+      if (f.ribIdx === e.ribIdx || f.kind !== e.kind) return;
+      const d = Math.hypot(e.m.x - f.m.x, e.m.y - f.m.y);
+      if (d > MAX_CONN) return;
+      if (!best || d < best.d) best = { d, f };
+    });
+    if (best) {
+      // Doppelte Verbinder vermeiden (a→b und b→a)
+      const key = [e.ribIdx, best.f.ribIdx, e.kind].sort().join('-');
+      if (linked.has(key)) return;
+      linked.add(key);
+      connectors.push([e.pt, best.f.pt]);
     }
   });
 
@@ -7923,7 +7934,7 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
       } else {
         // SCHLANGENLINIE: dieselben Gassen, aber an den AUSSEN-Enden (weg vom Weg)
         // zu einer durchgehenden Serpentine pro Wegseite verbunden.
-        const driving = trailBuildSerpentineFromGrid(fish.ribs, spinePathsM, proj, cLat, cLng);
+        const driving = trailBuildSerpentineFromGrid(fish.ribs, spinePathsM, proj, cLat, cLng, spacingM);
         return {
           lines: fish.ribs, edges: [], suggestedRoad: [],
           connectors: driving.connectors, route: driving.route, entryConnector: null,
