@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="7.2">
+  <meta name="app-version" content="7.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '7.2'")) {
+        if (!txt.includes("APP_VERSION = '7.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7532,6 +7532,58 @@ function trailRayToPolygonEdge(ox, oy, dx, dy, polyM, maxLen) {
 // FISCHGRÄTE: Stichgassen die AM WEG starten und zur Seite bis zum Polygonrand
 // laufen. EIN fester Mittelwinkel für alle (glatt, ordentlich). Beide Seiten,
 // aber jede Gasse nur wenn dort genug Platz ist (kurze Seite fällt weg).
+// Schnittpunkt-Parameter zweier Segmente p1→p2 und p3→p4 (in lat/lng-Ebene,
+// lokal als planar behandelt). Gibt {t,u} zurück oder null wenn kein Schnitt.
+function _trailSegIntersect(p1, p2, p3, p4) {
+  const x1 = p1[1], y1 = p1[0], x2 = p2[1], y2 = p2[0];
+  const x3 = p3[1], y3 = p3[0], x4 = p4[1], y4 = p4[0];
+  const d = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+  if (Math.abs(d) < 1e-12) return null;
+  const t = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / d;
+  const u = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / d;
+  if (t > 1e-6 && t < 1 - 1e-6 && u > 1e-6 && u < 1 - 1e-6) return { t, u };
+  return null;
+}
+
+// Kappt sich überschneidende Gassen: läuft über alle Linien, findet für jede
+// den nächstgelegenen Schnittpunkt mit einer ANDEREN Linie (in Fahrtrichtung von
+// Punkt[0] aus) und kürzt die Linie dort. So endet eine Gasse sauber am Treffpunkt
+// statt darüber hinaus weiterzulaufen. Reihenfolge = Priorität (frühere bleiben länger).
+function trailTrimIntersections(linesLatLng) {
+  if (!linesLatLng || linesLatLng.length < 2) return linesLatLng;
+  // Arbeitskopie mit Endpunkten
+  const segs = linesLatLng.map(l => ({ a: l[0], b: l[1] }));
+
+  for (let i = 0; i < segs.length; i++) {
+    let nearestT = 1;  // Bruchteil entlang a→b ab dem gekappt wird
+    for (let j = 0; j < segs.length; j++) {
+      if (i === j) continue;
+      const hit = _trailSegIntersect(segs[i].a, segs[i].b, segs[j].a, segs[j].b);
+      if (hit && hit.t < nearestT) {
+        // Nur kappen wenn die andere Linie "Vorrang" hat (kleinerer Index = früher gesetzt)
+        // ODER beide kappen sich gegenseitig am selben Punkt → die spätere endet dort.
+        if (j < i) nearestT = hit.t;
+        else if (hit.t < 0.999) nearestT = Math.min(nearestT, hit.t);
+      }
+    }
+    if (nearestT < 0.999) {
+      const a = segs[i].a, b = segs[i].b;
+      segs[i].b = [
+        a[0] + (b[0] - a[0]) * nearestT,
+        a[1] + (b[1] - a[1]) * nearestT
+      ];
+    }
+  }
+  // Zu kurz gewordene Gassen rauswerfen (Schnitt direkt am Anfang)
+  const out = [];
+  segs.forEach(s => {
+    const dLat = (s.b[0] - s.a[0]) * 111320;
+    const dLng = (s.b[1] - s.a[1]) * 111320 * Math.cos(s.a[0] * Math.PI / 180);
+    if (Math.hypot(dLat, dLng) >= 5) out.push([s.a, s.b]);
+  });
+  return out;
+}
+
 function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   polyM.forEach(p => {
@@ -7590,7 +7642,9 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
     if (curSeg.length >= 2) suggestedRoadSegs.push(curSeg.map(ll => [ll.lat, ll.lng]));
   });
 
-  return { ribs, suggestedRoad: suggestedRoadSegs };
+  // Sich überschneidende Stichgassen sauber am Schnittpunkt kappen
+  const cleanRibs = trailTrimIntersections(ribs);
+  return { ribs: cleanRibs, suggestedRoad: suggestedRoadSegs };
 }
 
 function _trailSimulateAngle(polyM, angle, spacingM) {
@@ -7852,7 +7906,7 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
   // Idee: für jede Polygon-Kante prüfen wie weit sie von der nächstgelegenen Hauptgasse entfernt ist.
   // Wenn die Kante annähernd parallel zur Gassen-Richtung verläuft UND zu weit von der nächsten Gasse weg ist,
   // füge eine zusätzliche Gasse direkt am Polygon-Rand ein (versetzt um spacing/2 nach innen).
-  const edges = [];
+  let edges = [];
   const yLinesR = [];  // y-Werte der Hauptgassen im rotierten System
   if (direction === +1) {
     for (let y = yStart; y < maxY; y += spacingM) yLinesR.push(y);
@@ -7889,6 +7943,15 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
     }
   }
 
+  // Eckgassen gegen die Hauptgassen kappen falls sie sich überschneiden
+  // (Hauptgassen haben Vorrang — stehen im Array vorne)
+  if (edges.length > 0) {
+    const combined = trailTrimIntersections(lines.concat(edges));
+    // Die ersten lines.length Einträge sind die (ggf. unveränderten) Hauptgassen,
+    // der Rest sind die getrimmten Eckgassen
+    const trimmedEdges = combined.slice(lines.length);
+    edges = trimmedEdges;
+  }
   return _trailWrapResult(lines, edges, angle, orientationMode, note, proj, cLat, cLng, pathsM);
 }
 
