@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.3">
+  <meta name="app-version" content="9.4">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.3'")) {
+        if (!txt.includes("APP_VERSION = '9.4'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9150,6 +9150,117 @@ function cmpGenerateGrid(polygonLatLng, angleDeg, spacingM, pathsLatLng, splitAt
   return out;
 }
 
+// Nächster Weg (lat/lng-Array) zu einem Abteil — oder null.
+function cmpNearestRoad(polygonLatLng) {
+  if (!Array.isArray(_trailPaths) || !_trailPaths.length) return null;
+  let cLat = 0, cLng = 0;
+  polygonLatLng.forEach(p => { cLat += p[0]; cLng += p[1]; });
+  cLat /= polygonLatLng.length; cLng /= polygonLatLng.length;
+  const proj = trailLocalProjection(cLat);
+  const c = proj.toLocal(cLat, cLng, cLat, cLng);
+  let best = null;
+  _trailPaths.forEach(road => {
+    if (!Array.isArray(road) || road.length < 2) return;
+    const rm = road.map(pt => proj.toLocal(pt[0], pt[1], cLat, cLng));
+    // min Distanz Schwerpunkt → Weg-Segmente
+    let dmin = Infinity;
+    for (let i = 0; i < rm.length - 1; i++) {
+      const a = rm[i], b = rm[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+      let t = ((c.x - a.x) * dx + (c.y - a.y) * dy) / L2; t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(c.x - (a.x + dx * t), c.y - (a.y + dy * t));
+      if (d < dmin) dmin = d;
+    }
+    if (!best || dmin < best.d) best = { d: dmin, road };
+  });
+  return best ? best.road : null;
+}
+
+// Bogenlängen-Abtastung einer Polylinie (Meter) im Abstand spacing.
+function _cmpResampleByArc(roadM, spacing) {
+  const out = []; let acc = 0, nextMark = 0;
+  for (let i = 0; i < roadM.length - 1; i++) {
+    const a = roadM[i], b = roadM[i + 1];
+    const segL = Math.hypot(b.x - a.x, b.y - a.y); if (segL < 1e-9) continue;
+    while (nextMark <= acc + segL + 1e-9) {
+      const d = nextMark - acc; const t = Math.max(0, Math.min(1, d / segL));
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      nextMark += spacing;
+    }
+    acc += segL;
+  }
+  return out;
+}
+
+// Strahl von (ox,oy) Richtung (dx,dy) → nächste positive Distanz zum Polygonrand.
+function _cmpRayToPolygon(ox, oy, dx, dy, polyM, maxT) {
+  let best = Infinity; const N = polyM.length;
+  for (let i = 0; i < N; i++) {
+    const a = polyM[i], b = polyM[(i + 1) % N];
+    const ex = b.x - a.x, ey = b.y - a.y; const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const t = ((a.x - ox) * ey - (a.y - oy) * ex) / den;
+    const u = ((a.x - ox) * dy - (a.y - oy) * dx) / den;
+    if (t > 1e-6 && t <= maxT && u >= -1e-9 && u <= 1 + 1e-9) best = Math.min(best, t);
+  }
+  return best;
+}
+
+// GASSEN SENKRECHT ZUM WEG, gleichmäßig am Weg entlang verteilt (drehen mit der
+// Kurve mit). Abstand wird entlang des Wegs gemessen → überall gleich.
+function cmpGenerateRibsAlongRoad(polygonLatLng, roadLatLng, spacingM, splitAtRoad) {
+  if (!polygonLatLng || polygonLatLng.length < 3 || !roadLatLng || roadLatLng.length < 2) return [];
+  let cLat = 0, cLng = 0;
+  polygonLatLng.forEach(p => { cLat += p[0]; cLng += p[1]; });
+  cLat /= polygonLatLng.length; cLng /= polygonLatLng.length;
+  const proj = trailLocalProjection(cLat);
+  const polyM = polygonLatLng.map(p => proj.toLocal(p[0], p[1], cLat, cLng));
+  const roadM = roadLatLng.map(p => proj.toLocal(p[0], p[1], cLat, cLng));
+
+  const samples = _cmpResampleByArc(roadM, spacingM);
+  const diag = 5000;
+  const MIN = Math.max(spacingM * 0.3, 5);
+  const GAP = splitAtRoad ? Math.max(spacingM * 0.15, 3) : 0;
+  const out = [];
+  const toLL = (p) => { const ll = proj.toLatLng(p.x, p.y, cLat, cLng); return [ll.lat, ll.lng]; };
+
+  for (let i = 0; i < samples.length; i++) {
+    const prev = samples[Math.max(0, i - 1)], next = samples[Math.min(samples.length - 1, i + 1)];
+    let tx = next.x - prev.x, ty = next.y - prev.y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    const px = -ty, py = tx;   // senkrecht zur lokalen Wegrichtung
+    const P = samples[i];
+    // Stützpunkt muss an der Fläche liegen (sonst Weg-Teil außerhalb des Abteils)
+    if (!trailPointInPolygon(P.x + px * 0.5, P.y + py * 0.5, polyM) &&
+        !trailPointInPolygon(P.x - px * 0.5, P.y - py * 0.5, polyM)) continue;
+    const tPlus = _cmpRayToPolygon(P.x, P.y, px, py, polyM, diag);
+    const tMinus = _cmpRayToPolygon(P.x, P.y, -px, -py, polyM, diag);
+    const hasPlus = tPlus < diag, hasMinus = tMinus < diag;
+    if (!hasPlus && !hasMinus) continue;
+    const endA = hasPlus ? { x: P.x + px * tPlus, y: P.y + py * tPlus } : P;
+    const endB = hasMinus ? { x: P.x - px * tMinus, y: P.y - py * tMinus } : P;
+    if (splitAtRoad) {
+      if (hasPlus && tPlus > GAP + MIN) out.push([toLL({ x: P.x + px * GAP, y: P.y + py * GAP }), toLL(endA)]);
+      if (hasMinus && tMinus > GAP + MIN) out.push([toLL({ x: P.x - px * GAP, y: P.y - py * GAP }), toLL(endB)]);
+    } else {
+      if (Math.hypot(endA.x - endB.x, endA.y - endB.y) > MIN) out.push([toLL(endB), toLL(endA)]);
+    }
+  }
+  return out;
+}
+
+// Gassen für ein Abteil erzeugen — je nach Modus: dem Weg folgend (senkrecht)
+// oder festes Raster bei festem Winkel.
+function cmpComputeLines(cmp) {
+  if (cmp.followRoad !== false) {
+    const road = cmpNearestRoad(cmp.polygon);
+    if (road) {
+      const ribs = cmpGenerateRibsAlongRoad(cmp.polygon, road, cmp.spacing, cmp.splitAtRoad);
+      if (ribs.length) return ribs;
+    }
+  }
+  return cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
+}
+
 // Default-Winkel für ein neues Abteil: senkrecht zum nächstgelegenen Weg, sonst 0.
 function cmpDefaultAngle(polygonLatLng, pathsLatLng) {
   if (!Array.isArray(pathsLatLng) || !pathsLatLng.length) return 0;
@@ -9198,7 +9309,7 @@ function cmpRender(cmp) {
   cmp._poly.on('click', (e) => { L.DomEvent.stop(e); cmpSelect(cmp.id); });
 
   // Gassen generieren + zeichnen
-  cmp.lines = cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
+  cmp.lines = cmpComputeLines(cmp);
   cmp._lineLayers = cmp.lines.map(seg =>
     L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map)
   );
@@ -9229,7 +9340,7 @@ function cmpRender(cmp) {
 // Nur die Gassen-Linien eines Abteils neu berechnen (nach Drag/Dreh/Spacing)
 function cmpRegenLines(cmp) {
   (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
-  cmp.lines = cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
+  cmp.lines = cmpComputeLines(cmp);
   const col = cmp.color || '#e8b070';
   cmp._lineLayers = cmp.lines.map(seg =>
     L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map)
@@ -9472,7 +9583,7 @@ function cmpAutoSplit() {
       polygon: polyLL,
       angleDeg: cmpDefaultAngle(polyLL, _trailPaths),  // senkrecht zum nächsten Weg
       spacing: base.spacing || _trailSpacing,
-      splitAtRoad: true,
+      splitAtRoad: true, followRoad: true,
       color: _CMP_COLORS[(_cmpCompartments.length) % _CMP_COLORS.length],
       _poly: null, _verts: [], _lineLayers: [], lines: []
     });
@@ -9548,7 +9659,7 @@ function cmpFinishCompartment() {
     polygon: _cmpDrawPts.slice(),
     angleDeg: cmpDefaultAngle(_cmpDrawPts, _trailPaths),
     spacing: _trailSpacing,
-    splitAtRoad: (_trailPaths.length > 0),
+    splitAtRoad: (_trailPaths.length > 0), followRoad: (_trailPaths.length > 0),
     color: _CMP_COLORS[(_cmpCompartments.length) % _CMP_COLORS.length],
     _poly: null, _verts: [], _lineLayers: [], lines: []
   };
@@ -9591,6 +9702,12 @@ function cmpToggleSplit() {
   cmpRegenLines(c);
 }
 
+function cmpToggleFollow() {
+  const c = cmpGetSelected(); if (!c) return;
+  c.followRoad = (c.followRoad === false);   // umschalten
+  cmpRegenLines(c);
+}
+
 function cmpDeleteSelected() {
   const c = cmpGetSelected(); if (!c) return;
   cmpClearLayers(c);
@@ -9620,7 +9737,7 @@ async function cmpSave() {
   let total = 0;
   const comps = _cmpCompartments.map(c => {
     total += c.lines.length;
-    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, lines: c.lines };
+    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), lines: c.lines };
   });
   try {
     const saved = await dbFetch('trail_plans?select=*', {
@@ -9671,16 +9788,19 @@ function cmpUpdatePanel() {
     '<span style="width:10px;height:10px;border-radius:50%;background:' + x.color + ';"></span>Abteil ' + x.id + ' · ' + x.lines.length + '</button>'
   ).join('');
 
+  const follow = (c && c.followRoad !== false);
   const ctrl = c ? (
     '<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);">' +
       '<div style="font-size:12px;color:#ffd070;font-weight:600;margin-bottom:8px;">Abteil ' + c.id + ' bearbeiten</div>' +
+      '<button onclick="cmpToggleFollow()" style="width:100%;padding:9px;border-radius:9px;margin-bottom:8px;border:1px solid ' + (follow?'rgba(126,200,160,.5)':'rgba(255,255,255,.15)') + ';background:' + (follow?'rgba(126,200,160,.2)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' + (follow?'🧭 ✓ Gassen senkrecht zum Weg (folgen der Kurve)':'📐 Festes Raster (fester Winkel)') + '</button>' +
       '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">' +
-        '<button onclick="cmpRotate90()" style="flex:1;padding:9px;border-radius:9px;border:none;background:#3a7abc;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">↻ 90°</button>' +
+        (follow ? '' : '<button onclick="cmpRotate90()" style="flex:1;padding:9px;border-radius:9px;border:none;background:#3a7abc;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">↻ 90°</button>') +
         '<button onclick="cmpToggleSplit()" style="flex:1;padding:9px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
         '<button onclick="cmpDeleteSelected()" style="padding:9px 11px;border-radius:9px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.18);color:#ffb0a0;font-family:inherit;font-size:12px;cursor:pointer;">🗑</button>' +
       '</div>' +
-      '<div style="font-size:11px;color:#a0c8a0;margin-bottom:3px;">Drehung: <b style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b></div>' +
-      '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngle(this.value)" style="width:100%;margin-bottom:8px;accent-color:#ffd070;">' +
+      (follow ? '' :
+        '<div style="font-size:11px;color:#a0c8a0;margin-bottom:3px;">Drehung: <b style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b></div>' +
+        '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngle(this.value)" style="width:100%;margin-bottom:8px;accent-color:#ffd070;">') +
       '<div style="display:flex;gap:6px;align-items:center;">' +
         '<span style="font-size:11px;color:#a0c8a0;">Abstand</span>' +
         '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:60px;padding:6px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-family:inherit;font-size:13px;"><span style="font-size:11px;color:#a0c8a0;">m</span>' +
@@ -9717,6 +9837,7 @@ window.cmpRotate90 = cmpRotate90;
 window.cmpSetAngle = cmpSetAngle;
 window.cmpSetSpacing = cmpSetSpacing;
 window.cmpToggleSplit = cmpToggleSplit;
+window.cmpToggleFollow = cmpToggleFollow;
 window.cmpDeleteSelected = cmpDeleteSelected;
 window.cmpCancel = cmpCancel;
 window.cmpSave = cmpSave;
