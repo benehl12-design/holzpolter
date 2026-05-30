@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="6.9">
+  <meta name="app-version" content="7.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '6.9'")) {
+        if (!txt.includes("APP_VERSION = '7.0'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7508,8 +7508,31 @@ function _trailMetersToLatLng(seg, proj, lat0, lng0) {
 // Erzeugt Fischgräten-Rippen: senkrechte Gassen die vom Weg (Wirbelsäule) abzweigen.
 // JEDE Rippe berührt den Weg → garantiert erreichbar.
 // Gibt { ribs: [[latlng,latlng],...], suggestedRoad: [[latlng,...]] } zurück.
+// Schneidet einen Strahl der bei (ox,oy) startet und in Richtung (dx,dy) läuft
+// am Polygon-Rand ab. Gibt das Segment [start, hitPoint] zurück (oder null).
+function trailRayToPolygonEdge(ox, oy, dx, dy, polyM, maxLen) {
+  let bestT = Infinity;
+  const n = polyM.length;
+  for (let i = 0; i < n; i++) {
+    const c = polyM[i], d = polyM[(i + 1) % n];
+    const ex = d.x - c.x, ey = d.y - c.y;
+    const denom = dx * ey - dy * ex;
+    if (Math.abs(denom) < 1e-9) continue;
+    const t = ((c.x - ox) * ey - (c.y - oy) * ex) / denom;   // entlang Strahl
+    const u = ((c.x - ox) * dy - (c.y - oy) * dx) / denom;   // entlang Kante
+    if (t > 0.5 && u >= -1e-6 && u <= 1 + 1e-6 && t < bestT) {
+      bestT = t;
+    }
+  }
+  if (!isFinite(bestT)) return null;
+  const t = Math.min(bestT, maxLen);
+  return [{ x: ox, y: oy }, { x: ox + dx * t, y: oy + dy * t }];
+}
+
+// FISCHGRÄTE: Stichgassen die AM WEG starten und nur zu EINER Seite bis zum
+// Polygonrand laufen — abwechselnd links/rechts versetzt (echtes Grätenmuster),
+// leicht schräg in Fahrtrichtung (~65°) für flacheres Einbiegen.
 function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
-  // Polygon-Diagonale für Strahllänge + Spine-Verlängerung
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   polyM.forEach(p => {
     if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
@@ -7518,34 +7541,38 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   const diag = Math.hypot(maxX - minX, maxY - minY);
 
   const ribs = [];
-  const suggestedRoadSegs = [];   // verlängerte Wegteile die im Polygon liegen aber außerhalb des echten Wegs
+  const suggestedRoadSegs = [];
+  const RAKE = 25 * Math.PI / 180;  // Schräglauf: 25° aus der Senkrechten = ~65° zum Weg
 
   pathsM.forEach(pathM => {
-    // Spine verlängern damit Rippen die ganze Polygon-Länge abdecken
-    const extended = trailExtendPolyline(pathM, diag);
-    const samples = trailResampleWithTangent(extended, spacingM);
+    // Sampling-Abstand halbieren: da abwechselnd links/rechts, ist der Abstand
+    // zwischen zwei Rippen DERSELBEN Seite dann = spacingM (forsttechnisch korrekt)
+    const samples = trailResampleWithTangent(pathM, spacingM / 2);
 
-    // Realer Weg-Bereich (für "suggested extension"-Erkennung): Bounding der echten Wegpunkte
-    samples.forEach(s => {
-      // Rippe nur wenn der Wirbelsäulen-Punkt im Polygon liegt
+    samples.forEach((s, idx) => {
       if (!trailPointInPolygon(s.x, s.y, polyM)) return;
-      const px = -s.ty, py = s.tx;   // senkrecht zur Tangente
-      const ax = s.x - px * diag, ay = s.y - py * diag;
-      const bx = s.x + px * diag, by = s.y + py * diag;
-      trailClipLineToPolygon(ax, ay, bx, by, polyM).forEach(seg => {
-        ribs.push(_trailMetersToLatLng(seg, proj, cLat, cLng));
-      });
+      // Senkrechte zur Weg-Tangente
+      const nx = -s.ty, ny = s.tx;
+      const tx = s.tx, ty = s.ty;
+      // Versatz: gerade Indizes → eine Seite, ungerade → andere Seite (Fischgräte)
+      const side = (idx % 2 === 0) ? 1 : -1;
+      // Schräglauf in Fahrtrichtung einmischen: Richtung = Normale gedreht um RAKE
+      // Richtung nach außen (side) + leicht in Tangentenrichtung
+      const dirx = (nx * side) * Math.cos(RAKE) + tx * Math.sin(RAKE);
+      const diry = (ny * side) * Math.cos(RAKE) + ty * Math.sin(RAKE);
+      const dlen = Math.hypot(dirx, diry) || 1;
+      const seg = trailRayToPolygonEdge(s.x, s.y, dirx / dlen, diry / dlen, polyM, diag);
+      if (seg) ribs.push(_trailMetersToLatLng(seg, proj, cLat, cLng));
     });
 
-    // Verlängerte Spine-Teile die im Polygon liegen = vorgeschlagene Weg-Verlängerung
-    // (echter Weg vs. Extension unterscheiden anhand Distanz zu echten Wegpunkten)
+    // Vorgeschlagene Weg-Verlängerung: Teile bis zum Polygonrand wo der echte Weg
+    // endet aber das Polygon noch weitergeht
+    const extended = trailExtendPolyline(pathM, diag);
     const realPts = pathM;
     const spineSamples = trailResampleWithTangent(extended, spacingM * 0.5);
-    let prevInside = null;
     let curSeg = [];
     spineSamples.forEach(s => {
       const inside = trailPointInPolygon(s.x, s.y, polyM);
-      // Ist dieser Punkt nah am echten Weg? (< spacing → echter Weg, sonst Extension)
       let nearReal = false;
       for (const rp of realPts) {
         if (Math.hypot(s.x - rp.x, s.y - rp.y) < spacingM) { nearReal = true; break; }
