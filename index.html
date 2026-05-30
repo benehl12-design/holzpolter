@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="8.0">
+  <meta name="app-version" content="8.1">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '8.0'")) {
+        if (!txt.includes("APP_VERSION = '8.1'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7725,6 +7725,59 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   return { ribs, suggestedRoad: [], connections };
 }
 
+// SCHLANGENLINIE aus dem Raster: verbindet die Gassen pro Wegseite zu einer
+// durchgehenden Serpentine. Jede Gasse hat ein Ende am Weg, ein Ende außen.
+// Verbinder sitzen abwechselnd: außen (Wende) und am Weg (Übergang zur nächsten).
+function trailBuildSerpentineFromGrid(ribsLatLng, pathsM, proj, cLat, cLng) {
+  const connectors = [];
+  const route = [];
+  if (!ribsLatLng || ribsLatLng.length === 0) return { connectors, route };
+  const toM = (ll) => proj.toLocal(ll[0], ll[1], cLat, cLng);
+
+  // Jede Gasse: bestimme welches Ende am Weg ist (roadEnd) und welches außen (outEnd)
+  const ribs = ribsLatLng.map(seg => {
+    const a = seg[0], b = seg[1];
+    const da = _trailNearestOnPaths(toM(a), pathsM).d;
+    const db = _trailNearestOnPaths(toM(b), pathsM).d;
+    const roadEnd = da <= db ? a : b;
+    const outEnd  = da <= db ? b : a;
+    const rm = toM(roadEnd);
+    return { roadEnd, outEnd, roadM: rm };
+  });
+
+  // Seite bestimmen: auf welcher Seite des Wegs liegt die Gasse?
+  // Grobe Näherung: Vorzeichen des Kreuzprodukts (Weg-Richtung × (outEnd - roadEnd))
+  let wdx = 1, wdy = 0;
+  if (pathsM[0] && pathsM[0].length >= 2) {
+    const f = pathsM[0][0], l = pathsM[0][pathsM[0].length - 1];
+    wdx = l.x - f.x; wdy = l.y - f.y;
+    const wl = Math.hypot(wdx, wdy) || 1; wdx /= wl; wdy /= wl;
+  }
+  ribs.forEach(r => {
+    const om = toM(r.outEnd);
+    const vx = om.x - r.roadM.x, vy = om.y - r.roadM.y;
+    r.side = (wdx * vy - wdy * vx) >= 0 ? 1 : -1;
+    // Position entlang des Wegs (Projektion auf Weg-Richtung) zum Sortieren
+    r.along = r.roadM.x * wdx + r.roadM.y * wdy;
+  });
+
+  // Pro Seite sortieren und zur Serpentine verbinden
+  [1, -1].forEach(side => {
+    const group = ribs.filter(r => r.side === side).sort((a, b) => a.along - b.along);
+    for (let i = 0; i < group.length - 1; i++) {
+      const cur = group[i], nxt = group[i + 1];
+      // Verbinder abwechselnd: gerade Gassen außen verbinden, ungerade am Weg
+      if (i % 2 === 0) {
+        connectors.push([cur.outEnd, nxt.outEnd]);   // Wende außen
+      } else {
+        connectors.push([cur.roadEnd, nxt.roadEnd]); // Übergang am Weg
+      }
+    }
+  });
+
+  return { connectors, route };
+}
+
 // Nächster Punkt auf irgendeiner der Polylinien zu Punkt pt (alle in Metern).
 function _trailNearestOnPaths(pt, pathsM) {
   let best = { d: Infinity, pt: null };
@@ -7840,13 +7893,12 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
 
   let roadAngle = null;
   if (orientationMode === 'smart') {
-    // Fischgräte nur wenn explizit gewählt UND mindestens ein Weg vorhanden
-    const useFishbone = (pattern === 'fishbone') && (pathsM.length > 0);
-    if (useFishbone) {
-      // ── FISCHGRÄTEN-MUSTER: Rippen-Gassen senkrecht vom Weg ──
-      // Bevorzugt Erschließungswege (durchs Polygon) als Wirbelsäule, sonst alle Wege.
+    // BEIDE Muster nutzen dasselbe gleichmäßige Raster (senkrecht zum Weg, am Weg
+    // geteilt). Unterschied ist nur die Fahrlogik: Fischgräte = Anbindung an Weg,
+    // Schlangenlinie = Gassen an den Enden zur Serpentine verbinden.
+    if (pathsM.length > 0) {
       let spinePathsM = pathsM.filter((pM, idx) => pathsIsErschliessung[idx]);
-      if (spinePathsM.length === 0) spinePathsM = pathsM;  // Fallback: Anschluss-Wege als Spine
+      if (spinePathsM.length === 0) spinePathsM = pathsM;
       const fish = trailGenerateFishbone(polyM, spinePathsM, spacingM, proj, cLat, cLng);
       let avgRibLen = 0;
       fish.ribs.forEach(seg => {
@@ -7855,56 +7907,49 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
         avgRibLen += Math.hypot(dLat, dLng);
       });
       avgRibLen = fish.ribs.length ? avgRibLen / fish.ribs.length : 0;
-      const conns = Array.isArray(fish.connections) ? fish.connections : [];
-      const connNote = conns.length > 0
-        ? '<br><span style="color:#7ec8ff;">🔵 ' + conns.length + ' Gasse' + (conns.length === 1 ? '' : 'n') + ' per Anbindung an den Weg angeschlossen</span>'
-        : '';
-      return {
-        lines: fish.ribs,
-        edges: [],
-        suggestedRoad: [],
-        connectors: conns,          // Anbindungs-Verbinder zum Weg (blau)
-        route: [],
-        entryConnector: null,
-        usedAngle: 0,
-        modeUsed: 'fishbone',
-        avgLen: avgRibLen,
-        note: '🐟 ' + fish.ribs.length + ' Gassen senkrecht zum Weg, gleichmäßiger Abstand — jede am Weg erreichbar, Ø ' + Math.round(avgRibLen) + ' m' + connNote
-      };
+
+      if (pattern === 'fishbone') {
+        // FISCHGRÄTE: Anbindungen an den Weg (gerade), jede Gasse direkt erreichbar
+        const conns = Array.isArray(fish.connections) ? fish.connections : [];
+        const connNote = conns.length > 0
+          ? '<br><span style="color:#7ec8ff;">🔵 ' + conns.length + ' Gasse' + (conns.length === 1 ? '' : 'n') + ' per Anbindung angeschlossen</span>'
+          : '';
+        return {
+          lines: fish.ribs, edges: [], suggestedRoad: [],
+          connectors: conns, route: [], entryConnector: null,
+          usedAngle: 0, modeUsed: 'fishbone', avgLen: avgRibLen,
+          note: '🐟 ' + fish.ribs.length + ' Gassen senkrecht zum Weg, gleichmäßiger Abstand — jede erreichbar, Ø ' + Math.round(avgRibLen) + ' m' + connNote
+        };
+      } else {
+        // SCHLANGENLINIE: dieselben Gassen, aber an den AUSSEN-Enden (weg vom Weg)
+        // zu einer durchgehenden Serpentine pro Wegseite verbunden.
+        const driving = trailBuildSerpentineFromGrid(fish.ribs, spinePathsM, proj, cLat, cLng);
+        return {
+          lines: fish.ribs, edges: [], suggestedRoad: [],
+          connectors: driving.connectors, route: driving.route, entryConnector: null,
+          usedAngle: 0, modeUsed: 'serpentine', avgLen: avgRibLen,
+          note: '🪢 ' + fish.ribs.length + ' Gassen, ' + driving.connectors.length + ' Wende-Verbinder — durchgehende Schlangenlinie, Ø ' + Math.round(avgRibLen) + ' m'
+        };
+      }
     } else {
-      // ── SCHLANGENLINIE: parallele Gassen, beste Achse per Brute-Force ──
+      // Kein Weg gezeichnet → reines Raster nach bester Achse (ohne Weg-Teilung)
       const longestEdgeAngle = trailLongestEdge(polyM);
       const candidates = [
         { angle: principalAxis,         label: 'Hauptachse (PCA)' },
         { angle: principalAxis + 90,    label: 'Senkrecht zur Hauptachse' },
         { angle: longestEdgeAngle,      label: 'Längste Polygon-Kante' },
-        { angle: longestEdgeAngle + 90, label: 'Senkrecht zur längsten Kante' }
+        { angle: longestEdgeAngle + 90, label: 'Senkrecht zur längsten Kante' },
+        { angle: 0,  label: 'Ost-West' },
+        { angle: 90, label: 'Nord-Süd' }
       ];
-      pathHintAngles.forEach((pa, idx) => {
-        const wegNr = idx + 1;
-        candidates.push({ angle: pa,      label: 'parallel zu Weg ' + wegNr });
-        candidates.push({ angle: pa + 90, label: 'senkrecht zu Weg ' + wegNr });
-      });
-      candidates.push({ angle: 0,  label: 'Ost-West' });
-      candidates.push({ angle: 90, label: 'Nord-Süd' });
-
-      let bestScore = -1;
-      let bestCandidate = candidates[0];
-      let bestSim = null;
+      let bestScore = -1, bestCandidate = candidates[0], bestSim = null;
       candidates.forEach(c => {
         const sim = _trailSimulateAngle(polyM, c.angle, spacingM);
         if (sim.count < 2) return;
-        let score = sim.avgLen;
-        if (pathHintAngles.length > 0 && c.label.includes('zu Weg')) score *= 1.04;
-        if (score > bestScore) { bestScore = score; bestCandidate = c; bestSim = sim; }
+        if (sim.avgLen > bestScore) { bestScore = sim.avgLen; bestCandidate = c; bestSim = sim; }
       });
       angle = bestCandidate.angle;
-      const wegInfo = pathHintAngles.length > 0
-        ? ' · ' + pathHintAngles.length + ' Anschluss-Weg' + (pathHintAngles.length === 1 ? '' : 'e')
-        : '';
-      note  = '🪢 Schlangenlinie: ' + bestCandidate.label +
-              ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' +
-              (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)' + wegInfo;
+      note  = '📏 ' + bestCandidate.label + ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' + (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m) — kein Weg gezeichnet';
     }
   } else if (orientationMode === 'auto') {
     angle = principalAxis;
