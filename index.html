@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="7.5">
+  <meta name="app-version" content="7.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '7.5'")) {
+        if (!txt.includes("APP_VERSION = '7.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7499,9 +7499,16 @@ function trailExtendPolyline(lineM, dist) {
 }
 
 // Meter-Segment → lat/lng (ohne Rotation, identity)
-function _trailMetersToLatLng(seg, proj, lat0, lng0) {
-  const llA = proj.toLatLng(seg[0].x, seg[0].y, lat0, lng0);
-  const llB = proj.toLatLng(seg[1].x, seg[1].y, lat0, lng0);
+function _trailMetersToLatLng(seg, proj, lat0, lng0, backRotateRad) {
+  let p0 = seg[0], p1 = seg[1];
+  // Optional: Punkte aus einem rotierten Rastersystem zurückdrehen
+  if (typeof backRotateRad === 'number') {
+    const c = Math.cos(backRotateRad), s = Math.sin(backRotateRad);
+    p0 = { x: seg[0].x * c - seg[0].y * s, y: seg[0].x * s + seg[0].y * c };
+    p1 = { x: seg[1].x * c - seg[1].y * s, y: seg[1].x * s + seg[1].y * c };
+  }
+  const llA = proj.toLatLng(p0.x, p0.y, lat0, lng0);
+  const llB = proj.toLatLng(p1.x, p1.y, lat0, lng0);
   return [[llA.lat, llA.lng], [llB.lat, llB.lng]];
 }
 
@@ -7608,72 +7615,92 @@ function _trailSmoothTangentAt(pathM, targetDist, windowM) {
   return { tx: dx / l, ty: dy / l };
 }
 
+// Teilt ein Gassen-Segment [a,b] (Meter) an allen Schnittpunkten mit der
+// Weg-Polylinie pathM. Gibt die Teilstücke zurück (jedes endet am Weg).
+function _trailSplitSegmentAtRoad(a, b, pathM) {
+  const cuts = [];  // Parameter t entlang a→b wo der Weg schneidet
+  const dx = b.x - a.x, dy = b.y - a.y;
+  for (let i = 0; i < pathM.length - 1; i++) {
+    const c = pathM[i], d = pathM[i + 1];
+    const ex = d.x - c.x, ey = d.y - c.y;
+    const denom = dx * ey - dy * ex;
+    if (Math.abs(denom) < 1e-9) continue;
+    const t = ((c.x - a.x) * ey - (c.y - a.y) * ex) / denom;   // entlang Gasse
+    const u = ((c.x - a.x) * dy - (c.y - a.y) * dx) / denom;   // entlang Weg
+    if (t > 1e-6 && t < 1 - 1e-6 && u >= -1e-6 && u <= 1 + 1e-6) cuts.push(t);
+  }
+  if (cuts.length === 0) return [[a, b]];
+  cuts.sort((x, y) => x - y);
+  const pts = [0, ...cuts, 1];
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const t0 = pts[i], t1 = pts[i + 1];
+    out.push([
+      { x: a.x + dx * t0, y: a.y + dy * t0 },
+      { x: a.x + dx * t1, y: a.y + dy * t1 }
+    ]);
+  }
+  return out;
+}
+
+// RASTER-GENERATOR: gleichmäßige parallele Gassen SENKRECHT zur Haupt-Wegrichtung,
+// konstanter Abstand (lückenlos + überschneidungsfrei), jede am Weg in Teilstücke
+// geschnitten — so endet jede Gasse am Weg und beide Wegseiten sind getrennt.
 function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
+  const MIN_LEN = Math.max(spacingM * 0.4, 6);  // zu kurze Teilstücke weglassen
+
+  // Haupt-Wegrichtung (Anfang → Ende des längsten Wegs) — stabil, kein Zappeln
+  let mainPath = pathsM[0] || [];
+  pathsM.forEach(p => { if (p.length > mainPath.length) mainPath = p; });
+  let roadAngleRad;
+  if (mainPath.length >= 2) {
+    const f = mainPath[0], l = mainPath[mainPath.length - 1];
+    roadAngleRad = Math.atan2(l.y - f.y, l.x - f.x);
+  } else {
+    roadAngleRad = trailPrincipalAxisAngle(polyM) * Math.PI / 180;
+  }
+  // Gassen sollen SENKRECHT zur Wegrichtung verlaufen → Rasterlinien parallel
+  // zur Wegrichtung legen wir im rotierten System als y=const an, aber gedreht
+  // um (roadAngle + 90°), damit die Linien senkrecht zum Weg stehen.
+  const gridAngle = roadAngleRad + Math.PI / 2;   // Richtung der Gassen
+  const a = -gridAngle;   // Rotation ins Rastersystem (Gassen werden waagerecht)
+  const cosA = Math.cos(a), sinA = Math.sin(a);
+  const rot   = (p) => ({ x: p.x * cosA - p.y * sinA, y: p.x * sinA + p.y * cosA });
+  const polyR = polyM.map(rot);
+
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  polyM.forEach(p => {
+  polyR.forEach(p => {
     if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
     if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
   });
-  const diag = Math.hypot(maxX - minX, maxY - minY);
-  const MIN_RIB = Math.max(spacingM * 0.5, 8);  // zu kurze Gassen weglassen
+
+  // Wege ebenfalls ins Rastersystem rotieren (zum Schneiden)
+  const pathsR = pathsM.map(pM => pM.map(rot));
 
   const ribs = [];
-  const suggestedRoadSegs = [];
-
-  pathsM.forEach(pathM => {
-    if (pathM.length < 2) return;
-
-    // Glättungsfenster: ±2× Gassenabstand → folgt Kurven, ignoriert GPS-Zappeln
-    const windowM = Math.max(spacingM * 2, 25);
-
-    // Gleichmäßiges Sampling im vollen Gassen-Abstand (beide Seiten je Punkt)
-    const samples = trailResampleWithTangent(pathM, spacingM);
-
-    samples.forEach((s) => {
-      if (!trailPointInPolygon(s.x, s.y, polyM)) return;
-      // LOKALE geglättete Wegrichtung an dieser Stelle → Senkrechte folgt der Kurve
-      const tan = _trailSmoothTangentAt(pathM, s.dist, windowM);
-      const nx = -tan.ty, ny = tan.tx;   // lokale Senkrechte zur (geglätteten) Wegrichtung
-      // Zwei Strahlen: eine Seite + andere Seite. Jeder läuft vom Weg nach außen,
-      // stoppt aber am Polygonrand ODER wenn er wieder auf den Weg trifft.
-      [1, -1].forEach(side => {
-        const dirx = nx * side, diry = ny * side;
-        const edgeSeg = trailRayToPolygonEdge(s.x, s.y, dirx, diry, polyM, diag);
-        let maxT = edgeSeg
-          ? Math.hypot(edgeSeg[1].x - s.x, edgeSeg[1].y - s.y)
-          : diag;
-        const roadT = _trailRayToPolylineDist(s.x, s.y, dirx, diry, pathM, maxT);
-        if (roadT !== null && roadT > 1) maxT = Math.min(maxT, roadT);
-        if (maxT < MIN_RIB) return;
-        const end = { x: s.x + dirx * maxT, y: s.y + diry * maxT };
-        ribs.push(_trailMetersToLatLng([{ x: s.x, y: s.y }, end], proj, cLat, cLng));
+  // Gleichmäßige waagerechte Linien y=const im Rastersystem, exakt spacingM Abstand
+  for (let y = minY + spacingM * 0.5; y < maxY; y += spacingM) {
+    // Linie am Polygon clippen → ein/mehrere Segmente innerhalb der Fläche
+    trailClipLineToPolygon(minX - 1, y, maxX + 1, y, polyR).forEach(seg => {
+      // Jedes Polygon-Segment an allen Wegen teilen
+      let pieces = [[seg[0], seg[1]]];
+      pathsR.forEach(pR => {
+        const next = [];
+        pieces.forEach(([pa, pb]) => {
+          _trailSplitSegmentAtRoad(pa, pb, pR).forEach(s => next.push(s));
+        });
+        pieces = next;
+      });
+      // Teilstücke zurückrotieren + lat/lng, zu kurze weglassen
+      pieces.forEach(([pa, pb]) => {
+        const len = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+        if (len < MIN_LEN) return;
+        ribs.push(_trailMetersToLatLng([pa, pb], { toLatLng: proj.toLatLng }, cLat, cLng, -a));
       });
     });
+  }
 
-    // Vorgeschlagene Weg-Verlängerung (wo echter Weg endet, Polygon aber weitergeht)
-    const extended = trailExtendPolyline(pathM, diag);
-    const realPts = pathM;
-    const spineSamples = trailResampleWithTangent(extended, spacingM * 0.5);
-    let curSeg = [];
-    spineSamples.forEach(s => {
-      const inside = trailPointInPolygon(s.x, s.y, polyM);
-      let nearReal = false;
-      for (const rp of realPts) {
-        if (Math.hypot(s.x - rp.x, s.y - rp.y) < spacingM) { nearReal = true; break; }
-      }
-      if (inside && !nearReal) {
-        curSeg.push(proj.toLatLng(s.x, s.y, cLat, cLng));
-      } else {
-        if (curSeg.length >= 2) suggestedRoadSegs.push(curSeg.map(ll => [ll.lat, ll.lng]));
-        curSeg = [];
-      }
-    });
-    if (curSeg.length >= 2) suggestedRoadSegs.push(curSeg.map(ll => [ll.lat, ll.lng]));
-  });
-
-  // Sich überschneidende Stichgassen sauber am Schnittpunkt kappen
-  const cleanRibs = trailTrimIntersections(ribs);
-  return { ribs: cleanRibs, suggestedRoad: suggestedRoadSegs };
+  return { ribs, suggestedRoad: [] };
 }
 
 // Schießt einen Strahl von (ox,oy) Richtung (dx,dy) und gibt die Distanz zum
