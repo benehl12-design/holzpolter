@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.2">
+  <meta name="app-version" content="9.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.2'")) {
+        if (!txt.includes("APP_VERSION = '9.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9335,6 +9335,96 @@ function _cmpSplitPolyByPath(polyM, pathM, diag) {
   return res.length >= 2 ? res : [polyM];
 }
 
+// Vorzeichenbehaftete Fläche (CCW positiv)
+function _cmpSignedArea(f) {
+  let a = 0;
+  for (let i = 0; i < f.length; i++) { const p = f[i], q = f[(i + 1) % f.length]; a += p.x * q.y - q.x * p.y; }
+  return a / 2;
+}
+
+// ── PLANARE FLÄCHENZERLEGUNG ──────────────────────────────────────────
+// Nimmt das GANZE Wegenetz auf einmal und zerlegt das Polygon in die Regionen
+// die das Netz bildet. Folgt Kurven UND Gabelungen exakt (im Gegensatz zum
+// Einzelweg-Schnitt, der Enden gerade verlängern musste).
+function _cmpArrangement(polyM, roadsM) {
+  const EPS = 1e-6;
+  const N = polyM.length;
+  let segs = [];
+  for (let i = 0; i < N; i++) segs.push([polyM[i], polyM[(i + 1) % N]]);
+
+  // Wege an der Polygongrenze clippen, nur Innenteile als Segmente behalten
+  roadsM.forEach(road => {
+    for (let i = 0; i < road.length - 1; i++) {
+      const a = road[i], b = road[i + 1];
+      const ts = [0, 1];
+      for (let j = 0; j < N; j++) {
+        const h = _cmpSegInt(a, b, polyM[j], polyM[(j + 1) % N]);
+        if (h && h.t > EPS && h.t < 1 - EPS) ts.push(h.t);
+      }
+      ts.sort((x, y) => x - y);
+      for (let k = 0; k < ts.length - 1; k++) {
+        const t0 = ts[k], t1 = ts[k + 1];
+        if (t1 - t0 < EPS) continue;
+        const mt = (t0 + t1) / 2;
+        const mid = { x: a.x + (b.x - a.x) * mt, y: a.y + (b.y - a.y) * mt };
+        if (trailPointInPolygon(mid.x, mid.y, polyM)) {
+          segs.push([{ x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0 },
+                     { x: a.x + (b.x - a.x) * t1, y: a.y + (b.y - a.y) * t1 }]);
+        }
+      }
+    }
+  });
+
+  // Alle Segmente an gegenseitigen Schnitten teilen
+  const ss = [];
+  for (let i = 0; i < segs.length; i++) {
+    const [a, b] = segs[i];
+    const ts = [0, 1];
+    for (let j = 0; j < segs.length; j++) {
+      if (i === j) continue;
+      const [c, d] = segs[j];
+      const h = _cmpSegInt(a, b, c, d);
+      if (h && h.t > EPS && h.t < 1 - EPS) ts.push(h.t);
+    }
+    ts.sort((x, y) => x - y);
+    for (let k = 0; k < ts.length - 1; k++) {
+      const t0 = ts[k], t1 = ts[k + 1];
+      if (t1 - t0 < EPS) continue;
+      ss.push([{ x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0 },
+               { x: a.x + (b.x - a.x) * t1, y: a.y + (b.y - a.y) * t1 }]);
+    }
+  }
+
+  // Knoten + Halbkanten aufbauen
+  const nodes = [], nidx = {};
+  const key = p => Math.round(p.x * 100) + ',' + Math.round(p.y * 100);
+  const getN = p => { const k = key(p); if (k in nidx) return nidx[k]; const id = nodes.length; nodes.push({ x: p.x, y: p.y, out: [] }); nidx[k] = id; return id; };
+  const he = [], hm = {};
+  const addHE = (u, v) => { const id = he.length; he.push({ from: u, to: v, angle: Math.atan2(nodes[v].y - nodes[u].y, nodes[v].x - nodes[u].x), visited: false }); nodes[u].out.push(id); hm[u + '_' + v] = id; return id; };
+  ss.forEach(([a, b]) => { const u = getN(a), v = getN(b); if (u === v) return; if (!(u + '_' + v in hm)) addHE(u, v); if (!(v + '_' + u in hm)) addHE(v, u); });
+  he.forEach(h => h.twin = hm[h.to + '_' + h.from]);
+  nodes.forEach(n => n.out.sort((p, q) => he[p].angle - he[q].angle));
+
+  const nextHE = i => { const h = he[i]; const outs = nodes[h.to].out; const pos = outs.indexOf(h.twin); return outs[(pos - 1 + outs.length) % outs.length]; };
+  const faces = [];
+  he.forEach((h, i) => {
+    if (h.visited) return;
+    const f = []; let cur = i, g = 0;
+    while (!he[cur].visited && g++ < 100000) { he[cur].visited = true; f.push(nodes[he[cur].from]); cur = nextHE(cur); if (he[cur] === undefined || he[cur].twin === undefined) break; }
+    if (f.length >= 3) faces.push(f);
+  });
+
+  // Nur CCW-Innenflächen behalten (äußere Umrandung ist CW/negativ)
+  const out = [];
+  faces.forEach(f => {
+    if (_cmpSignedArea(f) <= 1) return;
+    let cx = 0, cy = 0; f.forEach(p => { cx += p.x; cy += p.y; }); cx /= f.length; cy /= f.length;
+    if (!trailPointInPolygon(cx, cy, polyM)) return;
+    out.push(f.map(p => ({ x: p.x, y: p.y })));
+  });
+  return out;
+}
+
 function cmpAutoSplit() {
   const base = cmpGetSelected() || _cmpCompartments[0];
   if (!base) { showToast('Erst ein Abteil über die ganze Fläche zeichnen'); return; }
@@ -9360,26 +9450,16 @@ function cmpAutoSplit() {
     const pm = path.map(pt => proj.toLocal(pt[0], pt[1], cLat, cLng));
     const inside = pm.filter(p => trailPointInPolygon(p.x, p.y, polyM0));
     if (inside.length === 0) return;
-    let inLen = diag;
-    if (inside.length >= 2) inLen = Math.hypot(inside[inside.length-1].x - inside[0].x, inside[inside.length-1].y - inside[0].y);
-    if (inLen < diag * 0.15) return;   // Stummel ignorieren
     roadPathsM.push(pm);
   });
 
-  if (!roadPathsM.length) { showToast('Kein Weg läuft genug durch die Fläche'); return; }
+  if (!roadPathsM.length) { showToast('Kein Weg läuft durch die Fläche'); return; }
 
-  // Sukzessive ENTLANG jeder Weg-Polylinie teilen (folgt den Kurven)
-  let pieces = [polyM0];
-  roadPathsM.forEach(pm => {
-    const next = [];
-    pieces.forEach(pc => {
-      const parts = _cmpSplitPolyByPath(pc, pm, diag);
-      const big = parts.filter(p => _cmpShoelaceArea(p) > baseArea * 0.03);
-      if (big.length >= 2) big.forEach(p => next.push(p));
-      else next.push(pc);
-    });
-    pieces = next;
-  });
+  // GANZES Wegenetz auf einmal zerlegen (folgt Kurven + Gabelungen)
+  let pieces = _cmpArrangement(polyM0, roadPathsM);
+  // Mini-Splitter verwerfen
+  pieces = pieces.filter(p => _cmpShoelaceArea(p) > baseArea * 0.02);
+  if (pieces.length < 2) { showToast('Wege teilen die Fläche nicht — laufen sie von Rand zu Rand?'); return; }
 
   // Basis entfernen, Teil-Abteile anlegen
   cmpClearLayers(base);
