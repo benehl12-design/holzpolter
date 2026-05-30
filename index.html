@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="6.8">
+  <meta name="app-version" content="6.9">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '6.8'")) {
+        if (!txt.includes("APP_VERSION = '6.9'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7281,6 +7281,7 @@ let _trailRoute        = [];      // [ [lat,lng], ... ] durchgehende Fahrroute f
 let _trailEntryConnector = null;  // [[lat,lng],[lat,lng]] Einfahrt vom Weg
 let _trailSpacing      = 20;      // Meter
 let _trailOrientationMode = 'smart'; // 'smart'|'auto'|'road'|'ns'|'ew'
+let _trailPattern      = 'serpentine'; // 'serpentine' | 'fishbone' (Fahrmuster)
 
 // Wegezug-State (optionale Anschluss-Wege, vom User vor den Optionen gezeichnet)
 let _trailPathDrawing   = false;
@@ -7584,7 +7585,7 @@ function _trailSimulateAngle(polyM, angle, spacingM) {
   return { totalLen, count, avgLen: count ? totalLen / count : 0 };
 }
 
-function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, accessPaths) {
+function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, accessPaths, pattern) {
   if (polygonLatLng.length < 3) return { lines: [], edges: [], usedAngle: 0, modeUsed: orientationMode, avgLen: 0, note: '' };
 
   // Lokales metrisches System um Polygon-Schwerpunkt
@@ -7640,13 +7641,14 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
 
   let roadAngle = null;
   if (orientationMode === 'smart') {
-    if (hasErschliessung) {
+    // Fischgräte nur wenn explizit gewählt UND mindestens ein Weg vorhanden
+    const useFishbone = (pattern === 'fishbone') && (pathsM.length > 0);
+    if (useFishbone) {
       // ── FISCHGRÄTEN-MUSTER: Rippen-Gassen senkrecht vom Weg ──
-      // Jede Gasse zweigt direkt vom Weg ab → garantiert erreichbar.
-      // Nur die Erschließungswege als Wirbelsäule nutzen (nicht reine Außen-Anschlusswege).
-      const erschlPathsM = pathsM.filter((pM, idx) => pathsIsErschliessung[idx]);
-      const fish = trailGenerateFishbone(polyM, erschlPathsM, spacingM, proj, cLat, cLng);
-      const erschlCount = erschlPathsM.length;
+      // Bevorzugt Erschließungswege (durchs Polygon) als Wirbelsäule, sonst alle Wege.
+      let spinePathsM = pathsM.filter((pM, idx) => pathsIsErschliessung[idx]);
+      if (spinePathsM.length === 0) spinePathsM = pathsM;  // Fallback: Anschluss-Wege als Spine
+      const fish = trailGenerateFishbone(polyM, spinePathsM, spacingM, proj, cLat, cLng);
       let avgRibLen = 0;
       fish.ribs.forEach(seg => {
         const dLat = (seg[1][0] - seg[0][0]) * 111320;
@@ -7657,9 +7659,8 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
       const suggestNote = fish.suggestedRoad.length > 0
         ? '<br><span style="color:#ff8b6d;">⚠ Weg verlängern (gestrichelt) damit alle Gassen erreichbar sind</span>'
         : '';
-      // Fahrlogik: bei Fischgräte ist der Weg selbst die Verbindung — Rippen docken an.
-      // Zusätzlich Serpentine-Connectors an den Außen-Enden für durchgehende Fahrt.
-      const fishDriving = trailBuildDrivingLogic(fish.ribs, proj, cLat, cLng, erschlPathsM);
+      // Fischgräten-Fahrlogik: entlang des Wegs, abwechselnd in Rippen abbiegen
+      const fishDriving = trailBuildFishboneRoute(fish.ribs, spinePathsM, proj, cLat, cLng);
       return {
         lines: fish.ribs,
         edges: [],
@@ -7670,12 +7671,10 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
         usedAngle: 0,
         modeUsed: 'fishbone',
         avgLen: avgRibLen,
-        note: '🚜 Fischgräten-Muster: ' + fish.ribs.length + ' Rippen-Gassen senkrecht vom Weg' +
-              (erschlCount > 1 ? ' (' + erschlCount + ' Wege)' : '') +
-              ' — jede erreichbar, Ø ' + Math.round(avgRibLen) + ' m' + suggestNote
+        note: '🐟 Fischgräte: ' + fish.ribs.length + ' Rippen senkrecht vom Weg — jede direkt am Weg erreichbar, Ø ' + Math.round(avgRibLen) + ' m' + suggestNote
       };
     } else {
-      // ── ANSCHLUSS-WEG- oder REINER GEOMETRIE-MODUS: Brute-Force für lange Gassen ──
+      // ── SCHLANGENLINIE: parallele Gassen, beste Achse per Brute-Force ──
       const longestEdgeAngle = trailLongestEdge(polyM);
       const candidates = [
         { angle: principalAxis,         label: 'Hauptachse (PCA)' },
@@ -7705,7 +7704,7 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
       const wegInfo = pathHintAngles.length > 0
         ? ' · ' + pathHintAngles.length + ' Anschluss-Weg' + (pathHintAngles.length === 1 ? '' : 'e')
         : '';
-      note  = '🧠 Beste Variante: ' + bestCandidate.label +
+      note  = '🪢 Schlangenlinie: ' + bestCandidate.label +
               ' (' + (bestSim ? bestSim.count : 0) + ' Gassen, Ø ' +
               (bestSim ? Math.round(bestSim.avgLen) : 0) + ' m)' + wegInfo;
     }
@@ -7942,6 +7941,50 @@ function trailBuildDrivingLogic(linesLatLng, proj, cLat, cLng, pathsM) {
     }
   }
 
+  return { connectors, route, entryConnector };
+}
+
+// ── FISCHGRÄTEN-FAHRROUTE ─────────────────────────────────────────────
+// Bei Fischgräte ist der Weg die Verbindung. Die Route fährt den Weg entlang
+// und biegt an jeder Rippe ab. Verbinder = die Wegstücke (Wirbelsäule).
+function trailBuildFishboneRoute(ribs, spinePathsM, proj, cLat, cLng) {
+  if (!ribs || ribs.length === 0) return { connectors: [], route: [], entryConnector: null };
+  const toM = (ll) => proj.toLocal(ll[0], ll[1], cLat, cLng);
+
+  // Längsten Spine-Pfad als Hauptweg nehmen
+  let spine = spinePathsM[0] || [];
+  spinePathsM.forEach(p => { if (p.length > spine.length) spine = p; });
+  const spineLatLng = spine.map(pt => {
+    const ll = proj.toLatLng(pt.x, pt.y, cLat, cLng);
+    return [ll.lat, ll.lng];
+  });
+
+  // Rippen entlang des Wegs ordnen (Projektion ihres Mittelpunkts auf Spine-Richtung)
+  let sx = 0, sy = 0;
+  if (spine.length >= 2) {
+    sx = spine[spine.length - 1].x - spine[0].x;
+    sy = spine[spine.length - 1].y - spine[0].y;
+    const sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
+  }
+  const ribInfo = ribs.map(seg => {
+    const a = toM(seg[0]), b = toM(seg[1]);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    return { seg, proj: mx * sx + my * sy };
+  });
+  ribInfo.sort((p, q) => p.proj - q.proj);
+
+  // Verbinder = der Weg selbst (als Segment-Zug zwischen aufeinanderfolgenden Punkten)
+  const connectors = [];
+  for (let i = 0; i < spineLatLng.length - 1; i++) {
+    connectors.push([spineLatLng[i], spineLatLng[i + 1]]);
+  }
+
+  // Durchgehende Route in Rippen-Reihenfolge
+  const route = [];
+  ribInfo.forEach(ri => { route.push(ri.seg[0], ri.seg[1]); });
+
+  let entryConnector = null;
+  if (spineLatLng.length >= 2) entryConnector = [spineLatLng[0], spineLatLng[1]];
   return { connectors, route, entryConnector };
 }
 
@@ -8268,6 +8311,15 @@ function setTrailOrientation(mode) {
   _renderTrailPreview();
 }
 
+function setTrailPattern(pattern) {
+  _trailPattern = pattern;
+  document.querySelectorAll('.tort-chip[data-pat]').forEach(c => {
+    c.classList.toggle('on', c.dataset.pat === pattern);
+  });
+  _renderTrailPreview();
+}
+window.setTrailPattern = setTrailPattern;
+
 function _renderTrailPreview() {
   // Alte Vorschauen entfernen
   _trailLineLayers.forEach(l => { try { map.removeLayer(l); } catch {} });
@@ -8277,9 +8329,16 @@ function _renderTrailPreview() {
 
   if (_trailPolygon.length < 3) return;
 
+  // Fischgräte braucht einen Weg — sonst Hinweis und automatisch Schlangenlinie
+  if (_trailPattern === 'fishbone' && _trailPaths.length === 0) {
+    const result = document.getElementById('trail-opts-result');
+    if (result) result.innerHTML = '⚠️ Fischgräte braucht einen Weg — bitte erst einen Anschluss-/Erschließungsweg zeichnen';
+  }
+
   const { lines, edges, suggestedRoad, connectors, route, entryConnector, usedAngle, avgLen, note } = trailGenerateParallels(
     _trailPolygon, _trailSpacing, _trailOrientationMode,
-    _trailPaths.length > 0 ? _trailPaths : null
+    _trailPaths.length > 0 ? _trailPaths : null,
+    _trailPattern
   );
   _trailGenerated      = lines;
   _trailGeneratedEdges = edges;
@@ -11517,6 +11576,12 @@ window.runPdfExport = runPdfExport;
              oninput="setTrailSpacingCustom(this.value)"
              style="flex:1;font-size:14px;font-weight:600;padding:7px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);color:#c8e6c0;font-family:inherit;-webkit-appearance:none;text-align:center;min-width:60px;">
       <span style="font-size:12px;color:#a0c8a0;font-weight:600;flex-shrink:0;">m</span>
+    </div>
+
+    <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Fahrmuster</label>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button class="tort-chip on" data-pat="serpentine" onclick="setTrailPattern('serpentine')">🪢 Schlangenlinie</button>
+      <button class="tort-chip" data-pat="fishbone" onclick="setTrailPattern('fishbone')">🐟 Fischgräte</button>
     </div>
 
     <div id="trail-opts-result" style="font-size:13px;color:#a0d89a;text-align:center;padding:10px;background:rgba(74,170,74,.08);border-radius:9px;margin-bottom:14px;"></div>
