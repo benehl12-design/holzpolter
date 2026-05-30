@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.1">
+  <meta name="app-version" content="9.2">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.1'")) {
+        if (!txt.includes("APP_VERSION = '9.2'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9277,6 +9277,64 @@ function _cmpSplitByLine(polyM, px, py, dirx, diry) {
   return res;
 }
 
+// Segment-Segment-Schnitt (Meter). Gibt {t,u,pt} oder null.
+function _cmpSegInt(a, b, c, d) {
+  const rx = b.x - a.x, ry = b.y - a.y;
+  const sx = d.x - c.x, sy = d.y - c.y;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return null;
+  const t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / den;
+  const u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / den;
+  if (t >= -1e-9 && t <= 1 + 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) {
+    return { t, u, pt: { x: a.x + rx * t, y: a.y + ry * t } };
+  }
+  return null;
+}
+
+// Teilt ein Polygon ENTLANG einer Weg-Polylinie (folgt allen Kurven des Wegs).
+// Der Weg wird an beiden Enden bis über den Polygonrand verlängert, dann werden
+// die zwei Randdurchstoßpunkte als Trennstellen genommen und zwei Ringe gebaut,
+// deren gemeinsame Kante der echte Wegverlauf ist.
+function _cmpSplitPolyByPath(polyM, pathM, diag) {
+  const ext = trailExtendPolyline(pathM, diag);
+  const N = polyM.length;
+  const cr = [];
+  for (let i = 0; i < ext.length - 1; i++) {
+    for (let j = 0; j < N; j++) {
+      const hit = _cmpSegInt(ext[i], ext[i + 1], polyM[j], polyM[(j + 1) % N]);
+      if (hit) cr.push({ pos: i + hit.t, edge: j, pt: hit.pt });
+    }
+  }
+  if (cr.length < 2) return [polyM];
+  cr.sort((a, b) => a.pos - b.pos);
+  const C0 = cr[0], C1 = cr[cr.length - 1];
+  if (C0.edge === C1.edge) return [polyM];
+
+  // Innen-Verlauf des Wegs (Ecken zwischen den beiden Durchstoßpunkten)
+  const cut = [C0.pt];
+  for (let k = 0; k < ext.length; k++) {
+    if (k > C0.pos + 1e-6 && k < C1.pos - 1e-6) cut.push(ext[k]);
+  }
+  cut.push(C1.pt);
+
+  // Randpunkte von Kante a (exklusive) vorwärts bis Kante b (inklusive Startvertex)
+  const walk = (fromEdge, toEdge) => {
+    const out = []; let k = (fromEdge + 1) % N, guard = 0;
+    while (guard++ <= N + 2) { out.push(polyM[k]); if (k === toEdge) break; k = (k + 1) % N; }
+    return out;
+  };
+
+  const ringA = [C0.pt, ...walk(C0.edge, C1.edge), C1.pt];
+  for (let k = cut.length - 2; k >= 1; k--) ringA.push(cut[k]);   // Innen-Verlauf rückwärts
+  const ringB = [C1.pt, ...walk(C1.edge, C0.edge), C0.pt];
+  for (let k = 1; k <= cut.length - 2; k++) ringB.push(cut[k]);   // Innen-Verlauf vorwärts
+
+  const res = [];
+  if (ringA.length >= 3 && _cmpShoelaceArea(ringA) > 1) res.push(ringA);
+  if (ringB.length >= 3 && _cmpShoelaceArea(ringB) > 1) res.push(ringB);
+  return res.length >= 2 ? res : [polyM];
+}
+
 function cmpAutoSplit() {
   const base = cmpGetSelected() || _cmpCompartments[0];
   if (!base) { showToast('Erst ein Abteil über die ganze Fläche zeichnen'); return; }
@@ -9295,35 +9353,27 @@ function cmpAutoSplit() {
   })();
   const baseArea = _cmpShoelaceArea(polyM0);
 
-  // Schnittgeraden aus den Wegen bilden (nur Wege die nennenswert durch die Fläche laufen)
-  const cutLines = [];
+  // Weg-Pfade (in Metern) sammeln, die nennenswert durch die Fläche laufen
+  const roadPathsM = [];
   _trailPaths.forEach(path => {
     if (!Array.isArray(path) || path.length < 2) return;
     const pm = path.map(pt => proj.toLocal(pt[0], pt[1], cLat, cLng));
-    // Innen-Punkte
     const inside = pm.filter(p => trailPointInPolygon(p.x, p.y, polyM0));
-    const ref = inside.length ? inside : pm;
-    let sx = 0, sy = 0; ref.forEach(p => { sx += p.x; sy += p.y; });
-    const cx = sx / ref.length, cy = sy / ref.length;
-    const f = pm[0], l = pm[pm.length - 1];
-    let dx = l.x - f.x, dy = l.y - f.y;
-    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-    // Innen-Länge grob: Distanz erster↔letzter Innen-Punkt
+    if (inside.length === 0) return;
     let inLen = diag;
     if (inside.length >= 2) inLen = Math.hypot(inside[inside.length-1].x - inside[0].x, inside[inside.length-1].y - inside[0].y);
-    if (inLen < diag * 0.2) return;   // Stummel-Wege nicht zum Teilen nutzen
-    cutLines.push({ cx, cy, dx, dy });
+    if (inLen < diag * 0.15) return;   // Stummel ignorieren
+    roadPathsM.push(pm);
   });
 
-  if (!cutLines.length) { showToast('Kein Weg läuft genug durch die Fläche'); return; }
+  if (!roadPathsM.length) { showToast('Kein Weg läuft genug durch die Fläche'); return; }
 
-  // Sukzessive teilen
+  // Sukzessive ENTLANG jeder Weg-Polylinie teilen (folgt den Kurven)
   let pieces = [polyM0];
-  cutLines.forEach(cl => {
+  roadPathsM.forEach(pm => {
     const next = [];
     pieces.forEach(pc => {
-      const parts = _cmpSplitByLine(pc, cl.cx, cl.cy, cl.dx, cl.dy);
-      // nur akzeptieren wenn echte Teilung (beide Teile relevant), sonst Stück behalten
+      const parts = _cmpSplitPolyByPath(pc, pm, diag);
       const big = parts.filter(p => _cmpShoelaceArea(p) > baseArea * 0.03);
       if (big.length >= 2) big.forEach(p => next.push(p));
       else next.push(pc);
