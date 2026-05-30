@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="6.6">
+  <meta name="app-version" content="6.8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '6.6'")) {
+        if (!txt.includes("APP_VERSION = '6.8'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7275,6 +7275,10 @@ let _trailLineLayers   = [];      // L.polyline[] (Vorschau Fahrgassen)
 let _trailEdgeLayers   = [];      // L.polyline[] (Vorschau Eckgassen für Coverage)
 let _trailGenerated    = [];      // [[ [lat,lng], [lat,lng] ], ...] generated main lines
 let _trailGeneratedEdges = [];    // [[ [lat,lng], [lat,lng] ], ...] generated edge lines
+let _trailSuggestedRoad = [];     // [[ [lat,lng],... ], ...] vorgeschlagene Weg-Verlängerung (Fischgräte)
+let _trailConnectors   = [];      // [[ [lat,lng],[lat,lng] ], ...] Fahrlogik-Verbinder (Schlangenlinie)
+let _trailRoute        = [];      // [ [lat,lng], ... ] durchgehende Fahrroute für GPX
+let _trailEntryConnector = null;  // [[lat,lng],[lat,lng]] Einfahrt vom Weg
 let _trailSpacing      = 20;      // Meter
 let _trailOrientationMode = 'smart'; // 'smart'|'auto'|'road'|'ns'|'ew'
 
@@ -7458,6 +7462,106 @@ function trailNearestRoadAngle(polyM, polyLatLng, lat0, lng0) {
 // Simuliert eine Gassen-Generierung für einen gegebenen Winkel — gibt nur Metriken
 // zurück (keine sichtbaren Layer, kein Coordinate-Backconvert). Schnell genug um
 // mehrere Winkel in <50ms zu vergleichen → Basis für die Brute-Force-Optimierung.
+// ── FISCHGRÄTEN-MUSTER (Herringbone) ──────────────────────────────────
+// Resampelt eine Polylinie (in Metern) in festen Abständen, gibt Punkte mit
+// lokaler Tangente zurück. Basis für senkrechte Rippen-Gassen.
+function trailResampleWithTangent(lineM, interval) {
+  const pts = [];
+  if (lineM.length < 2) return pts;
+  let acc = 0, nextEmit = 0;
+  for (let i = 0; i < lineM.length - 1; i++) {
+    const a = lineM[i], b = lineM[i + 1];
+    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+    if (segLen < 1e-6) continue;
+    const tx = (b.x - a.x) / segLen, ty = (b.y - a.y) / segLen;
+    while (nextEmit <= acc + segLen) {
+      const t = nextEmit - acc;
+      pts.push({ x: a.x + tx * t, y: a.y + ty * t, tx, ty });
+      nextEmit += interval;
+    }
+    acc += segLen;
+  }
+  return pts;
+}
+
+// Verlängert eine Polylinie an beiden Enden entlang der End-Tangente
+function trailExtendPolyline(lineM, dist) {
+  if (lineM.length < 2) return lineM.slice();
+  const out = lineM.slice();
+  const a0 = lineM[0], a1 = lineM[1];
+  let d = Math.hypot(a1.x - a0.x, a1.y - a0.y) || 1;
+  out.unshift({ x: a0.x - (a1.x - a0.x) / d * dist, y: a0.y - (a1.y - a0.y) / d * dist });
+  const bn = lineM[lineM.length - 1], bm = lineM[lineM.length - 2];
+  d = Math.hypot(bn.x - bm.x, bn.y - bm.y) || 1;
+  out.push({ x: bn.x + (bn.x - bm.x) / d * dist, y: bn.y + (bn.y - bm.y) / d * dist });
+  return out;
+}
+
+// Meter-Segment → lat/lng (ohne Rotation, identity)
+function _trailMetersToLatLng(seg, proj, lat0, lng0) {
+  const llA = proj.toLatLng(seg[0].x, seg[0].y, lat0, lng0);
+  const llB = proj.toLatLng(seg[1].x, seg[1].y, lat0, lng0);
+  return [[llA.lat, llA.lng], [llB.lat, llB.lng]];
+}
+
+// Erzeugt Fischgräten-Rippen: senkrechte Gassen die vom Weg (Wirbelsäule) abzweigen.
+// JEDE Rippe berührt den Weg → garantiert erreichbar.
+// Gibt { ribs: [[latlng,latlng],...], suggestedRoad: [[latlng,...]] } zurück.
+function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
+  // Polygon-Diagonale für Strahllänge + Spine-Verlängerung
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  polyM.forEach(p => {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  });
+  const diag = Math.hypot(maxX - minX, maxY - minY);
+
+  const ribs = [];
+  const suggestedRoadSegs = [];   // verlängerte Wegteile die im Polygon liegen aber außerhalb des echten Wegs
+
+  pathsM.forEach(pathM => {
+    // Spine verlängern damit Rippen die ganze Polygon-Länge abdecken
+    const extended = trailExtendPolyline(pathM, diag);
+    const samples = trailResampleWithTangent(extended, spacingM);
+
+    // Realer Weg-Bereich (für "suggested extension"-Erkennung): Bounding der echten Wegpunkte
+    samples.forEach(s => {
+      // Rippe nur wenn der Wirbelsäulen-Punkt im Polygon liegt
+      if (!trailPointInPolygon(s.x, s.y, polyM)) return;
+      const px = -s.ty, py = s.tx;   // senkrecht zur Tangente
+      const ax = s.x - px * diag, ay = s.y - py * diag;
+      const bx = s.x + px * diag, by = s.y + py * diag;
+      trailClipLineToPolygon(ax, ay, bx, by, polyM).forEach(seg => {
+        ribs.push(_trailMetersToLatLng(seg, proj, cLat, cLng));
+      });
+    });
+
+    // Verlängerte Spine-Teile die im Polygon liegen = vorgeschlagene Weg-Verlängerung
+    // (echter Weg vs. Extension unterscheiden anhand Distanz zu echten Wegpunkten)
+    const realPts = pathM;
+    const spineSamples = trailResampleWithTangent(extended, spacingM * 0.5);
+    let prevInside = null;
+    let curSeg = [];
+    spineSamples.forEach(s => {
+      const inside = trailPointInPolygon(s.x, s.y, polyM);
+      // Ist dieser Punkt nah am echten Weg? (< spacing → echter Weg, sonst Extension)
+      let nearReal = false;
+      for (const rp of realPts) {
+        if (Math.hypot(s.x - rp.x, s.y - rp.y) < spacingM) { nearReal = true; break; }
+      }
+      if (inside && !nearReal) {
+        curSeg.push(proj.toLatLng(s.x, s.y, cLat, cLng));
+      } else {
+        if (curSeg.length >= 2) suggestedRoadSegs.push(curSeg.map(ll => [ll.lat, ll.lng]));
+        curSeg = [];
+      }
+    });
+    if (curSeg.length >= 2) suggestedRoadSegs.push(curSeg.map(ll => [ll.lat, ll.lng]));
+  });
+
+  return { ribs, suggestedRoad: suggestedRoadSegs };
+}
+
 function _trailSimulateAngle(polyM, angle, spacingM) {
   const a = -angle * Math.PI / 180;
   const cosA = Math.cos(a), sinA = Math.sin(a);
@@ -7537,14 +7641,39 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
   let roadAngle = null;
   if (orientationMode === 'smart') {
     if (hasErschliessung) {
-      // ── ERSCHLIESSUNGSWEG-MODUS: Stichgassen SENKRECHT zum durchführenden Weg ──
-      // Forsttechnisch korrekt: vom Weg abzweigende Gassen, in die Harvester einbiegen kann
-      angle = pathHintAngles[erschliessungIdx] + 90;
-      const sim = _trailSimulateAngle(polyM, angle, spacingM);
-      const erschlCount = pathsIsErschliessung.filter(x => x).length;
-      note = '🚜 Stichgassen senkrecht zum Erschließungsweg' +
-             (erschlCount > 1 ? ' (' + erschlCount + ' Wege durchs Polygon)' : '') +
-             ' — ' + sim.count + ' Gassen, Ø ' + Math.round(sim.avgLen) + ' m';
+      // ── FISCHGRÄTEN-MUSTER: Rippen-Gassen senkrecht vom Weg ──
+      // Jede Gasse zweigt direkt vom Weg ab → garantiert erreichbar.
+      // Nur die Erschließungswege als Wirbelsäule nutzen (nicht reine Außen-Anschlusswege).
+      const erschlPathsM = pathsM.filter((pM, idx) => pathsIsErschliessung[idx]);
+      const fish = trailGenerateFishbone(polyM, erschlPathsM, spacingM, proj, cLat, cLng);
+      const erschlCount = erschlPathsM.length;
+      let avgRibLen = 0;
+      fish.ribs.forEach(seg => {
+        const dLat = (seg[1][0] - seg[0][0]) * 111320;
+        const dLng = (seg[1][1] - seg[0][1]) * 111320 * Math.cos(seg[0][0] * Math.PI / 180);
+        avgRibLen += Math.hypot(dLat, dLng);
+      });
+      avgRibLen = fish.ribs.length ? avgRibLen / fish.ribs.length : 0;
+      const suggestNote = fish.suggestedRoad.length > 0
+        ? '<br><span style="color:#ff8b6d;">⚠ Weg verlängern (gestrichelt) damit alle Gassen erreichbar sind</span>'
+        : '';
+      // Fahrlogik: bei Fischgräte ist der Weg selbst die Verbindung — Rippen docken an.
+      // Zusätzlich Serpentine-Connectors an den Außen-Enden für durchgehende Fahrt.
+      const fishDriving = trailBuildDrivingLogic(fish.ribs, proj, cLat, cLng, erschlPathsM);
+      return {
+        lines: fish.ribs,
+        edges: [],
+        suggestedRoad: fish.suggestedRoad,
+        connectors: fishDriving.connectors,
+        route: fishDriving.route,
+        entryConnector: fishDriving.entryConnector,
+        usedAngle: 0,
+        modeUsed: 'fishbone',
+        avgLen: avgRibLen,
+        note: '🚜 Fischgräten-Muster: ' + fish.ribs.length + ' Rippen-Gassen senkrecht vom Weg' +
+              (erschlCount > 1 ? ' (' + erschlCount + ' Wege)' : '') +
+              ' — jede erreichbar, Ø ' + Math.round(avgRibLen) + ' m' + suggestNote
+      };
     } else {
       // ── ANSCHLUSS-WEG- oder REINER GEOMETRIE-MODUS: Brute-Force für lange Gassen ──
       const longestEdgeAngle = trailLongestEdge(polyM);
@@ -7731,7 +7860,7 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
     }
   }
 
-  return _trailWrapResult(lines, edges, angle, orientationMode, note);
+  return _trailWrapResult(lines, edges, angle, orientationMode, note, proj, cLat, cLng, pathsM);
 }
 
 // Hilfs-Funktion: Segment-Punkte zurückrotieren ins ursprüngliche System + lat/lng
@@ -7744,7 +7873,79 @@ function _trailBackRotate(seg, a, proj, lat0, lng0) {
   return [[llA.lat, llA.lng], [llB.lat, llB.lng]];
 }
 
-function _trailWrapResult(lines, edges, angle, modeUsed, note) {
+// ── FAHRLOGIK: SERPENTINE/BOUSTROPHEDON ───────────────────────────────
+// Verbindet parallele Gassen so dass der Harvester sie in einer durchgehenden
+// Schlangenlinie abfährt — rein in eine Gasse, am Ende rüber zur nächsten,
+// zurück, usw. Kein Rückwärtsfahren. Jede Gasse wird so von der vorigen
+// (oder dem Anschluss-Weg) aus erreicht.
+//
+// Gibt zurück:
+//  - connectors: [[ [lat,lng],[lat,lng] ], ...]   die Verbindungs-Segmente (blau)
+//  - route:      [ [lat,lng], ... ]               durchgehende Fahrroute in Reihenfolge
+//  - entryConnector: [[lat,lng],[lat,lng]] | null  Verbindung vom Weg zur ersten Gasse
+function trailBuildDrivingLogic(linesLatLng, proj, cLat, cLng, pathsM) {
+  if (!linesLatLng || linesLatLng.length === 0) {
+    return { connectors: [], route: [], entryConnector: null };
+  }
+  const toM = (ll) => proj.toLocal(ll[0], ll[1], cLat, cLng);
+
+  // Gassen-Richtung aus der ersten Gasse (alle parallel)
+  const l0a = toM(linesLatLng[0][0]), l0b = toM(linesLatLng[0][1]);
+  let dx = l0b.x - l0a.x, dy = l0b.y - l0a.y;
+  const dlen = Math.hypot(dx, dy) || 1; dx /= dlen; dy /= dlen;
+
+  // Jede Gasse mit konsistenter A/B-Orientierung (A = kleinere Projektion auf Richtung)
+  const ordered = linesLatLng.map(seg => {
+    const pa = toM(seg[0]), pb = toM(seg[1]);
+    const projA = pa.x * dx + pa.y * dy;
+    const projB = pb.x * dx + pb.y * dy;
+    return projA <= projB ? { A: seg[0], B: seg[1] } : { A: seg[1], B: seg[0] };
+  });
+
+  // Verbinder + durchgehende Route in Schlangenlinie aufbauen
+  const connectors = [];
+  const route = [];
+  ordered.forEach((t, i) => {
+    if (i % 2 === 0) { route.push(t.A, t.B); }   // gerade Gasse: A → B
+    else            { route.push(t.B, t.A); }    // ungerade Gasse: B → A (zurück)
+    // Verbinder zur nächsten Gasse (am aktuellen End-Ende)
+    if (i < ordered.length - 1) {
+      const endHere = (i % 2 === 0) ? t.B : t.A;
+      const next = ordered[i + 1];
+      const startNext = ((i + 1) % 2 === 0) ? next.A : next.B;
+      connectors.push([endHere, startNext]);
+    }
+  });
+
+  // Einfahrt: das freie Ende (Anfang von Gasse 0 bzw. Ende der letzten Gasse)
+  // das dem nächsten Anschluss-Weg am nächsten liegt → Verbinder vom Weg dorthin
+  let entryConnector = null;
+  if (pathsM && pathsM.length > 0) {
+    const freeEnds = [ ordered[0].A ];
+    const lastIdx = ordered.length - 1;
+    freeEnds.push((lastIdx % 2 === 0) ? ordered[lastIdx].B : ordered[lastIdx].A);
+    // nächsten Weg-Punkt zu einem der freien Enden finden
+    let best = null;
+    freeEnds.forEach(fe => {
+      const feM = toM(fe);
+      pathsM.forEach(pM => {
+        pM.forEach(pt => {
+          const d = Math.hypot(feM.x - pt.x, feM.y - pt.y);
+          if (!best || d < best.d) {
+            best = { d, from: proj.toLatLng(pt.x, pt.y, cLat, cLng), to: fe };
+          }
+        });
+      });
+    });
+    if (best && best.d < 150) {
+      entryConnector = [[best.from.lat, best.from.lng], best.to];
+    }
+  }
+
+  return { connectors, route, entryConnector };
+}
+
+function _trailWrapResult(lines, edges, angle, modeUsed, note, proj, cLat, cLng, pathsM) {
   let totalLen = 0;
   lines.forEach(seg => {
     const dLat = (seg[1][0] - seg[0][0]) * 111320;
@@ -7752,7 +7953,18 @@ function _trailWrapResult(lines, edges, angle, modeUsed, note) {
     totalLen += Math.hypot(dLat, dLng);
   });
   const avgLen = lines.length ? totalLen / lines.length : 0;
-  return { lines, edges, usedAngle: angle, modeUsed, avgLen, note };
+
+  // Fahrlogik (Schlangenlinie) nur wenn projektions-Hilfen übergeben wurden
+  let driving = { connectors: [], route: [], entryConnector: null };
+  if (proj && lines.length >= 1) {
+    driving = trailBuildDrivingLogic(lines, proj, cLat, cLng, pathsM || null);
+  }
+  return {
+    lines, edges, usedAngle: angle, modeUsed, avgLen, note,
+    connectors: driving.connectors,
+    route: driving.route,
+    entryConnector: driving.entryConnector
+  };
 }
 
 // ── PLANNING FLOW ─────────────────────────────────────────────────────
@@ -8065,27 +8277,52 @@ function _renderTrailPreview() {
 
   if (_trailPolygon.length < 3) return;
 
-  const { lines, edges, usedAngle, avgLen, note } = trailGenerateParallels(
+  const { lines, edges, suggestedRoad, connectors, route, entryConnector, usedAngle, avgLen, note } = trailGenerateParallels(
     _trailPolygon, _trailSpacing, _trailOrientationMode,
     _trailPaths.length > 0 ? _trailPaths : null
   );
   _trailGenerated      = lines;
   _trailGeneratedEdges = edges;
+  _trailSuggestedRoad  = Array.isArray(suggestedRoad) ? suggestedRoad : [];
+  _trailConnectors     = Array.isArray(connectors) ? connectors : [];
+  _trailRoute          = Array.isArray(route) ? route : [];
+  _trailEntryConnector = entryConnector || null;
 
-  // Hauptgassen
+  // Hauptgassen / Rippen
   lines.forEach(seg => {
     const poly = L.polyline(seg, {
       color: '#e8b070', weight: 2.5, opacity: .85, dashArray: '4,4'
     }).addTo(map);
     _trailLineLayers.push(poly);
   });
-  // Eckgassen (Coverage-Garantie) — auffälliger anders gefärbt
+  // Eckgassen (Coverage-Garantie)
   edges.forEach(seg => {
     const poly = L.polyline(seg, {
       color: '#ff6b3d', weight: 3, opacity: .9, dashArray: '8,3'
     }).addTo(map);
     _trailEdgeLayers.push(poly);
   });
+  // Vorgeschlagene Weg-Verlängerung (gestrichelt rot)
+  _trailSuggestedRoad.forEach(seg => {
+    const poly = L.polyline(seg, {
+      color: '#ff4d4d', weight: 3, opacity: .8, dashArray: '10,6'
+    }).addTo(map);
+    _trailEdgeLayers.push(poly);
+  });
+  // Fahrlogik-Verbinder (blau, durchgezogen) — die Schlangenlinien-Wenden
+  _trailConnectors.forEach(seg => {
+    const poly = L.polyline(seg, {
+      color: '#3aa0ff', weight: 3, opacity: .9
+    }).addTo(map);
+    _trailEdgeLayers.push(poly);
+  });
+  // Einfahrt vom Weg zur ersten Gasse (blau, dicker)
+  if (_trailEntryConnector) {
+    const poly = L.polyline(_trailEntryConnector, {
+      color: '#3aa0ff', weight: 4, opacity: .95, dashArray: '2,6'
+    }).addTo(map);
+    _trailEdgeLayers.push(poly);
+  }
 
   // Info-Text aktualisieren
   const info = document.getElementById('trail-opts-info');
@@ -8105,11 +8342,15 @@ function _renderTrailPreview() {
     const edgeBadge = edges.length > 0
       ? '<br><span style="color:#ff8b6d;">+ ' + edges.length + ' Eckgasse' + (edges.length === 1 ? '' : 'n') + ' (Coverage)</span>'
       : '';
+    const driveBadge = _trailConnectors.length > 0
+      ? '<br><span style="color:#7ec8ff;">🔵 ' + _trailConnectors.length + ' Verbinder — durchgehende Schlangenlinie' + (_trailEntryConnector ? ', Einfahrt vom Weg' : '') + '</span>'
+      : '';
     info.innerHTML =
       pathBadge +
       '<b>Richtung:</b> ' + orientationLabel + ' (' + Math.round(aDisplay) + '°)<br>' +
       '<b>Abstand:</b> ' + _trailSpacing + ' m · <b>Ø Gassenlänge:</b> ' + Math.round(avgLen) + ' m' +
       edgeBadge +
+      driveBadge +
       (note ? '<br><span style="color:#ffd080;font-size:11px;">ℹ ' + note + '</span>' : '');
   }
   const result = document.getElementById('trail-opts-result');
@@ -8160,6 +8401,8 @@ async function saveTrailPlan() {
         lines: _trailGenerated,
         edge_lines:  _trailGeneratedEdges.length ? _trailGeneratedEdges : null,
         access_path: _trailPaths.length > 0 ? _trailPaths : null,
+        connectors:  _trailConnectors.length ? _trailConnectors : null,
+        route:       _trailRoute.length ? _trailRoute : null,
         spacing_m: _trailSpacing,
         orientation_deg: 0,
         trail_count: _trailGenerated.length + _trailGeneratedEdges.length,
@@ -8173,6 +8416,10 @@ async function saveTrailPlan() {
       _trailPolygon = [];
       _trailGenerated = [];
       _trailGeneratedEdges = [];
+      _trailSuggestedRoad = [];
+      _trailConnectors = [];
+      _trailRoute = [];
+      _trailEntryConnector = null;
       _trailPaths = [];
       _trailCurrentPath = [];
       if (_trailPolyLayer)  { try { map.removeLayer(_trailPolyLayer); } catch {} _trailPolyLayer = null; }
@@ -8233,8 +8480,13 @@ function _renderSavedTrailPlan(plan) {
   const pathLayers = accPaths
     .filter(p => Array.isArray(p) && p.length >= 2)
     .map(p => L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4' }).addTo(map));
+  // Fahrlogik-Verbinder (blau)
+  const connectors = Array.isArray(plan.connectors) ? plan.connectors : [];
+  const connLayers = connectors.map(seg =>
+    L.polyline(seg, { color: '#3aa0ff', weight: 2.5, opacity: .85 }).addTo(map)
+  );
 
-  _trailPlanLayers[plan.id] = { polygon: polyLayer, lines: lineLayers, edges: edgeLayers, paths: pathLayers };
+  _trailPlanLayers[plan.id] = { polygon: polyLayer, lines: lineLayers, edges: edgeLayers, paths: pathLayers, connectors: connLayers };
 }
 
 function _removeSavedTrailPlan(planId) {
@@ -8244,6 +8496,7 @@ function _removeSavedTrailPlan(planId) {
   (entry.paths || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   (entry.lines || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   (entry.edges || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  (entry.connectors || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   delete _trailPlanLayers[planId];
 }
 
@@ -8362,6 +8615,7 @@ async function exportTrailPlanGpx(planId) {
     const plan = data[0];
     const lines   = Array.isArray(plan.lines)       ? plan.lines       : [];
     const edges   = Array.isArray(plan.edge_lines)  ? plan.edge_lines  : [];
+    const route   = Array.isArray(plan.route)       ? plan.route       : [];
     // access_path Multi-Format Detection
     let accPaths = [];
     const stored = plan.access_path;
@@ -8387,22 +8641,30 @@ async function exportTrailPlanGpx(planId) {
       });
       gpx += '    </trkseg>\n  </trk>\n';
     });
-    // Hauptgassen
-    lines.forEach((seg, idx) => {
-      gpx += '  <trk>\n    <name>Gasse ' + (idx + 1) + '</name>\n    <trkseg>\n';
-      seg.forEach(p => {
+    // Durchgehende Fahrroute (Schlangenlinie in Fahrreihenfolge) — DER eigentliche Fahrweg
+    if (route.length >= 2) {
+      gpx += '  <trk>\n    <name>Fahrroute (Reihenfolge)</name>\n    <trkseg>\n';
+      route.forEach(p => {
         gpx += '      <trkpt lat="' + p[0].toFixed(6) + '" lon="' + p[1].toFixed(6) + '"></trkpt>\n';
       });
       gpx += '    </trkseg>\n  </trk>\n';
-    });
-    // Eckgassen
-    edges.forEach((seg, idx) => {
-      gpx += '  <trk>\n    <name>Eckgasse ' + (idx + 1) + '</name>\n    <trkseg>\n';
-      seg.forEach(p => {
-        gpx += '      <trkpt lat="' + p[0].toFixed(6) + '" lon="' + p[1].toFixed(6) + '"></trkpt>\n';
+    } else {
+      // Fallback: einzelne Gassen wenn keine Route gespeichert
+      lines.forEach((seg, idx) => {
+        gpx += '  <trk>\n    <name>Gasse ' + (idx + 1) + '</name>\n    <trkseg>\n';
+        seg.forEach(p => {
+          gpx += '      <trkpt lat="' + p[0].toFixed(6) + '" lon="' + p[1].toFixed(6) + '"></trkpt>\n';
+        });
+        gpx += '    </trkseg>\n  </trk>\n';
       });
-      gpx += '    </trkseg>\n  </trk>\n';
-    });
+      edges.forEach((seg, idx) => {
+        gpx += '  <trk>\n    <name>Eckgasse ' + (idx + 1) + '</name>\n    <trkseg>\n';
+        seg.forEach(p => {
+          gpx += '      <trkpt lat="' + p[0].toFixed(6) + '" lon="' + p[1].toFixed(6) + '"></trkpt>\n';
+        });
+        gpx += '    </trkseg>\n  </trk>\n';
+      });
+    }
     gpx += '</gpx>\n';
     const blob = new Blob([gpx], { type: 'application/gpx+xml' });
     const url = URL.createObjectURL(blob);
@@ -11255,15 +11517,6 @@ window.runPdfExport = runPdfExport;
              oninput="setTrailSpacingCustom(this.value)"
              style="flex:1;font-size:14px;font-weight:600;padding:7px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);color:#c8e6c0;font-family:inherit;-webkit-appearance:none;text-align:center;min-width:60px;">
       <span style="font-size:12px;color:#a0c8a0;font-weight:600;flex-shrink:0;">m</span>
-    </div>
-
-    <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Orientierung</label>
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
-      <button class="tort-chip on" data-ort="smart" onclick="setTrailOrientation('smart')">🧠 Smart</button>
-      <button class="tort-chip" data-ort="auto" onclick="setTrailOrientation('auto')">📏 Längste Achse</button>
-      <button class="tort-chip" data-ort="road" onclick="setTrailOrientation('road')">🛣 Vom Weg</button>
-      <button class="tort-chip" data-ort="ns" onclick="setTrailOrientation('ns')">⬆ Nord-Süd</button>
-      <button class="tort-chip" data-ort="ew" onclick="setTrailOrientation('ew')">➡ Ost-West</button>
     </div>
 
     <div id="trail-opts-result" style="font-size:13px;color:#a0d89a;text-align:center;padding:10px;background:rgba(74,170,74,.08);border-radius:9px;margin-bottom:14px;"></div>
