@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="7.4">
+  <meta name="app-version" content="7.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '7.4'")) {
+        if (!txt.includes("APP_VERSION = '7.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7477,7 +7477,7 @@ function trailResampleWithTangent(lineM, interval) {
     const tx = (b.x - a.x) / segLen, ty = (b.y - a.y) / segLen;
     while (nextEmit <= acc + segLen) {
       const t = nextEmit - acc;
-      pts.push({ x: a.x + tx * t, y: a.y + ty * t, tx, ty });
+      pts.push({ x: a.x + tx * t, y: a.y + ty * t, tx, ty, dist: nextEmit });
       nextEmit += interval;
     }
     acc += segLen;
@@ -7584,6 +7584,30 @@ function trailTrimIntersections(linesLatLng) {
   return out;
 }
 
+// Geglättete Weg-Richtung an einer Bogenlängen-Position: mittelt die Richtung
+// über ein Fenster (±windowM) entlang des Wegs. Folgt Kurven, ignoriert GPS-Zappeln.
+function _trailSmoothTangentAt(pathM, targetDist, windowM) {
+  // Punkte im Fenster [targetDist-windowM, targetDist+windowM] sammeln
+  let acc = 0;
+  const inWin = [];
+  for (let i = 0; i < pathM.length; i++) {
+    if (i > 0) acc += Math.hypot(pathM[i].x - pathM[i-1].x, pathM[i].y - pathM[i-1].y);
+    if (acc >= targetDist - windowM && acc <= targetDist + windowM) inWin.push(pathM[i]);
+  }
+  if (inWin.length < 2) {
+    // Fallback: Gesamtrichtung
+    const a = pathM[0], b = pathM[pathM.length - 1];
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const l = Math.hypot(dx, dy) || 1;
+    return { tx: dx / l, ty: dy / l };
+  }
+  // Richtung = erster → letzter Punkt im Fenster (robuste lokale Sehne)
+  const a = inWin[0], b = inWin[inWin.length - 1];
+  let dx = b.x - a.x, dy = b.y - a.y;
+  const l = Math.hypot(dx, dy) || 1;
+  return { tx: dx / l, ty: dy / l };
+}
+
 function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   polyM.forEach(p => {
@@ -7599,28 +7623,25 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   pathsM.forEach(pathM => {
     if (pathM.length < 2) return;
 
-    // ── EIN stabiler Mittelwinkel für den ganzen Weg (Anfang → Ende) ──
-    const first = pathM[0], last = pathM[pathM.length - 1];
-    let wx = last.x - first.x, wy = last.y - first.y;
-    const wlen = Math.hypot(wx, wy) || 1; wx /= wlen; wy /= wlen;
-    const nx = -wy, ny = wx;   // feste Senkrechte zur Weg-Mittelrichtung
+    // Glättungsfenster: ±2× Gassenabstand → folgt Kurven, ignoriert GPS-Zappeln
+    const windowM = Math.max(spacingM * 2, 25);
 
-    // Gleichmäßiges Sampling im vollen Gassen-Abstand (kein Abwechseln —
-    // beide Seiten bekommen an JEDEM Punkt eine Gasse)
+    // Gleichmäßiges Sampling im vollen Gassen-Abstand (beide Seiten je Punkt)
     const samples = trailResampleWithTangent(pathM, spacingM);
 
     samples.forEach((s) => {
       if (!trailPointInPolygon(s.x, s.y, polyM)) return;
+      // LOKALE geglättete Wegrichtung an dieser Stelle → Senkrechte folgt der Kurve
+      const tan = _trailSmoothTangentAt(pathM, s.dist, windowM);
+      const nx = -tan.ty, ny = tan.tx;   // lokale Senkrechte zur (geglätteten) Wegrichtung
       // Zwei Strahlen: eine Seite + andere Seite. Jeder läuft vom Weg nach außen,
       // stoppt aber am Polygonrand ODER wenn er wieder auf den Weg trifft.
       [1, -1].forEach(side => {
         const dirx = nx * side, diry = ny * side;
-        // Trefferdistanz Polygonrand
         const edgeSeg = trailRayToPolygonEdge(s.x, s.y, dirx, diry, polyM, diag);
         let maxT = edgeSeg
           ? Math.hypot(edgeSeg[1].x - s.x, edgeSeg[1].y - s.y)
           : diag;
-        // Trefferdistanz Weg (falls der Strahl den kurvigen Weg wieder kreuzt)
         const roadT = _trailRayToPolylineDist(s.x, s.y, dirx, diry, pathM, maxT);
         if (roadT !== null && roadT > 1) maxT = Math.min(maxT, roadT);
         if (maxT < MIN_RIB) return;
@@ -8787,16 +8808,34 @@ async function jumpToTrailPlan(planId) {
 }
 
 async function deleteTrailPlan(planId) {
-  if (!confirm('Fahrgassen-Plan wirklich löschen?')) return;
+  // Direkt löschen ohne Bestätigungs-Dialog — mit Undo-Möglichkeit über den Toast
   try {
-    // Soft-Delete
     await dbFetch('trail_plans?id=eq.' + planId, {
       method: 'PATCH',
       prefer: 'return=minimal',
       body: { deleted_at: new Date().toISOString() }
     });
     _removeSavedTrailPlan(planId);
-    showToast('✓ Plan gelöscht');
+    // Undo: deleted_at wieder auf null setzen
+    if (typeof showToast === 'function') {
+      try {
+        showToast('Plan gelöscht — Rückgängig?', {
+          actionLabel: 'Rückgängig',
+          onAction: async () => {
+            try {
+              await dbFetch('trail_plans?id=eq.' + planId, {
+                method: 'PATCH', prefer: 'return=minimal',
+                body: { deleted_at: null }
+              });
+              await renderTrailPlansList();
+              showToast('✓ Wiederhergestellt');
+            } catch {}
+          }
+        });
+      } catch {
+        showToast('✓ Plan gelöscht');
+      }
+    }
     await renderTrailPlansList();
   } catch (e) {
     showToast('⚠️ Löschen fehlgeschlagen: ' + (e.message || ''));
