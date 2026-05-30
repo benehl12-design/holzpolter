@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.0">
+  <meta name="app-version" content="9.1">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.0'")) {
+        if (!txt.includes("APP_VERSION = '9.1'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9239,6 +9239,122 @@ function cmpRegenLines(cmp) {
 
 function cmpRenderAll() { _cmpCompartments.forEach(cmpRender); }
 
+// ── AUTO-MODUS: Fläche an Wegen in Abteile teilen ─────────────────────
+// Halbebenen-Schnitt (robust für konvexe Forst-Flächen). Jeder Weg wird zu
+// einer Schnittgeraden (Mittelrichtung durch Schwerpunkt seiner Innen-Punkte).
+function _cmpShoelaceArea(polyM) {
+  let a = 0;
+  for (let i = 0; i < polyM.length; i++) {
+    const p = polyM[i], q = polyM[(i + 1) % polyM.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+function _cmpClipHalfPlane(polyM, px, py, nx, ny) {
+  const out = [];
+  const N = polyM.length;
+  for (let i = 0; i < N; i++) {
+    const a = polyM[i], b = polyM[(i + 1) % N];
+    const da = (a.x - px) * nx + (a.y - py) * ny;
+    const db = (b.x - px) * nx + (b.y - py) * ny;
+    if (da >= 0) out.push(a);
+    if ((da >= 0) !== (db >= 0)) {
+      const t = da / (da - db);
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  return out;
+}
+
+function _cmpSplitByLine(polyM, px, py, dirx, diry) {
+  const nx = -diry, ny = dirx;   // Normale zur Schnittgeraden
+  const left  = _cmpClipHalfPlane(polyM, px, py,  nx,  ny);
+  const right = _cmpClipHalfPlane(polyM, px, py, -nx, -ny);
+  const res = [];
+  if (left.length  >= 3 && _cmpShoelaceArea(left)  > 1) res.push(left);
+  if (right.length >= 3 && _cmpShoelaceArea(right) > 1) res.push(right);
+  return res;
+}
+
+function cmpAutoSplit() {
+  const base = cmpGetSelected() || _cmpCompartments[0];
+  if (!base) { showToast('Erst ein Abteil über die ganze Fläche zeichnen'); return; }
+  if (!_trailPaths.length) { showToast('Erst mindestens einen Weg zeichnen'); return; }
+
+  // Projektion um Schwerpunkt der Basis-Fläche
+  let cLat = 0, cLng = 0;
+  base.polygon.forEach(p => { cLat += p[0]; cLng += p[1]; });
+  cLat /= base.polygon.length; cLng /= base.polygon.length;
+  const proj = trailLocalProjection(cLat);
+  const polyM0 = base.polygon.map(p => proj.toLocal(p[0], p[1], cLat, cLng));
+  const diag = (() => {
+    let minX=1e18,maxX=-1e18,minY=1e18,maxY=-1e18;
+    polyM0.forEach(p=>{if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;});
+    return Math.hypot(maxX-minX,maxY-minY);
+  })();
+  const baseArea = _cmpShoelaceArea(polyM0);
+
+  // Schnittgeraden aus den Wegen bilden (nur Wege die nennenswert durch die Fläche laufen)
+  const cutLines = [];
+  _trailPaths.forEach(path => {
+    if (!Array.isArray(path) || path.length < 2) return;
+    const pm = path.map(pt => proj.toLocal(pt[0], pt[1], cLat, cLng));
+    // Innen-Punkte
+    const inside = pm.filter(p => trailPointInPolygon(p.x, p.y, polyM0));
+    const ref = inside.length ? inside : pm;
+    let sx = 0, sy = 0; ref.forEach(p => { sx += p.x; sy += p.y; });
+    const cx = sx / ref.length, cy = sy / ref.length;
+    const f = pm[0], l = pm[pm.length - 1];
+    let dx = l.x - f.x, dy = l.y - f.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    // Innen-Länge grob: Distanz erster↔letzter Innen-Punkt
+    let inLen = diag;
+    if (inside.length >= 2) inLen = Math.hypot(inside[inside.length-1].x - inside[0].x, inside[inside.length-1].y - inside[0].y);
+    if (inLen < diag * 0.2) return;   // Stummel-Wege nicht zum Teilen nutzen
+    cutLines.push({ cx, cy, dx, dy });
+  });
+
+  if (!cutLines.length) { showToast('Kein Weg läuft genug durch die Fläche'); return; }
+
+  // Sukzessive teilen
+  let pieces = [polyM0];
+  cutLines.forEach(cl => {
+    const next = [];
+    pieces.forEach(pc => {
+      const parts = _cmpSplitByLine(pc, cl.cx, cl.cy, cl.dx, cl.dy);
+      // nur akzeptieren wenn echte Teilung (beide Teile relevant), sonst Stück behalten
+      const big = parts.filter(p => _cmpShoelaceArea(p) > baseArea * 0.03);
+      if (big.length >= 2) big.forEach(p => next.push(p));
+      else next.push(pc);
+    });
+    pieces = next;
+  });
+
+  // Basis entfernen, Teil-Abteile anlegen
+  cmpClearLayers(base);
+  _cmpCompartments = _cmpCompartments.filter(x => x.id !== base.id);
+  pieces.forEach(pc => {
+    const polyLL = pc.map(p => { const ll = proj.toLatLng(p.x, p.y, cLat, cLng); return [ll.lat, ll.lng]; });
+    const id = _cmpIdSeq++;
+    _cmpCompartments.push({
+      id,
+      polygon: polyLL,
+      angleDeg: cmpDefaultAngle(polyLL, _trailPaths),  // senkrecht zum nächsten Weg
+      spacing: base.spacing || _trailSpacing,
+      splitAtRoad: true,
+      color: _CMP_COLORS[(_cmpCompartments.length) % _CMP_COLORS.length],
+      _poly: null, _verts: [], _lineLayers: [], lines: []
+    });
+  });
+  _cmpSelectedId = _cmpCompartments.length ? _cmpCompartments[0].id : null;
+  cmpRenderAll();
+  cmpUpdatePanel();
+  showToast('✓ ' + pieces.length + ' Abteile vorgeschlagen — frei editierbar');
+}
+window.cmpAutoSplit = cmpAutoSplit;
+
+
 // ── EDITOR-STEUERUNG ──────────────────────────────────────────────────
 function startCompartmentEditor() {
   _cmpActive = true;
@@ -9451,7 +9567,9 @@ function cmpUpdatePanel() {
       '<button onclick="cmpStartDrawCompartment()" style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#4aaa4a,#3a8a3a);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">+ Abteil zeichnen</button>' +
       '<button onclick="cmpSave()" style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#e08020,#d87010);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">💾 Speichern</button>' +
       '<button onclick="cmpCancel()" style="flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#d8d8d8;font-family:inherit;font-size:12px;cursor:pointer;">✕</button>' +
-    '</div>';
+    '</div>' +
+    '<button onclick="cmpAutoSplit()" style="width:100%;margin-top:8px;padding:11px;border-radius:10px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.14);color:#ffd070;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">🪄 Auto: an Wegen in Abteile teilen</button>' +
+    '<div style="font-size:11px;color:#7a9a7a;margin-top:6px;line-height:1.4;">Tipp: ganze Fläche als <b>ein</b> Abteil zeichnen, dann „Auto" — wird an den Wegen geteilt, Gassen je Abteil senkrecht zum nächsten Weg. Danach frei editierbar.</div>';
 }
 
 window.startCompartmentEditor = startCompartmentEditor;
