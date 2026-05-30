@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="7.6">
+  <meta name="app-version" content="7.7">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '7.6'")) {
+        if (!txt.includes("APP_VERSION = '7.7'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7659,10 +7659,10 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   } else {
     roadAngleRad = trailPrincipalAxisAngle(polyM) * Math.PI / 180;
   }
-  // Gassen sollen SENKRECHT zur Wegrichtung verlaufen → Rasterlinien parallel
-  // zur Wegrichtung legen wir im rotierten System als y=const an, aber gedreht
-  // um (roadAngle + 90°), damit die Linien senkrecht zum Weg stehen.
-  const gridAngle = roadAngleRad + Math.PI / 2;   // Richtung der Gassen
+  // Gassen sollen LÄNGS zum Weg verlaufen (parallel mitlaufend, wie vom User skizziert).
+  // Das Raster wird also in Wegrichtung gelegt — die Gassen laufen parallel zum Weg,
+  // im konstanten Abstand nach beiden Seiten versetzt.
+  const gridAngle = roadAngleRad;   // Richtung der Gassen = Wegrichtung
   const a = -gridAngle;   // Rotation ins Rastersystem (Gassen werden waagerecht)
   const cosA = Math.cos(a), sinA = Math.sin(a);
   const rot   = (p) => ({ x: p.x * cosA - p.y * sinA, y: p.x * sinA + p.y * cosA });
