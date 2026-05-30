@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="8.2">
+  <meta name="app-version" content="9.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '8.2'")) {
+        if (!txt.includes("APP_VERSION = '9.0'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2365,11 +2365,11 @@ if ('serviceWorker' in navigator) {
 
     <!-- Werkzeuge -->
     <div class="slide-section-title" id="smenu-sec-werkzeuge">Werkzeuge</div>
-    <button class="slide-btn" id="smenu-trail-plan" onclick="startTrailPlanning();closeSlideMenu();">
+    <button class="slide-btn" id="smenu-trail-plan" onclick="startCompartmentEditor();closeSlideMenu();">
       <div class="slide-btn-icon" style="background:rgba(120,80,30,.25);color:#d8a060;">🚜</div>
       <div class="slide-btn-info">
         <div class="slide-btn-label">Fahrgassen planen</div>
-        <div class="slide-btn-desc">Bestand abstecken, Gassen generieren</div>
+        <div class="slide-btn-desc">Wege zeichnen, Abteile setzen, Gassen drehen</div>
       </div>
     </button>
     <button class="slide-btn" id="smenu-trail-list" onclick="openTrailPlansList();closeSlideMenu();">
@@ -5928,6 +5928,7 @@ map.on('click',e=>{
   if (typeof isAreaDrawing !== 'undefined' && isAreaDrawing) return;
   if (typeof _trailDrawing !== 'undefined' && _trailDrawing) return;
   if (typeof _trailPathDrawing !== 'undefined' && _trailPathDrawing) return;
+  if (typeof _cmpDrawing !== 'undefined' && _cmpDrawing) return;
   if(document.getElementById('panel').classList.contains('hidden'))openPanel(e.latlng,false);
 });
 
@@ -7294,6 +7295,21 @@ let _trailPathMarkers   = [];     // L.marker[] sichtbare Weg-Eckpunkte (nur akt
 // Sichtbare gespeicherte Pläne (für Karten-Anzeige)
 const _trailPlanLayers = {};  // { planId: { polygon, lines: L.polyline[], edges: L.polyline[], path: L.polyline } }
 
+// ── ABTEIL-EDITOR (v9) ────────────────────────────────────────────────
+// Ein Plan = mehrere Wege + mehrere Abteile. Jedes Abteil hat ein eigenes
+// Gassen-Raster mit eigenem Drehwinkel.
+let _cmpActive       = false;     // Editor aktiv?
+let _cmpCompartments = [];        // [{ id, polygon:[[lat,lng]...], angleDeg, spacing, splitAtRoad, _poly, _verts:[], _lineLayers:[] }]
+let _cmpSelectedId   = null;      // aktuell ausgewähltes Abteil
+let _cmpDrawing      = false;     // gerade neues Abteil zeichnen?
+let _cmpDrawPts      = [];        // Punkte des in Zeichnung befindlichen Abteils
+let _cmpDrawLayer    = null;      // Vorschau-Polygon beim Zeichnen
+let _cmpDrawMarkers  = [];        // Eckpunkt-Marker beim Zeichnen
+let _cmpIdSeq        = 1;         // fortlaufende ID
+const _CMP_COLORS    = ['#e8b070', '#7ec8a0', '#c89cd8', '#d89090', '#90c0e0', '#d8c870'];
+
+// ── ENDE ABTEIL-EDITOR STATE ──
+
 // ── GEODÄSIE-HILFEN ───────────────────────────────────────────────────
 // Approximative Umrechnung lat/lng → lokales metrisches System.
 // Für Forst-Bestände (typisch < paar km Durchmesser) reicht das völlig.
@@ -8392,6 +8408,7 @@ function _openTrailOptionsSheet() {
 function skipTrailPath() {
   const choice = document.getElementById('trail-path-choice');
   if (choice) choice.style.display = 'none';
+  if (_cmpActive) { cmpAfterPaths(); return; }
   _openTrailOptionsSheet();
 }
 
@@ -8490,6 +8507,7 @@ function finishTrailPath() {
 function finishAllTrailPaths() {
   const more = document.getElementById('trail-path-more');
   if (more) more.style.display = 'none';
+  if (_cmpActive) { cmpAfterPaths(); return; }
   _openTrailOptionsSheet();
 }
 
@@ -8785,6 +8803,35 @@ async function saveTrailPlan() {
 
 function _renderSavedTrailPlan(plan) {
   if (_trailPlanLayers[plan.id]) return;  // schon angezeigt
+
+  // Neuer Abteil-Editor: wenn compartments vorhanden, diese rendern
+  if (Array.isArray(plan.compartments) && plan.compartments.length) {
+    const colors = ['#e8b070','#7ec8a0','#c89cd8','#d89090','#90c0e0','#d8c870'];
+    const layers = [];
+    plan.compartments.forEach((cmp, i) => {
+      const col = colors[i % colors.length];
+      if (Array.isArray(cmp.polygon) && cmp.polygon.length >= 3) {
+        const pl = L.polygon(cmp.polygon, { color: col, weight: 2, opacity: .7, fillColor: col, fillOpacity: .04 }).addTo(map);
+        pl.bindPopup('<b>🚜 ' + (plan.name || 'Plan') + '</b><br>Abteil ' + (i+1) + ' · ' + (Array.isArray(cmp.lines)?cmp.lines.length:0) + ' Gassen');
+        layers.push(pl);
+      }
+      (Array.isArray(cmp.lines) ? cmp.lines : []).forEach(seg => {
+        layers.push(L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map));
+      });
+    });
+    // Wege
+    let accPaths0 = [];
+    const st0 = plan.access_path;
+    if (Array.isArray(st0) && st0.length && Array.isArray(st0[0]) && st0[0].length) {
+      accPaths0 = (typeof st0[0][0] === 'number') ? [st0] : st0;
+    }
+    accPaths0.forEach(p => {
+      if (Array.isArray(p) && p.length >= 2) layers.push(L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4' }).addTo(map));
+    });
+    _trailPlanLayers[plan.id] = { polygon: null, lines: layers, edges: [], paths: [], connectors: [] };
+    return;
+  }
+
   const polygon  = Array.isArray(plan.polygon)     ? plan.polygon     : [];
   const lines    = Array.isArray(plan.lines)       ? plan.lines       : [];
   const edges    = Array.isArray(plan.edge_lines)  ? plan.edge_lines  : [];
@@ -9037,6 +9084,394 @@ async function exportTrailPlanGpx(planId) {
     showToast('⚠️ Export fehlgeschlagen: ' + (e.message || ''));
   }
 }
+
+// ════════════════════════════════════════════════════════════════════
+// ABTEIL-EDITOR (v9) — manuelles Zusammensetzen von Gassen-Abteilen
+// ════════════════════════════════════════════════════════════════════
+
+// Raster paralleler Gassen für ein Polygon bei gegebenem Winkel (Grad).
+// Optional am Weg geteilt. Gibt Liste von Segmenten [[lat,lng],[lat,lng]] zurück.
+function cmpGenerateGrid(polygonLatLng, angleDeg, spacingM, pathsLatLng, splitAtRoad) {
+  if (!polygonLatLng || polygonLatLng.length < 3) return [];
+  let cLat = 0, cLng = 0;
+  polygonLatLng.forEach(p => { cLat += p[0]; cLng += p[1]; });
+  cLat /= polygonLatLng.length; cLng /= polygonLatLng.length;
+  const proj = trailLocalProjection(cLat);
+  const polyM = polygonLatLng.map(p => proj.toLocal(p[0], p[1], cLat, cLng));
+
+  const a = -angleDeg * Math.PI / 180;
+  const cosA = Math.cos(a), sinA = Math.sin(a);
+  const rot = (p) => ({ x: p.x * cosA - p.y * sinA, y: p.x * sinA + p.y * cosA });
+  const polyR = polyM.map(rot);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  polyR.forEach(p => {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  });
+
+  // Wege ins gleiche System (für optionales Teilen)
+  const pathsR = (splitAtRoad && Array.isArray(pathsLatLng))
+    ? pathsLatLng.filter(p => Array.isArray(p) && p.length >= 2)
+        .map(pth => pth.map(pt => rot(proj.toLocal(pt[0], pt[1], cLat, cLng))))
+    : [];
+
+  const MIN_LEN = Math.max(spacingM * 0.3, 5);
+  const GAP = splitAtRoad ? Math.max(spacingM * 0.15, 3) : 0;
+  const out = [];
+  for (let y = minY + spacingM * 0.5; y < maxY; y += spacingM) {
+    trailClipLineToPolygon(minX - 1, y, maxX + 1, y, polyR).forEach(seg => {
+      let pieces = [[seg[0], seg[1]]];
+      pathsR.forEach(pR => {
+        const next = [];
+        pieces.forEach(([pa, pb]) => { _trailSplitSegmentAtRoad(pa, pb, pR).forEach(s => next.push(s)); });
+        pieces = next;
+      });
+      pieces.forEach(([pa, pb]) => {
+        let A = pa, B = pb;
+        if (GAP > 0 && pathsR.length) {
+          const aAt = _trailNearestOnPaths(pa, pathsR).d < GAP * 1.5;
+          const bAt = _trailNearestOnPaths(pb, pathsR).d < GAP * 1.5;
+          const dx = pb.x - pa.x, dy = pb.y - pa.y, L = Math.hypot(dx, dy) || 1;
+          const ux = dx / L, uy = dy / L;
+          if (aAt) A = { x: pa.x + ux * GAP, y: pa.y + uy * GAP };
+          if (bAt) B = { x: pb.x - ux * GAP, y: pb.y - uy * GAP };
+        }
+        if (Math.hypot(B.x - A.x, B.y - A.y) < MIN_LEN) return;
+        // zurückrotieren + lat/lng
+        const c2 = Math.cos(-a), s2 = Math.sin(-a);
+        const ba = { x: A.x * c2 - A.y * s2, y: A.x * s2 + A.y * c2 };
+        const bb = { x: B.x * c2 - B.y * s2, y: B.x * s2 + B.y * c2 };
+        const llA = proj.toLatLng(ba.x, ba.y, cLat, cLng);
+        const llB = proj.toLatLng(bb.x, bb.y, cLat, cLng);
+        out.push([[llA.lat, llA.lng], [llB.lat, llB.lng]]);
+      });
+    });
+  }
+  return out;
+}
+
+// Default-Winkel für ein neues Abteil: senkrecht zum nächstgelegenen Weg, sonst 0.
+function cmpDefaultAngle(polygonLatLng, pathsLatLng) {
+  if (!Array.isArray(pathsLatLng) || !pathsLatLng.length) return 0;
+  // Schwerpunkt
+  let cLat = 0, cLng = 0;
+  polygonLatLng.forEach(p => { cLat += p[0]; cLng += p[1]; });
+  cLat /= polygonLatLng.length; cLng /= polygonLatLng.length;
+  const proj = trailLocalProjection(cLat);
+  const c = proj.toLocal(cLat, cLng, cLat, cLng);
+  // nächsten Weg finden, dessen Hauptrichtung nehmen
+  let best = null;
+  pathsLatLng.forEach(pth => {
+    if (!Array.isArray(pth) || pth.length < 2) return;
+    const f = proj.toLocal(pth[0][0], pth[0][1], cLat, cLng);
+    const l = proj.toLocal(pth[pth.length-1][0], pth[pth.length-1][1], cLat, cLng);
+    const mx = (f.x + l.x) / 2, my = (f.y + l.y) / 2;
+    const d = Math.hypot(mx - c.x, my - c.y);
+    if (!best || d < best.d) best = { d, ang: Math.atan2(l.y - f.y, l.x - f.x) };
+  });
+  if (!best) return 0;
+  // Gassen senkrecht zum Weg → Weg-Winkel + 90
+  let deg = (best.ang * 180 / Math.PI) + 90;
+  deg = ((deg % 180) + 180) % 180;
+  return deg;
+}
+
+// Alle Karten-Layer eines Abteils entfernen
+function cmpClearLayers(cmp) {
+  if (cmp._poly) { try { map.removeLayer(cmp._poly); } catch {} cmp._poly = null; }
+  (cmp._verts || []).forEach(m => { try { map.removeLayer(m); } catch {} });
+  cmp._verts = [];
+  (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  cmp._lineLayers = [];
+}
+
+// Ein Abteil neu zeichnen (Polygon + Eckpunkte + Gassen)
+function cmpRender(cmp) {
+  cmpClearLayers(cmp);
+  const selected = (cmp.id === _cmpSelectedId);
+  const col = cmp.color || '#e8b070';
+  // Polygon-Umriss
+  cmp._poly = L.polygon(cmp.polygon, {
+    color: col, weight: selected ? 3 : 2, opacity: selected ? 1 : .7,
+    fillColor: col, fillOpacity: selected ? .08 : .04, dashArray: selected ? null : '5,5'
+  }).addTo(map);
+  cmp._poly.on('click', (e) => { L.DomEvent.stop(e); cmpSelect(cmp.id); });
+
+  // Gassen generieren + zeichnen
+  cmp.lines = cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
+  cmp._lineLayers = cmp.lines.map(seg =>
+    L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map)
+  );
+
+  // Eckpunkte (nur wenn ausgewählt) — verziehbar
+  cmp._verts = [];
+  if (selected) {
+    cmp.polygon.forEach((pt, idx) => {
+      const m = L.marker(pt, {
+        draggable: true,
+        icon: L.divIcon({
+          className: 'cmp-vert',
+          html: '<div style="width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid ' + col + ';box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>',
+          iconSize: [22, 22], iconAnchor: [11, 11]
+        })
+      }).addTo(map);
+      m.on('drag', (e) => {
+        const ll = e.target.getLatLng();
+        cmp.polygon[idx] = [ll.lat, ll.lng];
+        if (cmp._poly) cmp._poly.setLatLngs(cmp.polygon);
+      });
+      m.on('dragend', () => { cmpRegenLines(cmp); });
+      cmp._verts.push(m);
+    });
+  }
+}
+
+// Nur die Gassen-Linien eines Abteils neu berechnen (nach Drag/Dreh/Spacing)
+function cmpRegenLines(cmp) {
+  (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  cmp.lines = cmpGenerateGrid(cmp.polygon, cmp.angleDeg, cmp.spacing, _trailPaths, cmp.splitAtRoad);
+  const col = cmp.color || '#e8b070';
+  cmp._lineLayers = cmp.lines.map(seg =>
+    L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map)
+  );
+  cmpUpdatePanel();
+}
+
+function cmpRenderAll() { _cmpCompartments.forEach(cmpRender); }
+
+// ── EDITOR-STEUERUNG ──────────────────────────────────────────────────
+function startCompartmentEditor() {
+  _cmpActive = true;
+  _cmpCompartments = [];
+  _cmpSelectedId = null;
+  _cmpIdSeq = 1;
+  // Wege-State zurücksetzen, dann Wege-Zeichnen anbieten (gleicher Flow wie bisher)
+  _trailPaths = [];
+  _clearTrailPathLayers();
+  _cmpShowPanel();
+  // Direkt ins Wege-Zeichnen (optional) springen
+  const choice = document.getElementById('trail-path-choice');
+  if (choice) choice.style.display = 'flex';
+}
+
+// Wird aufgerufen wenn Wege fertig sind (statt _openTrailOptionsSheet)
+function cmpAfterPaths() {
+  _cmpShowPanel();
+  cmpStartDrawCompartment();
+}
+
+function cmpStartDrawCompartment() {
+  _cmpDrawing = true;
+  _cmpDrawPts = [];
+  document.body.classList.add('trail-drawing');
+  if (_cmpDrawLayer) { try { map.removeLayer(_cmpDrawLayer); } catch {} }
+  _cmpDrawLayer = L.polygon([], { color: '#ffd070', weight: 2, dashArray: '6,5', fillOpacity: .06 }).addTo(map);
+  map.on('click', _cmpOnDrawClick);
+  setTxt('Abteil zeichnen: Ecken antippen, dann „Abteil fertig“');
+  const bar = document.getElementById('cmp-draw-bar'); if (bar) bar.classList.remove('hidden');
+  cmpUpdatePanel();
+}
+
+function _cmpOnDrawClick(e) {
+  if (!_cmpDrawing) return;
+  _cmpDrawPts.push([e.latlng.lat, e.latlng.lng]);
+  _cmpDrawLayer.setLatLngs(_cmpDrawPts);
+  const idx = _cmpDrawPts.length - 1;
+  const m = L.marker(e.latlng, {
+    icon: L.divIcon({ className: 'cmp-draw-pt',
+      html: '<div style="width:14px;height:14px;border-radius:50%;background:#ffd070;border:2px solid #fff;"></div>',
+      iconSize: [16,16], iconAnchor: [8,8] }), interactive: false
+  }).addTo(map);
+  _cmpDrawMarkers.push(m);
+  setTxt('Abteil: ' + _cmpDrawPts.length + ' Punkt' + (_cmpDrawPts.length===1?'':'e'));
+}
+
+function cmpFinishCompartment() {
+  if (_cmpDrawPts.length < 3) { showToast('Mindestens 3 Punkte'); return; }
+  map.off('click', _cmpOnDrawClick);
+  _cmpDrawing = false;
+  document.body.classList.remove('trail-drawing');
+  const bar = document.getElementById('cmp-draw-bar'); if (bar) bar.classList.add('hidden');
+  if (_cmpDrawLayer) { try { map.removeLayer(_cmpDrawLayer); } catch {} _cmpDrawLayer = null; }
+  _cmpDrawMarkers.forEach(m => { try { map.removeLayer(m); } catch {} });
+  _cmpDrawMarkers = [];
+
+  const id = _cmpIdSeq++;
+  const cmp = {
+    id,
+    polygon: _cmpDrawPts.slice(),
+    angleDeg: cmpDefaultAngle(_cmpDrawPts, _trailPaths),
+    spacing: _trailSpacing,
+    splitAtRoad: (_trailPaths.length > 0),
+    color: _CMP_COLORS[(_cmpCompartments.length) % _CMP_COLORS.length],
+    _poly: null, _verts: [], _lineLayers: [], lines: []
+  };
+  _cmpCompartments.push(cmp);
+  _cmpDrawPts = [];
+  cmpSelect(id);
+  setTxt('Abteil ' + id + ' angelegt');
+}
+
+function cmpSelect(id) {
+  _cmpSelectedId = id;
+  cmpRenderAll();   // Auswahl-Hervorhebung + Eckpunkte aktualisieren
+  cmpUpdatePanel();
+}
+
+function cmpGetSelected() { return _cmpCompartments.find(c => c.id === _cmpSelectedId) || null; }
+
+function cmpRotate90() {
+  const c = cmpGetSelected(); if (!c) return;
+  c.angleDeg = ((c.angleDeg + 90) % 180 + 180) % 180;
+  cmpRegenLines(c);
+}
+
+function cmpSetAngle(deg) {
+  const c = cmpGetSelected(); if (!c) return;
+  c.angleDeg = ((parseFloat(deg) % 180) + 180) % 180;
+  cmpRegenLines(c);
+}
+
+function cmpSetSpacing(v) {
+  const c = cmpGetSelected(); if (!c) return;
+  const s = parseFloat(v); if (!isFinite(s) || s < 3) return;
+  c.spacing = s;
+  cmpRegenLines(c);
+}
+
+function cmpToggleSplit() {
+  const c = cmpGetSelected(); if (!c) return;
+  c.splitAtRoad = !c.splitAtRoad;
+  cmpRegenLines(c);
+}
+
+function cmpDeleteSelected() {
+  const c = cmpGetSelected(); if (!c) return;
+  cmpClearLayers(c);
+  _cmpCompartments = _cmpCompartments.filter(x => x.id !== c.id);
+  _cmpSelectedId = _cmpCompartments.length ? _cmpCompartments[_cmpCompartments.length-1].id : null;
+  cmpRenderAll();
+  cmpUpdatePanel();
+}
+
+function cmpCancel() {
+  _cmpActive = false;
+  _cmpDrawing = false;
+  document.body.classList.remove('trail-drawing');
+  try { map.off('click', _cmpOnDrawClick); } catch {}
+  if (_cmpDrawLayer) { try { map.removeLayer(_cmpDrawLayer); } catch {} _cmpDrawLayer = null; }
+  _cmpDrawMarkers.forEach(m => { try { map.removeLayer(m); } catch {} }); _cmpDrawMarkers = [];
+  _cmpCompartments.forEach(cmpClearLayers);
+  _cmpCompartments = [];
+  _trailPaths = []; _clearTrailPathLayers();
+  const p = document.getElementById('cmp-panel'); if (p) p.style.display = 'none';
+  setTxt('Abgebrochen');
+}
+
+async function cmpSave() {
+  if (!_cmpCompartments.length) { showToast('Keine Abteile angelegt'); return; }
+  const name = (document.getElementById('cmp-name')?.value || '').trim() || ('Abteile ' + new Date().toLocaleDateString('de-DE'));
+  let total = 0;
+  const comps = _cmpCompartments.map(c => {
+    total += c.lines.length;
+    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, lines: c.lines };
+  });
+  try {
+    const saved = await dbFetch('trail_plans?select=*', {
+      method: 'POST', prefer: 'return=representation',
+      body: {
+        company_id: currentProfile.company_id,
+        name,
+        polygon: _cmpCompartments[0].polygon,   // Fallback fürs Listen-Preview
+        lines: [],
+        access_path: _trailPaths.length ? _trailPaths : null,
+        compartments: comps,
+        spacing_m: _trailSpacing,
+        orientation_deg: 0,
+        trail_count: total,
+        created_by: currentUser.id
+      }
+    });
+    if (saved && saved[0]) {
+      showToast('✓ ' + _cmpCompartments.length + ' Abteile, ' + total + ' Gassen gespeichert');
+      cmpCancel();
+      _renderSavedTrailPlan(saved[0]);
+    }
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen: ' + (e.message || ''));
+  }
+}
+
+// ── PANEL (Steuerung) ─────────────────────────────────────────────────
+function _cmpShowPanel() {
+  let p = document.getElementById('cmp-panel');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = 'cmp-panel';
+    document.body.appendChild(p);
+  }
+  p.style.display = 'block';
+  cmpUpdatePanel();
+}
+
+function cmpUpdatePanel() {
+  const p = document.getElementById('cmp-panel');
+  if (!p) return;
+  const c = cmpGetSelected();
+  const list = _cmpCompartments.map(x =>
+    '<button onclick="cmpSelect(' + x.id + ')" style="display:inline-flex;align-items:center;gap:5px;margin:2px;padding:5px 9px;border-radius:8px;border:1px solid ' +
+    (x.id===_cmpSelectedId?'#ffd070':'rgba(255,255,255,.15)') + ';background:' +
+    (x.id===_cmpSelectedId?'rgba(255,208,112,.18)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' +
+    '<span style="width:10px;height:10px;border-radius:50%;background:' + x.color + ';"></span>Abteil ' + x.id + ' · ' + x.lines.length + '</button>'
+  ).join('');
+
+  const ctrl = c ? (
+    '<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);">' +
+      '<div style="font-size:12px;color:#ffd070;font-weight:600;margin-bottom:8px;">Abteil ' + c.id + ' bearbeiten</div>' +
+      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">' +
+        '<button onclick="cmpRotate90()" style="flex:1;padding:9px;border-radius:9px;border:none;background:#3a7abc;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">↻ 90°</button>' +
+        '<button onclick="cmpToggleSplit()" style="flex:1;padding:9px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-family:inherit;font-size:12px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
+        '<button onclick="cmpDeleteSelected()" style="padding:9px 11px;border-radius:9px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.18);color:#ffb0a0;font-family:inherit;font-size:12px;cursor:pointer;">🗑</button>' +
+      '</div>' +
+      '<div style="font-size:11px;color:#a0c8a0;margin-bottom:3px;">Drehung: <b style="color:#ffd070;">' + Math.round(c.angleDeg) + '°</b></div>' +
+      '<input type="range" min="0" max="179" value="' + Math.round(c.angleDeg) + '" oninput="cmpSetAngle(this.value)" style="width:100%;margin-bottom:8px;accent-color:#ffd070;">' +
+      '<div style="display:flex;gap:6px;align-items:center;">' +
+        '<span style="font-size:11px;color:#a0c8a0;">Abstand</span>' +
+        '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:60px;padding:6px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-family:inherit;font-size:13px;"><span style="font-size:11px;color:#a0c8a0;">m</span>' +
+      '</div>' +
+    '</div>'
+  ) : '<div style="margin-top:8px;font-size:12px;color:#a0c8a0;">Tippe ein Abteil an zum Bearbeiten, oder lege ein neues an.</div>';
+
+  p.innerHTML =
+    '<div style="font-size:14px;font-weight:600;color:#fff;margin-bottom:8px;">🚜 Abteil-Editor</div>' +
+    '<input id="cmp-name" placeholder="Name (z.B. Schlag Nord)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-family:inherit;font-size:13px;margin-bottom:8px;">' +
+    '<div style="display:flex;flex-wrap:wrap;">' + (list || '<span style="font-size:12px;color:#a0c8a0;">Noch keine Abteile</span>') + '</div>' +
+    ctrl +
+    '<div style="display:flex;gap:6px;margin-top:12px;">' +
+      '<button onclick="cmpStartDrawCompartment()" style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#4aaa4a,#3a8a3a);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">+ Abteil zeichnen</button>' +
+      '<button onclick="cmpSave()" style="flex:2;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,#e08020,#d87010);color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">💾 Speichern</button>' +
+      '<button onclick="cmpCancel()" style="flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#d8d8d8;font-family:inherit;font-size:12px;cursor:pointer;">✕</button>' +
+    '</div>';
+}
+
+window.startCompartmentEditor = startCompartmentEditor;
+window.cmpStartDrawCompartment = cmpStartDrawCompartment;
+window.cmpFinishCompartment = cmpFinishCompartment;
+window.cmpUndoDrawPoint = function() {
+  if (!_cmpDrawing || !_cmpDrawPts.length) return;
+  _cmpDrawPts.pop();
+  if (_cmpDrawLayer) _cmpDrawLayer.setLatLngs(_cmpDrawPts);
+  const m = _cmpDrawMarkers.pop(); if (m) { try { map.removeLayer(m); } catch {} }
+  setTxt('Abteil: ' + _cmpDrawPts.length + ' Punkte');
+};
+window.cmpSelect = cmpSelect;
+window.cmpRotate90 = cmpRotate90;
+window.cmpSetAngle = cmpSetAngle;
+window.cmpSetSpacing = cmpSetSpacing;
+window.cmpToggleSplit = cmpToggleSplit;
+window.cmpDeleteSelected = cmpDeleteSelected;
+window.cmpCancel = cmpCancel;
+window.cmpSave = cmpSave;
 
 // ── WINDOW-BINDINGS ───────────────────────────────────────────────────
 window.startTrailPlanning   = startTrailPlanning;
@@ -11813,6 +12248,32 @@ window.runPdfExport = runPdfExport;
   <button onclick="cancelTrailPlanning()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(200,60,40,.6);color:#fff;font-family:inherit;font-size:13px;cursor:pointer;">✕ Abbrechen</button>
   <button onclick="finishTrailPolygon()" style="padding:10px 16px;border:none;border-radius:10px;background:#c87020;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">✓ Fläche fertig</button>
 </div>
+
+<!-- Schwebende Leiste während ein Abteil gezeichnet wird -->
+<div id="cmp-draw-bar" class="hidden" style="
+     position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+     z-index:1200;display:flex;gap:8px;background:rgba(20,30,20,.95);
+     padding:10px 12px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.4);
+     -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">
+  <span style="color:#ffd070;font-size:12px;font-weight:600;align-self:center;margin-right:4px;">🚜 Abteil:</span>
+  <button onclick="cmpUndoDrawPoint()" style="padding:10px 14px;border:none;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;cursor:pointer;">↩ Zurück</button>
+  <button onclick="cmpFinishCompartment()" style="padding:10px 16px;border:none;border-radius:10px;background:#4aaa4a;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">✓ Abteil fertig</button>
+</div>
+
+<style>
+#cmp-panel {
+  position: fixed; top: calc(env(safe-area-inset-top,0px) + 70px); right: 8px;
+  z-index: 1250; width: 320px; max-width: calc(100vw - 16px);
+  background: linear-gradient(175deg, rgba(26,40,24,.97), rgba(15,28,16,.97));
+  border: 1px solid rgba(255,255,255,.08); border-radius: 16px;
+  padding: 14px; color: #d8e8d0; box-shadow: 0 10px 36px rgba(0,0,0,.55);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  max-height: calc(100vh - 90px); overflow-y: auto;
+}
+@media (max-width: 600px) {
+  #cmp-panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; max-height: 60vh; }
+}
+</style>
 
 <!-- Schwebende Leiste während Wegezug gezeichnet wird -->
 <div id="trail-path-bar" class="hidden" style="
