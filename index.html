@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="7.9">
+  <meta name="app-version" content="8.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '7.9'")) {
+        if (!txt.includes("APP_VERSION = '8.0'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7677,6 +7677,7 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
   const pathsR = pathsM.map(pM => pM.map(rot));
 
   const ribsM = [];   // Gassen im Metersystem (rotiert) — für Anbindungs-Berechnung
+  const GAP = Math.max(spacingM * 0.15, 3);   // sichtbare Lücke am Weg (Gasse endet hier)
   // Gleichmäßige waagerechte Linien y=const im Rastersystem, exakt spacingM Abstand
   for (let y = minY + spacingM * 0.5; y < maxY; y += spacingM) {
     trailClipLineToPolygon(minX - 1, y, maxX + 1, y, polyR).forEach(seg => {
@@ -7689,29 +7690,36 @@ function trailGenerateFishbone(polyM, pathsM, spacingM, proj, cLat, cLng) {
         pieces = next;
       });
       pieces.forEach(([pa, pb]) => {
-        const len = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+        // Prüfen welche Enden AM WEG liegen (durch Teilen entstanden) → dort Lücke lassen
+        const aAtRoad = _trailNearestOnPaths(pa, pathsR).d < GAP * 1.5;
+        const bAtRoad = _trailNearestOnPaths(pb, pathsR).d < GAP * 1.5;
+        let A = pa, B = pb;
+        const dx = pb.x - pa.x, dy = pb.y - pa.y;
+        const len = Math.hypot(dx, dy);
         if (len < MIN_LEN) return;
-        ribsM.push([pa, pb]);   // bleibt im rotierten Metersystem
+        const ux = dx / len, uy = dy / len;
+        // Wegseitiges Ende um GAP einrücken → sichtbarer Spalt am Weg
+        if (aAtRoad) A = { x: pa.x + ux * GAP, y: pa.y + uy * GAP };
+        if (bAtRoad) B = { x: pb.x - ux * GAP, y: pb.y - uy * GAP };
+        const newLen = Math.hypot(B.x - A.x, B.y - A.y);
+        if (newLen < MIN_LEN) return;
+        ribsM.push([A, B, { aAtRoad, bAtRoad }]);   // Flags mitführen für Anbindung
       });
     });
   }
 
-  // ── ANBINDUNG: jede Gasse die den Weg nicht berührt bis zum Weg verlängern ──
-  // (Verbinder vom nächstgelegenen Gassen-Ende zum nächsten Punkt auf dem Weg)
-  const TOUCH = Math.max(spacingM * 0.25, 3);   // gilt als "am Weg" wenn näher als das
+  // ── ANBINDUNG: jede Gasse die KEIN Ende am Weg hat, mit dem Weg verbinden ──
   const connectionsM = [];
-  ribsM.forEach(([pa, pb]) => {
+  ribsM.forEach(([pa, pb, flags]) => {
+    if (flags.aAtRoad || flags.bAtRoad) return;   // schon am Weg (mit Lücke) → erreichbar
     const na = _trailNearestOnPaths(pa, pathsR);
     const nb = _trailNearestOnPaths(pb, pathsR);
-    const minD = Math.min(na.d, nb.d);
-    if (minD <= TOUCH) return;   // schon erreichbar
-    // Verbinder vom näheren Gassen-Ende zum nächsten Wegpunkt
     if (na.d <= nb.d) connectionsM.push([pa, na.pt]);
     else              connectionsM.push([pb, nb.pt]);
   });
 
   // Alles zurückrotieren + lat/lng
-  const ribs = ribsM.map(seg => _trailMetersToLatLng(seg, { toLatLng: proj.toLatLng }, cLat, cLng, -a));
+  const ribs = ribsM.map(seg => _trailMetersToLatLng([seg[0], seg[1]], { toLatLng: proj.toLatLng }, cLat, cLng, -a));
   const connections = connectionsM.map(seg => _trailMetersToLatLng(seg, { toLatLng: proj.toLatLng }, cLat, cLng, -a));
 
   return { ribs, suggestedRoad: [], connections };
