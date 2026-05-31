@@ -5,7 +5,7 @@
  */
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
-const APP_VERSION  = '10.9';
+const APP_VERSION  = '11.0';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;   // App-Shell + CDN
 const TILE_CACHE   = 'lignum-tiles-v5';               // OSM Kacheln
 const SAT_CACHE    = 'lignum-sat-v5';                 // Satellit Kacheln
