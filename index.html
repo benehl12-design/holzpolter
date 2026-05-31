@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="10.3">
+  <meta name="app-version" content="10.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1962,7 +1962,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '10.3'")) {
+        if (!txt.includes("APP_VERSION = '10.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3479,9 +3479,11 @@ if ('serviceWorker' in navigator) {
 
         <div class="hstep"><div class="hnum">6</div><div class="hstep-txt"><b>〰️ Kurven ziehen</b><span>Bei ausgewähltem Abteil: <b>tippe auf die Gasse</b> an der Stelle wo du biegen willst und zieh — genau dort wölbt sich die Kurve, und <b>alle Gassen folgen parallel mit</b>. Mehrere Stellen = mehrere Biegungen. Mit <b>↺ Gassen wieder gerade</b> zurücksetzen.</span></div></div>
 
-        <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>Am Weg teilen & Abstand</b><span>Pro Abteil: <b>Am Weg teilen</b> trennt die Gassen dort wo der Weg durchläuft (mit kleiner Lücke). <b>Abstand</b> stellt den Gassenabstand in Metern ein — für jedes Abteil getrennt.</span></div></div>
+        <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>🔗 Gassen verbinden</b><span><b>🔗 Gassen verbinden</b> → die Gassen-Enden erscheinen als türkise Punkte. Tippe <b>zwei Enden nacheinander</b> an → ein Verbindungsstück entsteht (für die durchgehende Rücke-Fahrlinie). <b>↶ Letzte</b> nimmt die letzte Verbindung zurück, <b>✓ Fertig</b> übernimmt.</span></div></div>
 
-        <div class="hstep"><div class="hnum">8</div><div class="hstep-txt"><b>Speichern & exportieren</b><span>Oranger <span class="hicon amber">💾</span> speichert den Plan (alle Abteile + Wege). Gespeicherte Pläne findest du über <span class="hicon">☰</span> Menü → <b>Fahrgassen-Pläne</b>: dort <b>🗺 Karte</b> (anzeigen), <b>⬇ GPX</b> (für GPS-Gerät) oder <b>🗑 Löschen</b>.</span></div></div>
+        <div class="hstep"><div class="hnum">8</div><div class="hstep-txt"><b>Am Weg teilen & Abstand</b><span>Pro Abteil: <b>Am Weg teilen</b> trennt die Gassen dort wo der Weg durchläuft (mit kleiner Lücke). <b>Abstand</b> stellt den Gassenabstand in Metern ein — für jedes Abteil getrennt.</span></div></div>
+
+        <div class="hstep"><div class="hnum">9</div><div class="hstep-txt"><b>Speichern & exportieren</b><span>Oranger <span class="hicon amber">💾</span> speichert den Plan (alle Abteile + Wege). Gespeicherte Pläne findest du über <span class="hicon">☰</span> Menü → <b>Fahrgassen-Pläne</b>: dort <b>🗺 Karte</b> (anzeigen), <b>⬇ GPX</b> (für GPS-Gerät) oder <b>🗑 Löschen</b>.</span></div></div>
 
         <div class="htip">💡 Reihenfolge ist egal: erst drehen dann biegen, oder umgekehrt — beim Drehen drehen sich die eingezogenen Kurven mit und bleiben erhalten.</div>
         <div class="htip">⚠️ Bei sehr engen Kurven (Radius kleiner als der Gassenabstand) laufen die inneren Gassen geometrisch zwangsläufig zusammen — sie werden dort automatisch gekürzt. Bei normalen, sanften Wegbögen passt alles.</div>
@@ -6199,6 +6201,7 @@ map.on('click',e=>{
   if (typeof _trailPathDrawing !== 'undefined' && _trailPathDrawing) return;
   if (typeof _cmpDrawing !== 'undefined' && _cmpDrawing) return;
   if (typeof _cmpBending !== 'undefined' && _cmpBending) return;
+  if (typeof _cmpConnecting !== 'undefined' && _cmpConnecting) return;
   if(document.getElementById('panel').classList.contains('hidden'))openPanel(e.latlng,false);
 });
 
@@ -9147,6 +9150,10 @@ function _renderSavedTrailPlan(plan) {
       (Array.isArray(cmp.lines) ? cmp.lines : []).forEach(seg => {
         layers.push(L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map));
       });
+      // Verbindungsstücke (Punkt 3)
+      (Array.isArray(cmp.connectors) ? cmp.connectors : []).forEach(pair => {
+        if (Array.isArray(pair) && pair.length === 2) layers.push(L.polyline(pair, { color: '#5ad0c0', weight: 3, opacity: .95 }).addTo(map));
+      });
     });
     // Wege
     let accPaths0 = [];
@@ -9611,7 +9618,7 @@ function _cmpSegX(a, b, c, d) {
 }
 function _cmpRemoveLoops(line) {
   let guard=0, changed=true;
-  while (changed && guard++<500) {
+  while (changed && guard++<800) {
     changed=false;
     for (let i=0;i<line.length-1&&!changed;i++) for (let j=i+2;j<line.length-1;j++) {
       const X=_cmpSegX(line[i],line[i+1],line[j],line[j+1]);
@@ -9619,6 +9626,33 @@ function _cmpRemoveLoops(line) {
     }
   }
   return line;
+}
+// Gleichmäßig nach Bogenlänge neu abtasten (entfernt ungleiche Punktdichte nach Loop-Kappung)
+function _cmpResamplePoly(line, step) {
+  if (line.length < 2) return line.slice();
+  const out=[{x:line[0].x,y:line[0].y}]; let acc=0;
+  for (let i=0;i<line.length-1;i++){
+    let a=line[i],b=line[i+1]; const segL=Math.hypot(b.x-a.x,b.y-a.y); if(segL<1e-9)continue;
+    while (acc+step<=segL){ acc+=step; const t=acc/segL; out.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}); }
+    acc-=segL;
+  }
+  out.push({x:line[line.length-1].x,y:line[line.length-1].y});
+  return out;
+}
+// Sanftes Glätten (gewichteter Nachbar-Durchschnitt), Endpunkte bleiben fix
+function _cmpSmoothPoly(line) {
+  if (line.length < 3) return line;
+  const o=[line[0]];
+  for (let i=1;i<line.length-1;i++) o.push({x:(line[i-1].x+line[i].x*2+line[i+1].x)/4, y:(line[i-1].y+line[i].y*2+line[i+1].y)/4});
+  o.push(line[line.length-1]);
+  return o;
+}
+// Offset einer glatten Leitkurve → Loops entfernen → resampeln → glätten = weiche Parallelkurve
+function _cmpSmoothOffset(guide, d, step) {
+  let o = _cmpRemoveLoops(_cmpOffsetPolyline(guide, d));
+  o = _cmpResamplePoly(o, step);
+  o = _cmpSmoothPoly(_cmpSmoothPoly(_cmpSmoothPoly(o)));   // 3× glätten
+  return o;
 }
 function _cmpClipPolylineToPolygon(line, polyM) {
   const pip=(px,py)=>trailPointInPolygon(px,py,polyM);
@@ -9644,16 +9678,17 @@ function cmpGenerateParallelOffsets(polygonLatLng, guidePtsLatLng, spacingM) {
   const proj=trailLocalProjection(cLat);
   const polyM=polygonLatLng.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
   const guideRaw=guidePtsLatLng.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
-  const guide=_cmpCatmullRom(guideRaw, 10);
+  const guide=_cmpCatmullRom(guideRaw, 20);   // dicht samplen → stabile Normalen, glatte Offsets
   let minX=1e18,maxX=-1e18,minY=1e18,maxY=-1e18;
   polyM.forEach(p=>{if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;});
   const kMax=Math.ceil(Math.hypot(maxX-minX,maxY-minY)/spacingM)+1;
   const MIN_LEN=Math.max(spacingM*0.3,5);
+  const STEP=Math.max(spacingM*0.3,4);   // Resample-Schrittweite
   const out=[];
   const toLL=(seg)=>seg.map(p=>{const ll=proj.toLatLng(p.x,p.y,cLat,cLng);return [ll.lat,ll.lng];});
   const polyLen=(seg)=>{let L=0;for(let i=0;i<seg.length-1;i++)L+=Math.hypot(seg[i+1].x-seg[i].x,seg[i+1].y-seg[i].y);return L;};
   for (let k=-kMax;k<=kMax;k++) {
-    const off = (k===0) ? guide : _cmpRemoveLoops(_cmpOffsetPolyline(guide, k*spacingM));
+    const off = (k===0) ? guide : _cmpSmoothOffset(guide, k*spacingM, STEP);
     _cmpClipPolylineToPolygon(off, polyM).forEach(seg=>{ if(seg.length>=2 && polyLen(seg)>=MIN_LEN) out.push(toLL(seg)); });
   }
   return out;
@@ -9703,6 +9738,8 @@ function cmpClearLayers(cmp) {
   cmp._bendHandles = [];
   (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   cmp._lineLayers = [];
+  (cmp._connLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  cmp._connLayers = [];
 }
 
 // Ein Abteil neu zeichnen (Polygon + Eckpunkte + Gassen)
@@ -9719,11 +9756,19 @@ function cmpRender(cmp) {
 
   // Gassen generieren + zeichnen
   cmp.lines = cmpComputeLines(cmp);
-  cmp._lineLayers = cmp.lines.map(seg => {
+  cmp._lineLayers = [];
+  cmp.lines.forEach(seg => {
     const pl = L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map);
-    if (selected) _cmpAttachLaneClick(cmp, pl);   // anklickbar zum Biegen
-    return pl;
+    cmp._lineLayers.push(pl);
+    if (selected) {
+      // unsichtbare dicke Trefferlinie darüber → Gasse lässt sich leicht antippen
+      const hit = L.polyline(seg, { color: '#000', weight: 16, opacity: 0 }).addTo(map);
+      _cmpAttachLaneClick(cmp, hit);
+      cmp._lineLayers.push(hit);
+    }
   });
+  // Verbindungsstücke (Punkt 3) zeichnen
+  if (typeof _cmpRenderConnectors === 'function') _cmpRenderConnectors(cmp);
 
   // Eckpunkte (nur wenn ausgewählt) — verziehbar
   cmp._verts = [];
@@ -9764,24 +9809,27 @@ function cmpRenderBendHandles(cmp) {
 
 // Hängt an eine gezeichnete Gassen-Linie den Klick-zum-Biegen-Handler.
 function _cmpAttachLaneClick(cmp, lineLayer) {
-  lineLayer.on('mousedown', (e) => _cmpBeginBendAt(cmp, e));
+  // Mausklick auf die sichtbare Linie
+  lineLayer.on('mousedown', (e) => { if(e.originalEvent){try{L.DomEvent.stop(e.originalEvent);}catch{}} _cmpBeginBendAt(cmp, e.latlng); });
+  // Touch direkt auf dem SVG-Pfad
   if (lineLayer._path) {
     lineLayer._path.style.cursor = 'pointer';
     lineLayer._path.addEventListener('touchstart', (ev) => {
-      const t = ev.touches[0]; if (!t) return; ev.preventDefault();
+      const t = ev.touches[0]; if (!t) return; ev.preventDefault(); ev.stopPropagation();
       const ll = map.containerPointToLatLng(map.mouseEventToContainerPoint(t));
-      _cmpBeginBendAt(cmp, { latlng: ll, originalEvent: ev });
+      _cmpBeginBendAt(cmp, ll);
     }, { passive: false });
   }
 }
 
-// Beginnt eine Biegung an der angeklickten Stelle: findet den nächsten Punkt
-// auf der Leitkurve und zieht ihn (samt weichem Auslauf) mit dem Finger/Maus.
-function _cmpBeginBendAt(cmp, e) {
-  if (e.originalEvent) { try { L.DomEvent.stop(e.originalEvent); } catch {} }
+// Beginnt eine Biegung an der angeklickten Stelle.
+function _cmpBeginBendAt(cmp, latlng) {
+  // Sicherstellen, dass eine (dichte) Leitkurve existiert — sonst aus Grundrichtung bauen
+  if (!cmp.guidePts || cmp.guidePts.length < 12) cmp.guidePts = cmpBuildDenseGuide(cmp);
+
   let cLat=0,cLng=0; cmp.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=cmp.polygon.length; cLng/=cmp.polygon.length;
   const proj = trailLocalProjection(cLat);
-  const clickM = proj.toLocal(e.latlng.lat, e.latlng.lng, cLat, cLng);
+  const clickM = proj.toLocal(latlng.lat, latlng.lng, cLat, cLng);
 
   // nächsten Stützpunkt der Leitkurve zum Klickpunkt finden
   const gm = cmp.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
@@ -9793,10 +9841,12 @@ function _cmpBeginBendAt(cmp, e) {
   const baseM = gm.slice();
   const startM = { x: gm[gi].x, y: gm[gi].y };
 
-  // sichtbarer Griff an der Klickstelle
+  // bestehende Griffe entfernen, neuen Griff genau an der Klickstelle setzen
+  (cmp._bendHandles||[]).forEach(m=>{try{map.removeLayer(m);}catch{}});
+  cmp._bendHandles = [];
   const startLL = proj.toLatLng(startM.x, startM.y, cLat, cLng);
   const handle = L.marker([startLL.lat, startLL.lng], {
-    draggable: true, zIndexOffset: 1200,
+    draggable: true, zIndexOffset: 1200, autoPan: false,
     icon: L.divIcon({ className:'cmp-bend',
       html:'<div style="width:30px;height:30px;border-radius:50%;background:rgba(224,160,255,.5);border:3px solid #e0a0ff;box-shadow:0 1px 8px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;"><div style="width:9px;height:9px;border-radius:50%;background:#fff;"></div></div>',
       iconSize:[34,34], iconAnchor:[17,17] })
@@ -9823,9 +9873,6 @@ function _cmpBeginBendAt(cmp, e) {
     cmpRender(cmp);
     cmpUpdatePanel();
   });
-
-  // Falls der Klick schon ein Ziehen war (Touch): direkt mitziehen
-  // (Leaflet-Marker übernimmt das Dragging nach dem Erzeugen automatisch beim nächsten move)
 }
 
 // Nur die Gassen-Linien eines Abteils neu berechnen (nach Drag/Dreh/Spacing)
@@ -10245,11 +10292,96 @@ function cmpEndRotate() {
   _cmpRotating = false;
   const p = document.getElementById('cmp-panel'); if (p) p.classList.remove('rotating');
   _cmpPanelOpen = true;
+  const c = cmpGetSelected(); if (c) cmpRender(c);   // Gassen + Klick-Trefferlinien neu
   cmpUpdatePanel();
 }
 window.cmpStartRotate = cmpStartRotate;
 window.cmpRotate90Live = cmpRotate90Live;
 window.cmpEndRotate = cmpEndRotate;
+
+// ── GASSEN VERBINDEN (Punkt 3) ────────────────────────────────────────
+// Verbinde-Modus: Endpunkte zweier Gassen antippen → Verbindungsstück.
+// Ergibt eine durchgehende Fahrlinie (Schlangenlinie) für die Rückelogik.
+let _cmpConnecting = false;
+let _cmpConnFirst = null;        // {laneIdx, end:'a'|'b', latlng}
+let _cmpConnDotLayers = [];      // sichtbare Endpunkt-Marker im Verbinde-Modus
+
+function cmpStartConnect() {
+  const c = cmpGetSelected(); if (!c) return;
+  if (!c.lines || !c.lines.length) { showToast('Erst Gassen erzeugen'); return; }
+  _cmpConnecting = true;
+  _cmpConnFirst = null;
+  if (!Array.isArray(c.connectors)) c.connectors = [];
+  _cmpRenderConnectDots(c);
+  const p = document.getElementById('cmp-panel'); if (p) { p.classList.add('rotating');
+    p.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;line-height:1.35;"><b style="color:#5ad0c0;">🔗 Gassen verbinden</b><br><span style="font-size:12px;color:#a0c8a0;">Zwei Gassen-Enden nacheinander antippen</span></div>' +
+        '<button onclick="cmpUndoConnect()" style="flex:0 0 auto;height:48px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8e8e8;font-size:12px;cursor:pointer;">↶ Letzte</button>' +
+        '<button onclick="cmpEndConnect()" style="flex:0 0 auto;height:48px;padding:0 16px;border-radius:12px;border:none;background:#4aaa4a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✓ Fertig</button>' +
+      '</div>';
+  }
+}
+
+// Endpunkte aller Gassen als antippbare Punkte zeigen
+function _cmpRenderConnectDots(c) {
+  _cmpConnDotLayers.forEach(m=>{try{map.removeLayer(m);}catch{}}); _cmpConnDotLayers=[];
+  (c.lines||[]).forEach((seg, idx) => {
+    if (seg.length < 2) return;
+    [['a', seg[0]], ['b', seg[seg.length-1]]].forEach(([end, pt]) => {
+      const m = L.marker(pt, { zIndexOffset: 1500,
+        icon: L.divIcon({ className:'cmp-conn-dot',
+          html:'<div style="width:18px;height:18px;border-radius:50%;background:rgba(90,208,192,.5);border:2px solid #5ad0c0;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>',
+          iconSize:[22,22], iconAnchor:[11,11] })
+      }).addTo(map);
+      m.on('click', (e) => { L.DomEvent.stop(e); _cmpConnectPick(c, idx, end, pt); });
+      if (m._icon) m._icon.addEventListener('touchstart', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); _cmpConnectPick(c, idx, end, pt); }, {passive:false});
+      _cmpConnDotLayers.push(m);
+    });
+  });
+}
+
+function _cmpConnectPick(c, laneIdx, end, pt) {
+  if (!_cmpConnecting) return;
+  if (!_cmpConnFirst) {
+    _cmpConnFirst = { laneIdx, end, latlng: pt };
+    showToast('Erstes Ende gewählt — jetzt zweites antippen');
+    return;
+  }
+  // nicht dasselbe Ende doppelt
+  if (_cmpConnFirst.laneIdx === laneIdx && _cmpConnFirst.end === end) { _cmpConnFirst = null; return; }
+  c.connectors.push([ _cmpConnFirst.latlng, pt ]);
+  _cmpConnFirst = null;
+  _cmpRenderConnectors(c);
+  showToast('🔗 Verbindung gesetzt');
+}
+
+// Verbindungs-Linien zeichnen (türkis, etwas dicker)
+function _cmpRenderConnectors(c) {
+  (c._connLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}}); c._connLayers=[];
+  (c.connectors||[]).forEach(pair => {
+    const l = L.polyline(pair, { color:'#5ad0c0', weight:3, opacity:.95, dashArray:'1,0' }).addTo(map);
+    c._connLayers.push(l);
+  });
+}
+
+function cmpUndoConnect() {
+  const c = cmpGetSelected(); if (!c || !c.connectors || !c.connectors.length) return;
+  c.connectors.pop();
+  _cmpRenderConnectors(c);
+}
+
+function cmpEndConnect() {
+  _cmpConnecting = false; _cmpConnFirst = null;
+  _cmpConnDotLayers.forEach(m=>{try{map.removeLayer(m);}catch{}}); _cmpConnDotLayers=[];
+  const p = document.getElementById('cmp-panel'); if (p) p.classList.remove('rotating');
+  _cmpPanelOpen = true;
+  const c = cmpGetSelected(); if (c) cmpRender(c);
+  cmpUpdatePanel();
+}
+window.cmpStartConnect = cmpStartConnect;
+window.cmpUndoConnect = cmpUndoConnect;
+window.cmpEndConnect = cmpEndConnect;
 
 // ── LEITKURVE BIEGEN (Kurven-Modus) ───────────────────────────────────
 let _cmpBending = false;
@@ -10466,7 +10598,7 @@ async function cmpSave() {
   let total = 0;
   const comps = _cmpCompartments.map(c => {
     total += c.lines.length;
-    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), guide_pts: c.guidePts || null, lines: c.lines };
+    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), guide_pts: c.guidePts || null, connectors: c.connectors || [], lines: c.lines };
   });
   try {
     const saved = await dbFetch('trail_plans?select=*', {
@@ -10546,6 +10678,7 @@ function cmpUpdatePanel() {
     '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">' +
       '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:10px;">Abteil ' + c.id + ' (' + c.lines.length + ' Gassen)</div>' +
       '<button onclick="cmpStartRotate()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:8px;border:none;background:#3a7abc;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">🧭 Gassen drehen (' + Math.round(c.angleDeg) + '°)</button>' +
+      '<button onclick="cmpStartConnect()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:8px;border:none;background:#2a8a7a;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">🔗 Gassen verbinden' + ((c.connectors&&c.connectors.length)?' ('+c.connectors.length+')':'') + '</button>' +
       '<div style="font-size:12px;color:#c8a0e8;margin-bottom:10px;line-height:1.4;">〰️ <b>Auf eine Gasse tippen und ziehen</b> — genau dort biegt sich die Kurve, alle Gassen folgen parallel.' + (c.guidePts && c.guidePts.length>=3 && !_cmpGuideIsStraight(c) ? ' <span style="color:#e0a0ff;">✓ gebogen</span>' : '') + '</div>' +
       ((c.guidePts && c.guidePts.length>=3 && !_cmpGuideIsStraight(c)) ? '<button onclick="cmpResetGuide()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:10px;border:1px solid rgba(224,160,255,.4);background:rgba(224,160,255,.12);color:#e0a0ff;font-size:13px;cursor:pointer;">↺ Gassen wieder gerade</button>' : '') +
       '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
