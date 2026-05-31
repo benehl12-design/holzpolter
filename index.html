@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.91">
+  <meta name="app-version" content="9.96">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1395,7 +1395,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 
 /* Profil-Edit im Settings */
 #profile-edit-panel{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.07);}
-#profile-edit-panel input{width:100%;font-size:14px;padding:10px 13px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;margin-bottom:10px;-webkit-appearance:none;}
+#profile-edit-panel input{width:100%;font-size:16px;padding:10px 13px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;margin-bottom:10px;-webkit-appearance:none;}
 #profile-edit-panel input::placeholder{color:#3a5a4a;}
 .profile-save-btn{width:100%;padding:11px;border-radius:9px;border:none;background:var(--green);color:#e8f5e4;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;}
 
@@ -1903,7 +1903,21 @@ body.trail-drawing .leaflet-container {
   border-color:rgba(216,160,96,.3);
   background:rgba(216,160,96,.1);color:#e8b070;
 }
+/* ── Plattform-Feinschliff (iOS/Android/Desktop) ───────────────────────
+   iOS Safari zoomt automatisch hinein, wenn ein Textfeld < 16px gross ist.
+   Diese Regel zwingt alle echten Eingabefelder auf >= 16px (verhindert Zoom),
+   ohne das übrige Layout (Buttons/Labels) anzufassen. */
+input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="search"], input[type="tel"],
+input[type="url"], input:not([type]), textarea, select {
+  font-size: 16px !important;
+}
+/* Bessere Touch-Reaktion: kein graues Tap-Highlight, sauberes Tippen */
+button, .slide-btn, .htab, a, [onclick] { -webkit-tap-highlight-color: rgba(0,0,0,0); }
 </style>
+<script>
+// (Plattform-Feinschliff oben im CSS ergänzt)
+</script>
 <script>
 // Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
 if ('serviceWorker' in navigator) {
@@ -1911,7 +1925,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.91'")) {
+        if (!txt.includes("APP_VERSION = '9.96'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -1990,6 +2004,9 @@ if ('serviceWorker' in navigator) {
       <button class="abtn primary" onclick="doRegister()">Konto erstellen</button>
       <p style="font-size:11px;color:#888;margin-top:10px;text-align:center;">Mit der Registrierung erstellen Sie ein Admin-Konto für Ihren Betrieb. Fahrer-Konten legen Sie danach im Admin-Bereich an.</p>
     </div>
+  </div>
+  <div style="margin-top:22px;text-align:center;font-size:11px;color:#6a7a6a;line-height:1.5;">
+    © 2026 Lignum · Benedikt Holz<br>Alle Rechte vorbehalten
   </div>
 </div>
 
@@ -2103,6 +2120,10 @@ if ('serviceWorker' in navigator) {
       <span style="margin-left:auto;color:#8a5a5a;font-size:18px;">›</span>
     </button>
 
+    <div style="margin-top:20px;margin-bottom:8px;text-align:center;font-size:11px;color:#5a6a5a;line-height:1.5;">
+      © 2026 Lignum · Benedikt Holz · Alle Rechte vorbehalten
+    </div>
+
   </div>
 </div>
 
@@ -2121,14 +2142,14 @@ if ('serviceWorker' in navigator) {
       <div style="padding:11px 15px;border-bottom:1px solid rgba(255,255,255,.06);font-size:11px;font-weight:600;color:#6a9a6a;text-transform:uppercase;letter-spacing:.06em;">+ Neuen Fahrer anlegen</div>
       <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <input type="text" id="new-name" placeholder="Name" style="font-size:14px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
+          <input type="text" id="new-name" placeholder="Name" style="font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
           <select id="new-role" style="font-size:13px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(20,36,20,.95);color:#c8e6c0;font-family:inherit;">
             <option value="harvester">🪵 Harvester</option>
             <option value="forwarder">🚜 Forwarder</option>
           </select>
         </div>
-        <input type="email" inputmode="email" id="new-email" placeholder="E-Mail" style="font-size:14px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
-        <input type="password" id="new-pw" placeholder="Passwort (mind. 6 Zeichen)" style="font-size:14px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
+        <input type="email" inputmode="email" id="new-email" placeholder="E-Mail" style="font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
+        <input type="password" id="new-pw" placeholder="Passwort (mind. 6 Zeichen)" style="font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
         <div id="add-err" style="color:#e05555;font-size:12px;display:none;background:rgba(163,32,32,.12);padding:8px 12px;border-radius:8px;"></div>
         <button id="btn-add-driver" onclick="addDriver()" style="padding:12px;border-radius:9px;border:none;background:#2d6a27;color:#e8f5e4;font-size:14px;font-family:inherit;cursor:pointer;font-weight:600;">+ Fahrer anlegen</button>
       </div>
@@ -2240,6 +2261,9 @@ if ('serviceWorker' in navigator) {
 
   <!-- Footer -->
   <button class="ds-logout" onclick="doLogout()">Abmelden</button>
+  <div style="margin-top:16px;text-align:center;font-size:11px;color:#5a6a5a;line-height:1.5;">
+    © 2026 Lignum · Benedikt Holz · Alle Rechte vorbehalten
+  </div>
 </div>
 
 <!-- ── HAUPTAPP ── -->
@@ -3228,6 +3252,7 @@ if ('serviceWorker' in navigator) {
       <button class="htab" data-tab="forwarder" onclick="helpTab(this)">🚜 Forwarder</button>
       <button class="htab" data-tab="zeit" onclick="helpTab(this)">⏱ Zeiten</button>
       <button class="htab" data-tab="karte" onclick="helpTab(this)">🗺 Karte</button>
+      <button class="htab" data-tab="fahrgassen" onclick="helpTab(this)">🚜 Fahrgassen</button>
       <button class="htab" data-tab="admin" onclick="helpTab(this)">👨‍💼 Admin</button>
     </div>
     <div id="help-body">
@@ -3382,6 +3407,33 @@ if ('serviceWorker' in navigator) {
         <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>Karten-PDF (für Kunden)</b><span><span class="hicon green">📥 PDF</span> → Aktueller Kartenausschnitt mit Polter und Strecken als PDF speichern. Zum Versenden an den Auftraggeber oder den LKW-Fahrer.</span></div></div>
 
         <div class="htip">💡 Im Satellit-Modus wechselt die App ab Zoom 19 automatisch auf Bing Maps für höhere Auflösung — gut für Detail-Ansicht im Bestand.</div>
+      </div>
+
+      <!-- ═══ FAHRGASSEN / ABTEIL-EDITOR ═══ -->
+      <div class="hpage" id="hpage-fahrgassen">
+        <h3>Fahrgassen planen (Abteil-Editor)</h3>
+        <p>Plane Rückegassen für ein Einschlagsgebiet: Wege einzeichnen, die Fläche in Abteile aufteilen und in jedem Abteil ein gleichmäßiges Gassen-Raster erzeugen — gerade, gedreht oder gebogen. Jedes Abteil ist einzeln einstellbar.</p>
+
+        <div class="htip">💡 Öffnen über <span class="hicon">☰</span> Menü → <b>Fahrgassen planen</b>. Die Steuerung erscheint als Leiste unten — eingeklappt schmal, mit <b>▸</b> klappst du sie auf.</div>
+
+        <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Wege zeichnen</b><span>Zum Start fragt die App nach Wegen. Punkte entlang des Wegs (z.B. der Rückeweg / Erschließungsweg) antippen → <b>✓ Weg fertig</b>. Mehrere Wege möglich. Wege ohne Bedarf? Einfach <b>Überspringen</b>.</span></div></div>
+
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Abteil zeichnen</b><span>Grünen <span class="hicon green">＋</span> tippen → Ecken des Abteils auf der Karte antippen (beliebig viele Punkte) → <b>✓ Abteil fertig</b>. Im Abteil erscheint sofort das Gassen-Raster im gewählten Abstand.</span></div></div>
+
+        <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>🪄 Auto: an Wegen teilen</b><span>Schneller geht's so: die <b>ganze Fläche als ein Abteil</b> zeichnen, dann <b>🪄 Auto</b>. Die App teilt die Fläche entlang der Wege automatisch in mehrere Abteile — jedes mit Gassen senkrecht zum nächsten Weg. Danach frei editierbar.</span></div></div>
+
+        <div class="hstep"><div class="hnum">4</div><div class="hstep-txt"><b>Abteil auswählen & Ecken verziehen</b><span>Tippe ein Abteil an — es wird hervorgehoben und bekommt verziehbare Eckpunkte. Ziehe eine Ecke mit dem Finger, das Raster passt sich live an. Mehrere Abteile haben je eine eigene Farbe.</span></div></div>
+
+        <div class="hstep"><div class="hnum">5</div><div class="hstep-txt"><b>🧭 Gassen drehen</b><span>Im aufgeklappten Panel <b>🧭 Gassen drehen</b> → das Panel wird schmal, die Karte bleibt sichtbar. Mit dem Regler den Winkel <b>flüssig frei</b> einstellen, oder <b>↻90°</b> für Vierteldrehung. Die Gassen drehen live mit → <b>✓ Fertig</b>.</span></div></div>
+
+        <div class="hstep"><div class="hnum">6</div><div class="hstep-txt"><b>〰️ Kurven ziehen</b><span>Bei ausgewähltem Abteil sitzen <b>lila Punkte</b> direkt auf den Gassen. Zieh einen mit dem Finger — dort wölben sich die Gassen, und <b>alle folgen parallel mit</b>. Mehrere Punkte = mehrere Biegungen. Kein Modus, kein Bestätigen. Mit <b>↺ Gassen wieder gerade</b> zurücksetzen.</span></div></div>
+
+        <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>Am Weg teilen & Abstand</b><span>Pro Abteil: <b>Am Weg teilen</b> trennt die Gassen dort wo der Weg durchläuft (mit kleiner Lücke). <b>Abstand</b> stellt den Gassenabstand in Metern ein — für jedes Abteil getrennt.</span></div></div>
+
+        <div class="hstep"><div class="hnum">8</div><div class="hstep-txt"><b>Speichern & exportieren</b><span>Oranger <span class="hicon amber">💾</span> speichert den Plan (alle Abteile + Wege). Gespeicherte Pläne findest du über <span class="hicon">☰</span> Menü → <b>Fahrgassen-Pläne</b>: dort <b>🗺 Karte</b> (anzeigen), <b>⬇ GPX</b> (für GPS-Gerät) oder <b>🗑 Löschen</b>.</span></div></div>
+
+        <div class="htip">💡 Reihenfolge ist egal: erst drehen dann biegen, oder umgekehrt — beim Drehen drehen sich die eingezogenen Kurven mit und bleiben erhalten.</div>
+        <div class="htip">⚠️ Bei sehr engen Kurven (Radius kleiner als der Gassenabstand) laufen die inneren Gassen geometrisch zwangsläufig zusammen — sie werden dort automatisch gekürzt. Bei normalen, sanften Wegbögen passt alles.</div>
       </div>
 
       <!-- ═══ ADMIN ═══ -->
@@ -9395,6 +9447,8 @@ function cmpClearLayers(cmp) {
   if (cmp._poly) { try { map.removeLayer(cmp._poly); } catch {} cmp._poly = null; }
   (cmp._verts || []).forEach(m => { try { map.removeLayer(m); } catch {} });
   cmp._verts = [];
+  (cmp._bendHandles || []).forEach(m => { try { map.removeLayer(m); } catch {} });
+  cmp._bendHandles = [];
   (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   cmp._lineLayers = [];
 }
@@ -9437,7 +9491,62 @@ function cmpRender(cmp) {
       m.on('dragend', () => { cmpRegenLines(cmp); });
       cmp._verts.push(m);
     });
+    cmpRenderBendHandles(cmp);   // Kurven-Griffe direkt auf die Gassen
   }
+}
+
+// Bogen-Griffe: sichtbare Punkte auf der mittleren Gasse/Leitkurve. Ziehen biegt
+// die Leitkurve lokal — alle Gassen folgen sofort parallel mit. Kein Modus nötig.
+function cmpRenderBendHandles(cmp) {
+  // Leitkurve sicherstellen (dichte Punktkette in Gassenrichtung)
+  if (!cmp.guidePts || cmp.guidePts.length < 12) cmp.guidePts = cmpBuildDenseGuide(cmp);
+  let cLat=0,cLng=0; cmp.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=cmp.polygon.length; cLng/=cmp.polygon.length;
+  const proj = trailLocalProjection(cLat);
+
+  // 3 Griffe gleichmäßig entlang der Leitkurve
+  const N = cmp.guidePts.length;
+  const idxs = [Math.round(N*0.25), Math.round(N*0.5), Math.round(N*0.75)];
+  cmp._bendHandles = [];
+  idxs.forEach(gi => {
+    const pt = cmp.guidePts[gi];
+    const m = L.marker(pt, {
+      draggable: true, zIndexOffset: 1000,
+      icon: L.divIcon({
+        className: 'cmp-bend',
+        html: '<div style="width:26px;height:26px;border-radius:50%;background:rgba(224,160,255,.45);border:3px solid #e0a0ff;box-shadow:0 1px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;"><div style="width:8px;height:8px;border-radius:50%;background:#fff;"></div></div>',
+        iconSize: [30,30], iconAnchor: [15,15]
+      })
+    }).addTo(map);
+
+    const sigma = Math.max(N/6, 1.5);   // Einflussbreite der Wölbung
+    let baseM = null, startM = null;
+    m.on('dragstart', () => {
+      baseM = cmp.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+      startM = proj.toLocal(pt[0], pt[1], cLat, cLng);
+    });
+    m.on('drag', (e) => {
+      const ll = e.target.getLatLng();
+      const P = proj.toLocal(ll.lat, ll.lng, cLat, cLng);
+      const dx = P.x - startM.x, dy = P.y - startM.y;
+      const npts = baseM.map((p,i) => {
+        const w = Math.exp(-((i-gi)*(i-gi))/(2*sigma*sigma));   // Gauß-Auslauf
+        return { x: p.x + dx*w, y: p.y + dy*w };
+      });
+      cmp.guidePts = npts.map(p=>{const l=proj.toLatLng(p.x,p.y,cLat,cLng);return [l.lat,l.lng];});
+      // Gassen live neu (ohne Panel/Griffe neu aufzubauen)
+      (cmp._lineLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}});
+      cmp.lines = cmpComputeLines(cmp);
+      const col = cmp.color||'#e8b070';
+      cmp._lineLayers = cmp.lines.map(seg=>L.polyline(seg,{color:col,weight:2,opacity:.9}).addTo(map));
+    });
+    m.on('dragend', () => {
+      // Griffe an die neue Kurvenform setzen + Panel-Zähler aktualisieren
+      if (cmp.guidePts && _cmpGuideIsStraight(cmp)) cmp.guidePts = null;  // wieder gerade → sauberes Raster
+      cmpRender(cmp);
+      cmpUpdatePanel();
+    });
+    cmp._bendHandles.push(m);
+  });
 }
 
 // Nur die Gassen-Linien eines Abteils neu berechnen (nach Drag/Dreh/Spacing)
@@ -9782,22 +9891,45 @@ function cmpSelect(id) {
 
 function cmpGetSelected() { return _cmpCompartments.find(c => c.id === _cmpSelectedId) || null; }
 
+// Dreht die Leitkurve (falls vorhanden) um ihren Schwerpunkt, sodass beim Ändern
+// der Gradzahl die eingezogenen Wölbungen erhalten bleiben und mitrotieren.
+function _cmpRotateGuide(c, oldDeg, newDeg) {
+  if (!c.guidePts || c.guidePts.length < 2) return;
+  const dDeg = newDeg - oldDeg;
+  if (Math.abs(dDeg) < 1e-9) return;
+  let cLat=0,cLng=0; c.guidePts.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=c.guidePts.length; cLng/=c.guidePts.length;
+  const proj=trailLocalProjection(cLat);
+  const r=dDeg*Math.PI/180, cs=Math.cos(r), sn=Math.sin(r);
+  c.guidePts = c.guidePts.map(p=>{
+    const m=proj.toLocal(p[0],p[1],cLat,cLng);
+    const x=m.x*cs - m.y*sn, y=m.x*sn + m.y*cs;
+    const ll=proj.toLatLng(x,y,cLat,cLng);
+    return [ll.lat,ll.lng];
+  });
+}
+
 function cmpRotate90() {
   const c = cmpGetSelected(); if (!c) return;
+  const old = c.angleDeg;
   c.angleDeg = ((c.angleDeg + 90) % 180 + 180) % 180;
+  _cmpRotateGuide(c, old, c.angleDeg);
   cmpRegenLines(c);
 }
 
 function cmpSetAngle(deg) {
   const c = cmpGetSelected(); if (!c) return;
+  const old = c.angleDeg;
   c.angleDeg = ((parseFloat(deg) % 180) + 180) % 180;
+  _cmpRotateGuide(c, old, c.angleDeg);
   cmpRegenLines(c);
 }
 
 // Nur Linien live neu zeichnen (kein Panel-Rebuild) — flüssiges Schieben.
 function cmpSetAngleLive(deg) {
   const c = cmpGetSelected(); if (!c) return;
+  const old = c.angleDeg;
   c.angleDeg = ((parseFloat(deg) % 180) + 180) % 180;
+  _cmpRotateGuide(c, old, c.angleDeg);
   (c._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   c.lines = cmpComputeLines(c);
   const col = c.color || '#e8b070';
@@ -9826,8 +9958,8 @@ function cmpStartRotate() {
 }
 function cmpRotate90Live() {
   const c = cmpGetSelected(); if (!c) return;
-  c.angleDeg = ((c.angleDeg + 90) % 180 + 180) % 180;
-  cmpSetAngleLive(c.angleDeg);
+  const target = ((c.angleDeg + 90) % 180 + 180) % 180;
+  cmpSetAngleLive(target);   // setzt Winkel + dreht Guide relativ
   const rng = document.querySelector('#cmp-panel input[type=range]'); if (rng) rng.value = Math.round(c.angleDeg);
 }
 function cmpEndRotate() {
@@ -9973,10 +10105,9 @@ function cmpRedrawLinesOnly(c) {
 
 function cmpResetGuide() {
   const c=cmpGetSelected(); if(!c) return;
-  c.guidePts=cmpBuildDenseGuide(c);
-  _cmpRenderGuide(c);
-  _cmpAttachGuideDrag(c);
-  cmpRedrawLinesOnly(c);
+  c.guidePts=null;          // gerade → sauberes Raster
+  cmpRender(c);             // Gassen + frische Griffe
+  cmpUpdatePanel();
 }
 
 function cmpEndBend() {
@@ -10136,7 +10267,8 @@ function cmpUpdatePanel() {
     '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">' +
       '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:10px;">Abteil ' + c.id + ' (' + c.lines.length + ' Gassen)</div>' +
       '<button onclick="cmpStartRotate()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:8px;border:none;background:#3a7abc;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">🧭 Gassen drehen (' + Math.round(c.angleDeg) + '°)</button>' +
-      '<button onclick="cmpStartBend()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:10px;border:none;background:#9a5ac8;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">〰️ Kurven einziehen' + (c.guidePts && c.guidePts.length>=3 ? ' ✓' : '') + '</button>' +
+      '<div style="font-size:12px;color:#c8a0e8;margin-bottom:10px;line-height:1.4;">〰️ Zum Biegen die <b>lila Punkte</b> auf den Gassen ziehen — alle biegen parallel mit.' + (c.guidePts && c.guidePts.length>=3 && !_cmpGuideIsStraight(c) ? ' <span style="color:#e0a0ff;">✓ gebogen</span>' : '') + '</div>' +
+      ((c.guidePts && c.guidePts.length>=3 && !_cmpGuideIsStraight(c)) ? '<button onclick="cmpResetGuide()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:10px;border:1px solid rgba(224,160,255,.4);background:rgba(224,160,255,.12);color:#e0a0ff;font-size:13px;cursor:pointer;">↺ Gassen wieder gerade</button>' : '') +
       '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
         '<button onclick="cmpToggleSplit()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:13px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
         '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 12px;">' +
@@ -10151,7 +10283,7 @@ function cmpUpdatePanel() {
   p.innerHTML =
     collapsedRow +
     '<div style="margin-top:12px;">' +
-      '<input id="cmp-name" placeholder="Name (z.B. Schlag Nord)" value="' + (document.getElementById('cmp-name')?.value || '') + '" style="width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:14px;margin-bottom:10px;">' +
+      '<input id="cmp-name" placeholder="Name (z.B. Schlag Nord)" value="' + (document.getElementById('cmp-name')?.value || '') + '" style="width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:16px;margin-bottom:10px;">' +
       '<div style="display:flex;flex-wrap:wrap;">' + (list || '<span style="font-size:13px;color:#a0c8a0;">Noch keine Abteile</span>') + '</div>' +
       ctrl +
       '<button onclick="cmpAutoSplit()" style="width:100%;margin-top:12px;padding:13px;border-radius:12px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.14);color:#ffd070;font-size:14px;font-weight:700;cursor:pointer;">🪄 Auto: an Wegen teilen</button>' +
@@ -12974,7 +13106,7 @@ window.runPdfExport = runPdfExport;
   border: 1px solid rgba(255,255,255,.08); border-radius: 16px;
   padding: 12px; color: #d8e8d0; box-shadow: 0 10px 36px rgba(0,0,0,.55);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  max-height: calc(100vh - 90px); overflow-y: auto;
+  max-height: calc(100dvh - 90px); overflow-y: auto;
 }
 @media (max-width: 600px) {
   /* Untere Leiste: eingeklappt schmal (Höhe nach Inhalt), ausgeklappt scrollbar */
@@ -13037,7 +13169,7 @@ window.runPdfExport = runPdfExport;
     <div id="trail-opts-info" style="background:rgba(216,160,96,.1);border:1px solid rgba(216,160,96,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:#d8a060;margin-bottom:14px;line-height:1.5;"></div>
 
     <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Name</label>
-    <input type="text" id="trail-plan-name" placeholder="z.B. Nordfläche Sarvisvaara" style="width:100%;font-size:14px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#c8e6c0;font-family:inherit;-webkit-appearance:none;margin-bottom:14px;">
+    <input type="text" id="trail-plan-name" placeholder="z.B. Nordfläche Sarvisvaara" style="width:100%;font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#c8e6c0;font-family:inherit;-webkit-appearance:none;margin-bottom:14px;">
 
     <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Gassen-Abstand</label>
     <div style="display:flex;gap:6px;margin-bottom:8px;">
