@@ -1,8 +1,28 @@
+<!--
+═══════════════════════════════════════════════════════════════════════════
+  LIGNUM — GPS-Fahrgassen- und Polter-Planung für Forstbetriebe
+  ───────────────────────────────────────────────────────────────────────
+  © 2026 Benedikt Holz. Alle Rechte vorbehalten. / All rights reserved.
+
+  Dieser Quellcode und das zugrunde liegende Konzept ("Lignum") sind
+  urheberrechtlich geschütztes, vertrauliches Eigentum von Benedikt Holz.
+
+  Jede Nutzung, Vervielfältigung, Veränderung, Weitergabe, Veröffentlichung
+  oder Verwertung – ganz oder in Teilen – ist ohne ausdrückliche vorherige
+  schriftliche Genehmigung des Rechteinhabers untersagt.
+
+  Unauthorized use, copying, modification, distribution or commercial
+  exploitation of this code or concept, in whole or in part, is prohibited
+  without the prior written permission of the copyright holder.
+
+  Kontakt / Contact: Benedikt Holz
+═══════════════════════════════════════════════════════════════════════════
+-->
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.9">
+  <meta name="app-version" content="9.91">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1911,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.9'")) {
+        if (!txt.includes("APP_VERSION = '9.91'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3394,7 +3414,10 @@ if ('serviceWorker' in navigator) {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 // ================================================================
-//  HOLZPOLTER GPS v7 — Mit Supabase Auth + Echtzeit-Sync
+//  LIGNUM — GPS-Fahrgassen-/Polter-Planung für Forstbetriebe
+//  © 2026 Benedikt Holz. Alle Rechte vorbehalten / All rights reserved.
+//  Vertraulich — Nutzung/Weitergabe nur mit schriftlicher Genehmigung.
+//  Confidential — use/distribution only with written permission.
 // ================================================================
 
 const SUPABASE_URL = 'https://uccocqmihvdxklpheymf.supabase.co';
