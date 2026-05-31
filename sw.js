@@ -1,6 +1,11 @@
+/*
+ * LIGNUM — © 2026 Benedikt Holz. Alle Rechte vorbehalten / All rights reserved.
+ * Vertraulich. Nutzung/Weitergabe nur mit schriftlicher Genehmigung.
+ * Confidential. Use/distribution only with written permission.
+ */
 const TILE_CACHE = 'lignum-tiles-v5';
 const SAT_CACHE  = 'lignum-sat-v5';
-const APP_VERSION = '7.5';
+const APP_VERSION = '9.98';
 const MAX_OSM = 600; const MAX_SAT = 1200;
 
 self.addEventListener('install',  () => self.skipWaiting());
@@ -100,5 +105,22 @@ async function handleCacheTiles(e) {
     send({ type: 'CACHE_DONE', total: done, errors });
   } catch (err) {
     send({ type: 'CACHE_ERROR', error: String(err && err.message || err) });
+  }
+}
+
+// ── BACKGROUND SYNC (vom Partner ergänzt) ──────────────────────────────
+// Wird ausgelöst wenn das Gerät nach einem Offline-Zeitraum wieder Netz hat —
+// auch wenn die App im Hintergrund läuft (Android Chrome). iOS Safari kennt
+// kein Background Sync → dort greift der visibilitychange-Listener in der App.
+self.addEventListener('sync', e => {
+  if (e.tag === 'lignum-sync-queue') {
+    e.waitUntil(notifyClientsToSync());
+  }
+});
+
+async function notifyClientsToSync() {
+  const clients = await self.clients.matchAll({ type: 'window' });
+  for (const client of clients) {
+    try { client.postMessage({ type: 'SYNC_QUEUE' }); } catch {}
   }
 }
