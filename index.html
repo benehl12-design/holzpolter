@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.0">
+  <meta name="app-version" content="11.1">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1962,7 +1962,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.0'")) {
+        if (!txt.includes("APP_VERSION = '11.1'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9758,21 +9758,25 @@ function cmpGenerateStartlineCurve(cmp) {
   const MIN_LEN = Math.max(spacingM * 0.3, 5);
   const out = [];
   const STEP = Math.max(spacingM * 0.4, 4);   // Sample-Schritt entlang der Gasse
-  for (let y = minY + spacingM*0.5; y < maxY; y += spacingM) {
-    // Rohe horizontale Linie bei dieser y-Reihe ins Polygon clippen
-    const clips = trailClipLineToPolygon(minX-1, y, maxX+1, y, polyR);
-    clips.forEach(seg => {
-      const xa = seg[0].x, xb = seg[1].x;
-      if (xb - xa < MIN_LEN) return;
-      const sx = startXat(y);                  // ab hier biegt diese Gasse
-      const pts = [];
-      for (let x = xa; x <= xb; x += STEP) {
-        pts.push({ x, y: y + dyAt(x - sx) });
-      }
-      // Endpunkt exakt
-      pts.push({ x: xb, y: y + dyAt(xb - sx) });
-      // zurückrotieren + lat/lng
-      const ll = pts.map(p=>{ const b=unrot(p); const l=proj.toLatLng(b.x,b.y,cLat,cLng); return [l.lat,l.lng]; });
+  // Maximale Quer-Auslenkung über die Polygonbreite → so weit muss der Reihen-Bereich
+  // erweitert werden, damit Gassen, die durch die Schräge ins Abteil wandern, entstehen.
+  const widthX = maxX - minX;
+  const maxDy = Math.abs(dyAt(widthX));
+  const ext = Math.ceil(maxDy / spacingM) + 1;
+  const yStart = minY + spacingM*0.5 - ext*spacingM;
+  const yEnd   = maxY + ext*spacingM;
+  for (let y = yStart; y < yEnd; y += spacingM) {
+    const sx = startXat(y);                    // ab hier biegt diese Reihe
+    // Gebogene Linie über die volle Breite (nicht vorab clippen!)
+    const line = [];
+    for (let x = minX - 1; x <= maxX + 1; x += STEP) line.push({ x, y: y + dyAt(x - sx) });
+    line.push({ x: maxX + 1, y: y + dyAt((maxX+1) - sx) });
+    // Erst NACH dem Biegen ans Polygon clippen → nichts ragt raus, Lücken werden gefüllt
+    _cmpClipPolylineToPolygon(line, polyR).forEach(seg => {
+      if (seg.length < 2) return;
+      let L = 0; for (let i=0;i<seg.length-1;i++) L += Math.hypot(seg[i+1].x-seg[i].x, seg[i+1].y-seg[i].y);
+      if (L < MIN_LEN) return;
+      const ll = seg.map(p=>{ const b=unrot(p); const l=proj.toLatLng(b.x,b.y,cLat,cLng); return [l.lat,l.lng]; });
       out.push(ll);
     });
   }
