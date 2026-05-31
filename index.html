@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.96">
+  <meta name="app-version" content="9.98">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1925,7 +1925,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.96'")) {
+        if (!txt.includes("APP_VERSION = '9.98'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3465,6 +3465,114 @@ if ('serviceWorker' in navigator) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+// ════════════════════════════════════════════════════════════════════
+//  LIGNUM — Offline Queue v1.0
+//  © 2026 Benedikt Holz. Alle Rechte vorbehalten.
+//  Speichert fehlgeschlagene DB-Schreiboperationen in IndexedDB und
+//  synchronisiert sie sobald das Gerät wieder online ist.
+// ════════════════════════════════════════════════════════════════════
+(function () {
+  'use strict';
+  const DB_NAME='lignum-offline', DB_VERSION=1, STORE='queue';
+  const WRITE_METHODS=new Set(['POST','PATCH','DELETE']);
+  const SKIP_PATHS=['auth/','rpc/auto_set_drivers_offline','rpc/set_admin_status','rpc/delete_my_account'];
+  let _db=null, _syncing=false, _queueSize=0;
+
+  function openDB(){return new Promise((resolve,reject)=>{
+    if(_db){resolve(_db);return;}
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=e=>{const db=e.target.result;
+      if(!db.objectStoreNames.contains(STORE)){const store=db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});store.createIndex('created_at','created_at',{unique:false});}};
+    req.onsuccess=e=>{_db=e.target.result;resolve(_db);};
+    req.onerror=e=>reject(e.target.error);});}
+
+  async function enqueue(entry){const db=await openDB();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);
+    const req=store.add({path:entry.path,method:entry.method,body:entry.body||null,prefer:entry.prefer||'',token:entry.token||null,created_at:Date.now(),retries:0});
+    req.onsuccess=()=>{_queueSize++;updateOnlineDot();resolve(req.result);};
+    req.onerror=e=>reject(e.target.error);});}
+
+  async function dequeueAll(){const db=await openDB();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readonly'),idx=tx.objectStore(STORE).index('created_at'),req=idx.getAll();
+    req.onsuccess=e=>resolve(e.target.result||[]);req.onerror=e=>reject(e.target.error);});}
+
+  async function removeEntry(id){const db=await openDB();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite'),req=tx.objectStore(STORE).delete(id);
+    req.onsuccess=()=>{_queueSize=Math.max(0,_queueSize-1);resolve();};req.onerror=e=>reject(e.target.error);});}
+
+  async function incrementRetry(id,cur){const db=await openDB();return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(id);
+    get.onsuccess=e=>{const rec=e.target.result;if(!rec){resolve();return;}rec.retries=cur+1;const put=store.put(rec);put.onsuccess=()=>resolve();put.onerror=err=>reject(err.target.error);};
+    get.onerror=e=>reject(e.target.error);});}
+
+  async function getQueueSize(){const db=await openDB();return new Promise((resolve)=>{
+    const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).count();
+    req.onsuccess=e=>{_queueSize=e.target.result;resolve(_queueSize);};req.onerror=()=>resolve(0);});}
+
+  function updateOnlineDot(){const dot=document.getElementById('online-dot');if(!dot)return;
+    if(!navigator.onLine){dot.className='off';dot.title='Offline — '+_queueSize+' Aktion(en) ausstehend';return;}
+    if(_syncing){dot.className='sync';dot.title='Synchronisiert '+_queueSize+' ausstehende Aktion(en)…';return;}
+    if(_queueSize>0){dot.className='sync';dot.title=_queueSize+' Aktion(en) warten auf Sync';return;}
+    dot.className='on';dot.title='Online — alle Daten synchronisiert';}
+
+  function _toast(msg){if(typeof showToast==='function')showToast(msg);else console.info('[OfflineQueue]',msg);}
+
+  async function syncQueue(){
+    if(_syncing||!navigator.onLine)return;
+    const entries=await dequeueAll();
+    if(entries.length===0){updateOnlineDot();return;}
+    _syncing=true;updateOnlineDot();
+    _toast('🔄 '+entries.length+' offline gespeicherte Aktion(en) werden synchronisiert…');
+    let succeeded=0,failed=0;
+    for(const entry of entries){
+      if(entry.retries>=3){console.warn('[OfflineQueue] Aufgegeben:',entry);await removeEntry(entry.id).catch(()=>{});failed++;continue;}
+      try{
+        const token=(typeof accessToken!=='undefined'&&accessToken)?accessToken:(typeof SUPABASE_KEY!=='undefined'?SUPABASE_KEY:'');
+        const headers={'apikey':typeof SUPABASE_KEY!=='undefined'?SUPABASE_KEY:'','Authorization':'Bearer '+token,'Content-Type':'application/json'};
+        if(entry.prefer)headers['Prefer']=entry.prefer;
+        const baseUrl=typeof SUPABASE_URL!=='undefined'?SUPABASE_URL:'';
+        const resp=await fetch(baseUrl+'/rest/v1/'+entry.path,{method:entry.method,headers,body:entry.body?JSON.stringify(entry.body):undefined});
+        if(resp.ok||resp.status===204){await removeEntry(entry.id);succeeded++;}
+        else if(resp.status===401){
+          if(typeof refreshAccessToken==='function'){const ok=await refreshAccessToken();
+            if(ok)await incrementRetry(entry.id,entry.retries);
+            else{await removeEntry(entry.id).catch(()=>{});failed++;}}
+          else await incrementRetry(entry.id,entry.retries);}
+        else if(resp.status===409){console.warn('[OfflineQueue] Konflikt(409) verworfen:',entry.path);await removeEntry(entry.id).catch(()=>{});succeeded++;}
+        else{console.warn('[OfflineQueue] Server-Fehler',resp.status,entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
+      }catch(networkErr){console.warn('[OfflineQueue] Netzfehler während Sync:',networkErr);break;}
+    }
+    _syncing=false;await getQueueSize();updateOnlineDot();
+    if(succeeded>0){_toast('✓ '+succeeded+' Aktion(en) synchronisiert');if(typeof loadData==='function'){try{await loadData();}catch{}}}
+    if(failed>0)_toast('⚠️ '+failed+' Aktion(en) nicht synchronisiert');}
+
+  function shouldSkip(path,method){if(!WRITE_METHODS.has(method))return true;return SKIP_PATHS.some(p=>path.includes(p));}
+
+  window.OfflineQueue={
+    async handle(path,options){
+      const method=(options.method||'GET').toUpperCase();
+      if(shouldSkip(path,method))return null;
+      const token=(typeof accessToken!=='undefined'&&accessToken)?accessToken:'';
+      await enqueue({path,method,body:options.body||null,prefer:options.prefer||'',token});
+      _toast('📵 Offline — Aktion gespeichert, wird synchronisiert sobald Netz da ist');
+      updateOnlineDot();
+      if(method==='POST')return [];
+      return true;},
+    sync:syncQueue,
+    size:()=>_queueSize,
+    async init(){await openDB();await getQueueSize();updateOnlineDot();
+      if(_queueSize>0)console.info('[OfflineQueue] '+_queueSize+' ausstehende Aktionen beim Start');},
+  };
+
+  window.addEventListener('offline',()=>{updateOnlineDot();_toast('📵 Kein Netz — Aktionen werden lokal gespeichert');});
+  window.addEventListener('online',async()=>{updateOnlineDot();setTimeout(syncQueue,1500);});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&navigator.onLine)setTimeout(syncQueue,800);});
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>window.OfflineQueue.init());
+  else window.OfflineQueue.init();
+})();
+</script>
+<script>
 // ================================================================
 //  LIGNUM — GPS-Fahrgassen-/Polter-Planung für Forstbetriebe
 //  © 2026 Benedikt Holz. Alle Rechte vorbehalten / All rights reserved.
@@ -3523,6 +3631,14 @@ async function dbFetch(path, options = {}) {
   const body   = options.body;
   const prefer = options.prefer || '';
 
+  // Sofort in Queue wenn offline (nur Schreib-Operationen)
+  if (!navigator.onLine && window.OfflineQueue) {
+    const result = await window.OfflineQueue.handle(path, { method, body, prefer });
+    if (result !== null) return result;
+    // result === null → GET o.ä., das nicht gequeued wird
+    throw new Error('Offline und kein Netz verfügbar');
+  }
+
   const doFetch = async () => {
     const headers = {
       'apikey': SUPABASE_KEY,
@@ -3536,13 +3652,30 @@ async function dbFetch(path, options = {}) {
     });
   };
 
-  let resp = await doFetch();
+  let resp;
+  try {
+    resp = await doFetch();
+  } catch (networkErr) {
+    // Netz weg trotz navigator.onLine=true (gerade zusammengebrochen) → Queue
+    if (window.OfflineQueue) {
+      const result = await window.OfflineQueue.handle(path, { method, body, prefer });
+      if (result !== null) return result;
+    }
+    throw networkErr;
+  }
 
   // JWT abgelaufen → Token erneuern und nochmal versuchen
   if (resp.status === 401) {
     const ok = await refreshAccessToken();
-    if (ok) resp = await doFetch();
-    else {
+    if (ok) {
+      try { resp = await doFetch(); } catch (networkErr) {
+        if (window.OfflineQueue) {
+          const result = await window.OfflineQueue.handle(path, { method, body, prefer });
+          if (result !== null) return result;
+        }
+        throw networkErr;
+      }
+    } else {
       // Token nicht erneuerbar → neu einloggen
       showAuthErr('Sitzung abgelaufen — bitte neu anmelden.');
       hideAllScreens();
@@ -6075,6 +6208,10 @@ async function loadData() {
     });
   }
   setOnline('on');
+  // Falls noch Aktionen in der Offline-Queue warten, deren Status anzeigen
+  if (window.OfflineQueue && window.OfflineQueue.size() > 0) {
+    try { document.getElementById('online-dot').className = 'sync'; } catch {}
+  }
   renderLog();
   renderSidebar();
   renderLkwSidebar();
@@ -6130,6 +6267,28 @@ function startRealtime() {
         if (driversOnMapEnabled && d.last_lat && d.last_lng) {
           updateDriverMarkersOnMap([d]);
         }
+      })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trail_plans',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        const d = payload.new;
+        if (d && !d.deleted_at && typeof _renderSavedTrailPlan === 'function') {
+          _renderSavedTrailPlan(d);
+        }
+      })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trail_plans',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        const d = payload.new;
+        if (!d) return;
+        // erst alte Anzeige entfernen, dann neu rendern (falls nicht gelöscht)
+        if (typeof _removeSavedTrailPlan === 'function') _removeSavedTrailPlan(d.id);
+        if (!d.deleted_at && typeof _renderSavedTrailPlan === 'function') _renderSavedTrailPlan(d);
+      })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'trail_plans',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        if (payload.old && typeof _removeSavedTrailPlan === 'function') _removeSavedTrailPlan(payload.old.id);
       })
     .subscribe();
 }
@@ -12531,8 +12690,20 @@ if('serviceWorker' in navigator){
           }
         });
       });
+      // Background-Sync registrieren (Android Chrome) — wird ausgelöst sobald
+      // das Gerät nach Offline-Zeit wieder Netz hat, auch im Hintergrund.
+      if ('sync' in reg) {
+        try { reg.sync.register('lignum-sync-queue').catch(()=>{}); } catch {}
+      }
     })
     .catch(()=>{document.getElementById('sw-txt').textContent='ℹ Karte bereit';});
+
+  // Auf SYNC_QUEUE-Nachricht des Service Workers reagieren → Queue abarbeiten
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'SYNC_QUEUE' && window.OfflineQueue) {
+      window.OfflineQueue.sync();
+    }
+  });
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
