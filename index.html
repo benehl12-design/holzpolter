@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="10.9">
+  <meta name="app-version" content="11.0">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1962,7 +1962,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '10.9'")) {
+        if (!txt.includes("APP_VERSION = '11.0'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9739,9 +9739,21 @@ function cmpGenerateStartlineCurve(cmp) {
     return g1R.x + (g2R.x - g1R.x) * t;
   };
 
-  const amount = (cmp.bend.amount || 0) * (cmp.bend.dir || 1);   // Auslenkung in y (quer)
-  const RAMP = Math.max(spacingM * 2.5, 25);                      // Übergangslänge
+  const amount = (cmp.bend.amount || 0) * (cmp.bend.dir || 1);   // Querversatz-Maß der Griffe
+  const RAMP = Math.max(spacingM * 2.5, 25);                      // Anlauf-Länge der Krümmung
   const smoothstep = (t)=>{ t=Math.max(0,Math.min(1,t)); return t*t*(3-2*t); };
+  // Ziel-Steigung: wie schräg die Gasse nach dem Einbiegen weiterläuft.
+  // Aus dem Querversatz abgeleitet und gedeckelt, damit es nie zu steil wird.
+  const SLOPE = Math.max(-1.2, Math.min(1.2, amount / Math.max(RAMP, 1)));
+  // dy(d): weicher Anlauf der Steigung über RAMP, danach konstante Schräge (kein 2. Knick).
+  // Geschlossene Form des Integrals von SLOPE*smoothstep(t/RAMP):
+  //   ∫₀^d smoothstep(t/R) dt  mit smoothstep=3u²-2u³, u=t/R
+  //   = R*(u³ - 0.5*u⁴) für d≤R ; für d>R: R*0.5 + (d-R)
+  const dyAt = (d) => {
+    if (d <= 0) return 0;
+    if (d < RAMP) { const u = d/RAMP; return SLOPE * RAMP * (u*u*u - 0.5*u*u*u*u); }
+    return SLOPE * (RAMP*0.5 + (d - RAMP));
+  };
 
   const MIN_LEN = Math.max(spacingM * 0.3, 5);
   const out = [];
@@ -9755,12 +9767,10 @@ function cmpGenerateStartlineCurve(cmp) {
       const sx = startXat(y);                  // ab hier biegt diese Gasse
       const pts = [];
       for (let x = xa; x <= xb; x += STEP) {
-        let dy = 0;
-        if (x > sx) dy = amount * smoothstep((x - sx) / RAMP);
-        pts.push({ x, y: y + dy });
+        pts.push({ x, y: y + dyAt(x - sx) });
       }
       // Endpunkt exakt
-      { let x=xb, dy = x>sx ? amount*smoothstep((x-sx)/RAMP) : 0; pts.push({x, y:y+dy}); }
+      pts.push({ x: xb, y: y + dyAt(xb - sx) });
       // zurückrotieren + lat/lng
       const ll = pts.map(p=>{ const b=unrot(p); const l=proj.toLatLng(b.x,b.y,cLat,cLng); return [l.lat,l.lng]; });
       out.push(ll);
