@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.8">
+  <meta name="app-version" content="9.9">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1891,7 +1891,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.8'")) {
+        if (!txt.includes("APP_VERSION = '9.9'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9847,16 +9847,33 @@ function cmpSortGuide(cmp) {
   });
 }
 
+// Leitkurve als dichte, gleichmäßige Punktkette über die ganze Abteil-Länge.
+// Wird beim Start aus der geraden Grundrichtung gebaut.
+function cmpBuildDenseGuide(cmp) {
+  let cLat=0,cLng=0; cmp.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=cmp.polygon.length; cLng/=cmp.polygon.length;
+  const proj=trailLocalProjection(cLat);
+  const polyM=cmp.polygon.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  let minX=1e18,maxX=-1e18,minY=1e18,maxY=-1e18;
+  polyM.forEach(p=>{if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.y<minY)minY=p.y;if(p.y>maxY)maxY=p.y;});
+  const diag=Math.hypot(maxX-minX,maxY-minY);
+  const a=cmp.angleDeg*Math.PI/180; const dx=Math.cos(a), dy=Math.sin(a);
+  const N=24;                              // dichte Stützpunkte
+  const pts=[];
+  for(let i=0;i<=N;i++){ const s=(i/N-0.5)*diag*1.2; const m={x:dx*s,y:dy*s}; const ll=proj.toLatLng(m.x,m.y,cLat,cLng); pts.push([ll.lat,ll.lng]); }
+  return pts;
+}
+
 function cmpStartBend() {
   const c=cmpGetSelected(); if(!c) return;
-  if(!c.guidePts || c.guidePts.length<2) c.guidePts = cmpBuildStraightGuide(c);
+  // Dichte Kette: aus bestehender (grober) Kurve neu aufbauen falls noch nicht dicht
+  if(!c.guidePts || c.guidePts.length < 12) c.guidePts = cmpBuildDenseGuide(c);
   _cmpBending=true;
-  map.on('click', _cmpOnBendClick);
   _cmpRenderGuide(c);
+  _cmpAttachGuideDrag(c);
   const p=document.getElementById('cmp-panel'); if(p){ p.classList.add('rotating');
     p.innerHTML =
       '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;line-height:1.35;"><b style="color:#e0a0ff;">〰️ Kurven-Modus</b><br><span style="font-size:12px;color:#a0c8a0;">Auf die Karte tippen = Stützpunkt setzen · Punkte ziehen = biegen</span></div>' +
+        '<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;line-height:1.35;"><b style="color:#e0a0ff;">〰️ Kurven ziehen</b><br><span style="font-size:12px;color:#a0c8a0;">Auf der Linie anfassen und ziehen — schärfer oder flacher</span></div>' +
         '<button onclick="cmpResetGuide()" style="flex:0 0 auto;height:48px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#e8e8e8;font-size:12px;cursor:pointer;">↺ Gerade</button>' +
         '<button onclick="cmpEndBend()" style="flex:0 0 auto;height:48px;padding:0 16px;border-radius:12px;border:none;background:#4aaa4a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✓ Fertig</button>' +
       '</div>';
@@ -9864,38 +9881,66 @@ function cmpStartBend() {
 }
 
 function _cmpRenderGuide(c) {
-  // Leitkurve (lila) + Stützpunkt-Handles
   if(_cmpGuideLayer){ try{map.removeLayer(_cmpGuideLayer);}catch{} _cmpGuideLayer=null; }
   _cmpGuideHandles.forEach(m=>{try{map.removeLayer(m);}catch{}}); _cmpGuideHandles=[];
-  // geglättete Vorschau der Leitkurve zeichnen
+  // glatte lila Linie als „Griff"
+  _cmpGuideLayer=L.polyline(c.guidePts,{color:'#e0a0ff',weight:6,opacity:.9}).addTo(map);
+}
+
+// Drag-anywhere: auf der Linie drücken → lokale Wölbung mit weichem Auslauf
+function _cmpAttachGuideDrag(c) {
+  if(!_cmpGuideLayer) return;
   let cLat=0,cLng=0; c.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=c.polygon.length; cLng/=c.polygon.length;
   const proj=trailLocalProjection(cLat);
-  const gm=c.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
-  const sm=_cmpCatmullRom(gm,10).map(p=>{const ll=proj.toLatLng(p.x,p.y,cLat,cLng);return [ll.lat,ll.lng];});
-  _cmpGuideLayer=L.polyline(sm,{color:'#e0a0ff',weight:3,opacity:.9,dashArray:'6,5'}).addTo(map);
-  c.guidePts.forEach((pt,idx)=>{
-    const m=L.marker(pt,{draggable:true,icon:L.divIcon({className:'cmp-guide-h',html:'<div style="width:20px;height:20px;border-radius:50%;background:#e0a0ff;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5);"></div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
-    m.on('drag',e=>{ const ll=e.target.getLatLng(); c.guidePts[idx]=[ll.lat,ll.lng];
-      const g2=c.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
-      const s2=_cmpCatmullRom(g2,10).map(p=>{const l=proj.toLatLng(p.x,p.y,cLat,cLng);return [l.lat,l.lng];});
-      if(_cmpGuideLayer)_cmpGuideLayer.setLatLngs(s2);
-      cmpRedrawLinesOnly(c);
+  let dragging=false, grabIdx=-1, sigma=1, baseM=null, startM=null;
+
+  const toM = (latlng)=>proj.toLocal(latlng.lat, latlng.lng, cLat, cLng);
+  const guideM = ()=>c.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+
+  const onDown = (e)=>{
+    L.DomEvent.stop(e);
+    const gm=guideM(); const P=toM(e.latlng);
+    // nächsten Stützpunkt finden
+    let bi=0,bd=1e18; gm.forEach((p,i)=>{const d=Math.hypot(p.x-P.x,p.y-P.y);if(d<bd){bd=d;bi=i;}});
+    grabIdx=bi; dragging=true;
+    baseM=gm.slice(); startM=P;
+    // Einflussbreite ~ ein Viertel der Kette (weicher, breiter Bauch)
+    sigma=Math.max(c.guidePts.length/5, 2);
+    map.dragging.disable();
+    map.on('mousemove', onMove); map.on('mouseup', onUp);
+    document.addEventListener('touchmove', onTouchMove, {passive:false});
+    document.addEventListener('touchend', onUp);
+  };
+  const applyTo = (latlng)=>{
+    const P=toM(latlng);
+    const dx=P.x-startM.x, dy=P.y-startM.y;     // Verschiebung des Greifpunkts
+    const npts=baseM.map((p,i)=>{
+      const w=Math.exp(-((i-grabIdx)*(i-grabIdx))/(2*sigma*sigma));  // Gauß-Gewicht
+      return {x:p.x+dx*w, y:p.y+dy*w};
     });
-    m.on('dragend',()=>{ cmpSortGuide(c); cmpStartBend(); }); // neu sortieren + Handles neu
-    _cmpGuideHandles.push(m);
-  });
+    c.guidePts=npts.map(p=>{const ll=proj.toLatLng(p.x,p.y,cLat,cLng);return [ll.lat,ll.lng];});
+    if(_cmpGuideLayer)_cmpGuideLayer.setLatLngs(c.guidePts);
+    cmpRedrawLinesOnly(c);
+  };
+  const onMove = (e)=>{ if(dragging) applyTo(e.latlng); };
+  const onTouchMove = (e)=>{ if(!dragging)return; e.preventDefault();
+    const t=e.touches[0]; if(!t)return; const ll=map.containerPointToLatLng(map.mouseEventToContainerPoint(t)); applyTo(ll); };
+  const onUp = ()=>{
+    if(!dragging)return; dragging=false;
+    map.dragging.enable();
+    map.off('mousemove', onMove); map.off('mouseup', onUp);
+    document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onUp);
+  };
+  _cmpGuideLayer.on('mousedown', onDown);
+  // Touch: Leaflet feuert für Polyline 'mousedown' meist nicht → eigenes touchstart
+  if(_cmpGuideLayer._path){ _cmpGuideLayer._path.addEventListener('touchstart', (ev)=>{
+    const t=ev.touches[0]; if(!t)return; ev.preventDefault();
+    const ll=map.containerPointToLatLng(map.mouseEventToContainerPoint(t));
+    onDown({latlng:ll, originalEvent:ev, stopPropagation:()=>{}, preventDefault:()=>{}});
+  }, {passive:false}); }
 }
 
-function _cmpOnBendClick(e) {
-  if(!_cmpBending) return;
-  const c=cmpGetSelected(); if(!c) return;
-  c.guidePts.push([e.latlng.lat, e.latlng.lng]);
-  cmpSortGuide(c);
-  _cmpRenderGuide(c);
-  cmpRedrawLinesOnly(c);
-}
-
-// Nur die Gassen-Linien neu zeichnen (live, ohne Panel/Handles anzufassen)
+// Nur die Gassen-Linien neu zeichnen (live)
 function cmpRedrawLinesOnly(c) {
   (c._lineLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}});
   c.lines=cmpComputeLines(c);
@@ -9905,19 +9950,36 @@ function cmpRedrawLinesOnly(c) {
 
 function cmpResetGuide() {
   const c=cmpGetSelected(); if(!c) return;
-  c.guidePts=cmpBuildStraightGuide(c);
+  c.guidePts=cmpBuildDenseGuide(c);
   _cmpRenderGuide(c);
+  _cmpAttachGuideDrag(c);
   cmpRedrawLinesOnly(c);
 }
 
 function cmpEndBend() {
   _cmpBending=false;
-  try{map.off('click',_cmpOnBendClick);}catch{}
   if(_cmpGuideLayer){try{map.removeLayer(_cmpGuideLayer);}catch{} _cmpGuideLayer=null;}
   _cmpGuideHandles.forEach(m=>{try{map.removeLayer(m);}catch{}}); _cmpGuideHandles=[];
-  const c=cmpGetSelected(); if(c){ if(c.guidePts && c.guidePts.length<3) c.guidePts=null; } // gerade → kein Guide
+  const c=cmpGetSelected();
+  if(c){
+    // Ist die Kurve praktisch gerade? → guidePts verwerfen (sauberes Raster)
+    if(c.guidePts && _cmpGuideIsStraight(c)) c.guidePts=null;
+  }
   const p=document.getElementById('cmp-panel'); if(p)p.classList.remove('rotating');
   _cmpPanelOpen=true; cmpUpdatePanel();
+}
+
+// Prüft ob die Leitkurve nahezu gerade ist (max. Abweichung < kleiner Schwelle)
+function _cmpGuideIsStraight(c) {
+  if(!c.guidePts || c.guidePts.length<3) return true;
+  let cLat=0,cLng=0; c.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=c.polygon.length; cLng/=c.polygon.length;
+  const proj=trailLocalProjection(cLat);
+  const g=c.guidePts.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  const a=g[0], b=g[g.length-1];
+  const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1;
+  let maxDev=0;
+  g.forEach(p=>{ const dev=Math.abs((p.x-a.x)*(-dy/L)+(p.y-a.y)*(dx/L)); if(dev>maxDev)maxDev=dev; });
+  return maxDev < 2;   // < 2 m Abweichung = gerade
 }
 window.cmpStartBend=cmpStartBend;
 window.cmpResetGuide=cmpResetGuide;
