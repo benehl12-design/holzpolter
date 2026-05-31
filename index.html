@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="9.98">
+  <meta name="app-version" content="9.99">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1925,7 +1925,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '9.98'")) {
+        if (!txt.includes("APP_VERSION = '9.99'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -5319,21 +5319,30 @@ async function loadDriversTimeEntries() {
 // Gebiete als Karten-Kacheln laden
 
 async function deleteArea(areaId) {
-  if (!confirm('Einschlagsgebiet wirklich löschen? Polter und Strecken bleiben erhalten.')) return;
+  if (!confirm('Erntefläche / Einschlagsgebiet wirklich löschen? Polter und Strecken bleiben erhalten.')) return;
   try {
     await dbFetch('areas?id=eq.' + areaId, { 
       method: 'DELETE', prefer: 'return=minimal' 
     });
+    // Polygon von der Karte entfernen
+    if (typeof areaBoundaryLayers !== 'undefined' && areaBoundaryLayers[areaId]) {
+      try { map.removeLayer(areaBoundaryLayers[areaId]); } catch {}
+      delete areaBoundaryLayers[areaId];
+    }
     // Aus lokaler Liste entfernen
     areas = areas.filter(a => a.id !== areaId);
     if (currentAreaId === areaId) {
       currentAreaId = null;
-      document.getElementById('area-select').value = '';
-      syncAreaSelectMenu();
+      const sel = document.getElementById('area-select');
+      if (sel) sel.value = '';
+      if (typeof syncAreaSelectMenu === 'function') syncAreaSelectMenu();
     }
-    // Ansicht neu laden
-    await loadAreasOverviewCards();
-    showToast('🗑 Gebiet gelöscht');
+    if (typeof renderAreaSelect === 'function') renderAreaSelect();
+    // Übersicht neu laden, falls offen
+    if (document.getElementById('areas-overview-screen').style.display !== 'none') {
+      await loadAreasOverviewCards();
+    }
+    showToast('🗑 Erntefläche gelöscht');
   } catch(e) {
     showToast('Fehler: ' + e.message);
   }
@@ -5452,6 +5461,7 @@ function adminJumpToAreaBoundary(areaId) {
   setTimeout(() => { doJump(); window._pendingDriverJump = false; }, 1700);
 }
 window.adminJumpToAreaBoundary = adminJumpToAreaBoundary;
+window.deleteArea = deleteArea;
 
 function openNewAreaDialog() {
   const overlay = document.getElementById('area-overlay');
@@ -6290,6 +6300,36 @@ function startRealtime() {
       payload => {
         if (payload.old && typeof _removeSavedTrailPlan === 'function') _removeSavedTrailPlan(payload.old.id);
       })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'areas',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        const d = payload.new;
+        if (!d) return;
+        if (!areas.find(a => a.id === d.id)) areas.push(d);
+        if (d.boundary && typeof renderAreaBoundaries === 'function') renderAreaBoundaries(areas);
+        if (typeof renderAreaSelect === 'function') renderAreaSelect();
+      })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'areas',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        const d = payload.new;
+        if (!d) return;
+        const i = areas.findIndex(a => a.id === d.id);
+        if (i >= 0) areas[i] = d; else areas.push(d);
+        if (typeof renderAreaBoundaries === 'function') renderAreaBoundaries(areas);
+      })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'areas',
+      filter: 'company_id=eq.' + currentProfile.company_id },
+      payload => {
+        const id = payload.old && payload.old.id;
+        if (!id) return;
+        areas = areas.filter(a => a.id !== id);
+        if (typeof areaBoundaryLayers !== 'undefined' && areaBoundaryLayers[id]) {
+          try { map.removeLayer(areaBoundaryLayers[id]); } catch {}
+          delete areaBoundaryLayers[id];
+        }
+        if (typeof renderAreaSelect === 'function') renderAreaSelect();
+      })
     .subscribe();
 }
 
@@ -7026,11 +7066,13 @@ function renderAreaBoundaries(areas) {
         color: '#e67e22', weight: 2, opacity: .8,
         fillColor: '#e67e22', fillOpacity: .07
       }).addTo(map);
+      const safeName = (a.name || '').replace(/[\\'"<>&]/g, c => ({'\\':'\\\\','\'':'\\\'','"':'&quot;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
       poly.bindPopup(
         '<b>📐 Erntefläche</b><br>' +
         (a.name || 'Einschlagsgebiet') + '<br>' +
         (a.area_hectares ? a.area_hectares.toFixed(2) + ' ha' : '') +
-        '<br><small>EUDR: ' + (a.area_hectares < 4 ? 'Punkt genügt' : 'Polygon-Pflicht') + '</small>'
+        '<br><small>EUDR: ' + (a.area_hectares < 4 ? 'Punkt genügt' : 'Polygon-Pflicht') + '</small>' +
+        '<br><button onclick="deleteArea(\'' + a.id + '\')" style="margin-top:8px;padding:7px 12px;border:none;border-radius:7px;background:rgba(163,32,32,.85);color:#fff;font-size:12px;font-family:inherit;cursor:pointer;">🗑 Fläche löschen</button>'
       );
       areaBoundaryLayers[a.id] = poly;
     }
