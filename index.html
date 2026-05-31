@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="10.5">
+  <meta name="app-version" content="10.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1962,7 +1962,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '10.5'")) {
+        if (!txt.includes("APP_VERSION = '10.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9150,9 +9150,12 @@ function _renderSavedTrailPlan(plan) {
       (Array.isArray(cmp.lines) ? cmp.lines : []).forEach(seg => {
         layers.push(L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map));
       });
-      // Verbindungsstücke (Punkt 3)
-      (Array.isArray(cmp.connectors) ? cmp.connectors : []).forEach(pair => {
-        if (Array.isArray(pair) && pair.length === 2) layers.push(L.polyline(pair, { color: '#5ad0c0', weight: 3, opacity: .95 }).addTo(map));
+      // Verbindungsstücke (Punkt 3) — beide Formate unterstützen
+      (Array.isArray(cmp.connectors) ? cmp.connectors : []).forEach(conn => {
+        let a, b;
+        if (Array.isArray(conn)) { a = conn[0]; b = conn[1]; }
+        else if (conn && conn.from && conn.to) { a = conn.from; b = conn.to; }
+        if (a && b) layers.push(L.polyline([a, b], { color: '#5ad0c0', weight: 3, opacity: .95 }).addTo(map));
       });
     });
     // Wege
@@ -9747,11 +9750,18 @@ function cmpRender(cmp) {
   cmpClearLayers(cmp);
   const selected = (cmp.id === _cmpSelectedId);
   const col = cmp.color || '#e8b070';
-  // Polygon-Umriss
-  cmp._poly = L.polygon(cmp.polygon, {
-    color: col, weight: selected ? 3 : 2, opacity: selected ? 1 : .7,
-    fillColor: col, fillOpacity: selected ? .08 : .04, dashArray: selected ? null : '5,5'
-  }).addTo(map);
+  // Polygon-Umriss (kann pro Abteil ausgeblendet werden, damit Gassen klar sichtbar sind)
+  if (cmp.hideOutline) {
+    // unsichtbare Klickfläche behalten (Auswahl bleibt möglich), aber kein sichtbarer Rand
+    cmp._poly = L.polygon(cmp.polygon, {
+      color: col, weight: 0, opacity: 0, fillColor: col, fillOpacity: selected ? .03 : 0
+    }).addTo(map);
+  } else {
+    cmp._poly = L.polygon(cmp.polygon, {
+      color: col, weight: selected ? 3 : 2, opacity: selected ? 1 : .7,
+      fillColor: col, fillOpacity: selected ? .08 : .04, dashArray: selected ? null : '5,5'
+    }).addTo(map);
+  }
   cmp._poly.on('click', (e) => { L.DomEvent.stop(e); cmpSelect(cmp.id); });
 
   // Gassen generieren + zeichnen
@@ -9880,9 +9890,19 @@ function cmpRegenLines(cmp) {
   (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   cmp.lines = cmpComputeLines(cmp);
   const col = cmp.color || '#e8b070';
-  cmp._lineLayers = cmp.lines.map(seg =>
-    L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map)
-  );
+  const selected = (cmp.id === _cmpSelectedId);
+  cmp._lineLayers = [];
+  cmp.lines.forEach(seg => {
+    const pl = L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map);
+    cmp._lineLayers.push(pl);
+    if (selected) {
+      const hit = L.polyline(seg, { color: '#000', weight: 16, opacity: 0 }).addTo(map);
+      _cmpAttachLaneClick(cmp, hit);
+      cmp._lineLayers.push(hit);
+    }
+  });
+  // Verbindungen an die (evtl. veränderten) Gassen-Enden neu andocken
+  if (typeof _cmpRenderConnectors === 'function') _cmpRenderConnectors(cmp);
   cmpUpdatePanel();
 }
 
@@ -10350,17 +10370,47 @@ function _cmpConnectPick(c, laneIdx, end, pt) {
   }
   // nicht dasselbe Ende doppelt
   if (_cmpConnFirst.laneIdx === laneIdx && _cmpConnFirst.end === end) { _cmpConnFirst = null; return; }
-  c.connectors.push([ _cmpConnFirst.latlng, pt ]);
+  // Verbindung als gemerkte Endpunkt-Koordinaten ablegen (from/to).
+  // Beim Zeichnen werden sie ans jeweils nächstgelegene aktuelle Gassen-Ende
+  // angedockt → übersteht Abstandsänderung und neue Gassen-Anzahl.
+  c.connectors.push({ from: _cmpConnFirst.latlng, to: pt });
   _cmpConnFirst = null;
   _cmpRenderConnectors(c);
   showToast('🔗 Verbindung gesetzt');
 }
 
-// Verbindungs-Linien zeichnen (türkis, etwas dicker)
+// Alle aktuellen Gassen-Enden eines Abteils als Punktliste
+function _cmpLaneEndpoints(c) {
+  const eps = [];
+  (c.lines||[]).forEach(seg => {
+    if (seg.length >= 2) { eps.push(seg[0]); eps.push(seg[seg.length-1]); }
+  });
+  return eps;
+}
+// Nächstgelegenes Gassen-Ende zu einem Punkt finden (in Meter-Distanz)
+function _cmpNearestEndpoint(c, latlng, eps) {
+  if (!eps.length) return latlng;
+  let cLat=0,cLng=0; c.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=c.polygon.length; cLng/=c.polygon.length;
+  const proj = trailLocalProjection(cLat);
+  const P = proj.toLocal(latlng[0], latlng[1], cLat, cLng);
+  let best=eps[0], bd=Infinity;
+  eps.forEach(e=>{ const m=proj.toLocal(e[0],e[1],cLat,cLng); const d=Math.hypot(m.x-P.x,m.y-P.y); if(d<bd){bd=d;best=e;} });
+  return best;
+}
+
+// Verbindungs-Linien zeichnen — jeweils ans aktuell nächste Gassen-Ende angedockt
 function _cmpRenderConnectors(c) {
   (c._connLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}}); c._connLayers=[];
-  (c.connectors||[]).forEach(pair => {
-    const l = L.polyline(pair, { color:'#5ad0c0', weight:3, opacity:.95, dashArray:'1,0' }).addTo(map);
+  const eps = _cmpLaneEndpoints(c);
+  (c.connectors||[]).forEach(conn => {
+    // Alt-Format (reines Koordinaten-Paar) weiterhin unterstützen
+    let from, to;
+    if (Array.isArray(conn)) { from = conn[0]; to = conn[1]; }
+    else { from = conn.from; to = conn.to; }
+    if (!from || !to) return;
+    const a = _cmpNearestEndpoint(c, from, eps);
+    const b = _cmpNearestEndpoint(c, to, eps);
+    const l = L.polyline([a, b], { color:'#5ad0c0', weight:3, opacity:.95 }).addTo(map);
     c._connLayers.push(l);
   });
 }
@@ -10563,6 +10613,14 @@ function cmpToggleSplit() {
   cmpRegenLines(c);
 }
 
+function cmpToggleOutline() {
+  const c = cmpGetSelected(); if (!c) return;
+  c.hideOutline = !c.hideOutline;
+  cmpRender(c);
+  cmpUpdatePanel();
+}
+window.cmpToggleOutline = cmpToggleOutline;
+
 function cmpToggleFollow() {
   const c = cmpGetSelected(); if (!c) return;
   c.followRoad = (c.followRoad === false);   // umschalten
@@ -10598,7 +10656,7 @@ async function cmpSave() {
   let total = 0;
   const comps = _cmpCompartments.map(c => {
     total += c.lines.length;
-    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), guide_pts: c.guidePts || null, connectors: c.connectors || [], lines: c.lines };
+    return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), guide_pts: c.guidePts || null, connectors: c.connectors || [], hide_outline: !!c.hideOutline, lines: c.lines };
   });
   try {
     const saved = await dbFetch('trail_plans?select=*', {
@@ -10679,6 +10737,7 @@ function cmpUpdatePanel() {
       '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:10px;">Abteil ' + c.id + ' (' + c.lines.length + ' Gassen)</div>' +
       '<button onclick="cmpStartRotate()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:8px;border:none;background:#3a7abc;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">🧭 Gassen drehen (' + Math.round(c.angleDeg) + '°)</button>' +
       '<button onclick="cmpStartConnect()" style="width:100%;padding:14px;border-radius:12px;margin-bottom:8px;border:none;background:#2a8a7a;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">🔗 Gassen verbinden' + ((c.connectors&&c.connectors.length)?' ('+c.connectors.length+')':'') + '</button>' +
+      '<button onclick="cmpToggleOutline()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,255,255,.15);background:' + (c.hideOutline?'rgba(255,210,112,.2)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:13px;cursor:pointer;">' + (c.hideOutline?'⬜ Umrandung einblenden':'▢ Umrandung ausblenden') + '</button>' +
       '<div style="font-size:12px;color:#c8a0e8;margin-bottom:10px;line-height:1.4;">〰️ <b>Auf eine Gasse tippen und ziehen</b> — genau dort biegt sich die Kurve, alle Gassen folgen parallel.' + (c.guidePts && c.guidePts.length>=3 && !_cmpGuideIsStraight(c) ? ' <span style="color:#e0a0ff;">✓ gebogen</span>' : '') + '</div>' +
       ((c.guidePts && c.guidePts.length>=3 && !_cmpGuideIsStraight(c)) ? '<button onclick="cmpResetGuide()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:10px;border:1px solid rgba(224,160,255,.4);background:rgba(224,160,255,.12);color:#e0a0ff;font-size:13px;cursor:pointer;">↺ Gassen wieder gerade</button>' : '') +
       '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
