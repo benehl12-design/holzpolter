@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.2">
+  <meta name="app-version" content="11.1">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -36,7 +36,7 @@
   <link rel="apple-touch-icon" href="icon-192.png"/>
   <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png"/>
   <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <style>
 :root{
   --bg:#0f1f10;--bg2:#162818;--bg3:#1e3520;
@@ -1962,7 +1962,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.2'")) {
+        if (!txt.includes("APP_VERSION = '11.1'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3515,7 +3515,7 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
@@ -9741,40 +9741,43 @@ function cmpGenerateStartlineCurve(cmp) {
 
   const amount = (cmp.bend.amount || 0) * (cmp.bend.dir || 1);   // Querversatz-Maß der Griffe
   const RAMP = Math.max(spacingM * 2.5, 25);                      // Anlauf-Länge der Krümmung
-  // Ziel-Steigung der Leitkurve nach dem Einbiegen (gedeckelt → nie zu steil)
+  const smoothstep = (t)=>{ t=Math.max(0,Math.min(1,t)); return t*t*(3-2*t); };
+  // Ziel-Steigung: wie schräg die Gasse nach dem Einbiegen weiterläuft.
+  // Aus dem Querversatz abgeleitet und gedeckelt, damit es nie zu steil wird.
   const SLOPE = Math.max(-1.2, Math.min(1.2, amount / Math.max(RAMP, 1)));
-  // dy(d): weicher Anlauf über RAMP, danach konstante Schräge (kein 2. Knick)
+  // dy(d): weicher Anlauf der Steigung über RAMP, danach konstante Schräge (kein 2. Knick).
+  // Geschlossene Form des Integrals von SLOPE*smoothstep(t/RAMP):
+  //   ∫₀^d smoothstep(t/R) dt  mit smoothstep=3u²-2u³, u=t/R
+  //   = R*(u³ - 0.5*u⁴) für d≤R ; für d>R: R*0.5 + (d-R)
   const dyAt = (d) => {
     if (d <= 0) return 0;
     if (d < RAMP) { const u = d/RAMP; return SLOPE * RAMP * (u*u*u - 0.5*u*u*u*u); }
     return SLOPE * (RAMP*0.5 + (d - RAMP));
   };
 
-  // ── Leitkurve bauen (eine Gasse durch die Abteilmitte mit der Startlinien-Form) ──
-  // Startlinie liegt im Mittel bei sxMid; die Leitkurve folgt der dyAt-Form.
-  const sxMid = (g1R.x + g2R.x) / 2;
-  const midY  = (minY + maxY) / 2;
-  const STEP  = Math.max(spacingM * 0.4, 4);
-  const guide = [];
-  for (let x = minX - spacingM; x <= maxX + spacingM; x += STEP) {
-    guide.push({ x, y: midY + dyAt(x - sxMid) });
-  }
-
-  // ── Alle Gassen = exakte senkrechte Offsets der Leitkurve ──
-  // Senkrechter Abstand zwischen benachbarten Offsets = spacingM (überall exakt).
   const MIN_LEN = Math.max(spacingM * 0.3, 5);
-  const diag = Math.hypot(maxX - minX, maxY - minY);
-  const kMax = Math.ceil(diag / spacingM) + 2;
   const out = [];
-  const polyLen = (seg)=>{let L=0;for(let i=0;i<seg.length-1;i++)L+=Math.hypot(seg[i+1].x-seg[i].x,seg[i+1].y-seg[i].y);return L;};
-  for (let k = -kMax; k <= kMax; k++) {
-    // k=0 ist die Leitkurve selbst; sonst geglätteter Offset (löst Innen-Knicke)
-    const off = (k === 0) ? guide.slice() : _cmpSmoothOffset(guide, k * spacingM, STEP);
-    _cmpClipPolylineToPolygon(off, polyR).forEach(seg => {
-      if (seg.length >= 2 && polyLen(seg) >= MIN_LEN) {
-        const ll = seg.map(p=>{ const b=unrot(p); const l=proj.toLatLng(b.x,b.y,cLat,cLng); return [l.lat,l.lng]; });
-        out.push(ll);
-      }
+  const STEP = Math.max(spacingM * 0.4, 4);   // Sample-Schritt entlang der Gasse
+  // Maximale Quer-Auslenkung über die Polygonbreite → so weit muss der Reihen-Bereich
+  // erweitert werden, damit Gassen, die durch die Schräge ins Abteil wandern, entstehen.
+  const widthX = maxX - minX;
+  const maxDy = Math.abs(dyAt(widthX));
+  const ext = Math.ceil(maxDy / spacingM) + 1;
+  const yStart = minY + spacingM*0.5 - ext*spacingM;
+  const yEnd   = maxY + ext*spacingM;
+  for (let y = yStart; y < yEnd; y += spacingM) {
+    const sx = startXat(y);                    // ab hier biegt diese Reihe
+    // Gebogene Linie über die volle Breite (nicht vorab clippen!)
+    const line = [];
+    for (let x = minX - 1; x <= maxX + 1; x += STEP) line.push({ x, y: y + dyAt(x - sx) });
+    line.push({ x: maxX + 1, y: y + dyAt((maxX+1) - sx) });
+    // Erst NACH dem Biegen ans Polygon clippen → nichts ragt raus, Lücken werden gefüllt
+    _cmpClipPolylineToPolygon(line, polyR).forEach(seg => {
+      if (seg.length < 2) return;
+      let L = 0; for (let i=0;i<seg.length-1;i++) L += Math.hypot(seg[i+1].x-seg[i].x, seg[i+1].y-seg[i].y);
+      if (L < MIN_LEN) return;
+      const ll = seg.map(p=>{ const b=unrot(p); const l=proj.toLatLng(b.x,b.y,cLat,cLng); return [l.lat,l.lng]; });
+      out.push(ll);
     });
   }
   return out;
