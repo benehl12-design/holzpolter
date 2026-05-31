@@ -3,88 +3,150 @@
  * Vertraulich. Nutzung/Weitergabe nur mit schriftlicher Genehmigung.
  * Confidential. Use/distribution only with written permission.
  */
-const TILE_CACHE = 'lignum-tiles-v5';
-const SAT_CACHE  = 'lignum-sat-v5';
-const APP_VERSION = '10.6';
-const MAX_OSM = 600; const MAX_SAT = 1200;
 
-self.addEventListener('install',  () => self.skipWaiting());
-self.addEventListener('activate', e => {
+// ── CACHE-NAMEN ──────────────────────────────────────────────────────
+const APP_VERSION  = '10.9';
+const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;   // App-Shell + CDN
+const TILE_CACHE   = 'lignum-tiles-v5';               // OSM Kacheln
+const SAT_CACHE    = 'lignum-sat-v5';                 // Satellit Kacheln
+const MAX_OSM      = 600;
+const MAX_SAT      = 1200;
+
+// ── APP-SHELL: alles was zum Starten der App nötig ist ───────────────
+// Wird beim SW-Install sofort gecacht → App startet auch ohne Netz.
+// Hinweis: offlineQueue ist INLINE in index.html (kein separates File).
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  'icon-192.png',
+  'icon-512.png',
+  // Leaflet
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  // Supabase
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+  // PDF-Export (für Offline-Export)
+  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+];
+
+// ── INSTALL: App-Shell voraufladen ───────────────────────────────────
+self.addEventListener('install', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== TILE_CACHE && k !== SAT_CACHE)
-            .map(k => caches.delete(k))
+    caches.open(APP_CACHE)
+      .then(cache =>
+        // Einzeln cachen — fällt eine Datei aus, bricht nicht der ganze Install ab.
+        Promise.allSettled(
+          APP_SHELL.map(url =>
+            cache.add(url).catch(err => console.warn('[SW] App-Shell-Fehler:', url, err))
+          )
+        )
       )
-    ).then(() => self.clients.claim())
+      .then(() => self.skipWaiting())
   );
 });
 
+// ── ACTIVATE: alte Caches aufräumen ─────────────────────────────────
+// APP_CACHE enthält die Version → alter App-Cache wird bei Update entfernt.
+self.addEventListener('activate', e => {
+  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE]);
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => !KEEP.has(k)).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+// ── TILE HELPER ──────────────────────────────────────────────────────
 async function limitCache(name, max) {
   const c = await caches.open(name);
   const keys = await c.keys();
   if (keys.length > max) await Promise.all(keys.slice(0, keys.length - max).map(k => c.delete(k)));
 }
 
+// Stale-While-Revalidate für Karten-Tiles
 async function tileRespond(req, cacheName, max) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(req);
-  if (hit) { fetch(req,{mode:'cors'}).then(r=>{if(r&&r.ok)cache.put(req,r);}).catch(()=>{}); return hit; }
+  if (hit) {
+    fetch(req, { mode: 'cors' }).then(r => { if (r && r.ok) cache.put(req, r); }).catch(() => {});
+    return hit;
+  }
   try {
-    const r = await fetch(req,{mode:'cors'});
-    if (r && r.ok) cache.put(req, r.clone()).then(()=>limitCache(cacheName,max));
+    const r = await fetch(req, { mode: 'cors' });
+    if (r && r.ok) cache.put(req, r.clone()).then(() => limitCache(cacheName, max));
     return r;
-  } catch { return new Response('',{status:503}); }
+  } catch { return new Response('', { status: 503 }); }
 }
 
+// ── FETCH HANDLER ────────────────────────────────────────────────────
 self.addEventListener('fetch', e => {
   const url = e.request.url;
   if (!url.startsWith('http')) return;
 
-  // CDN-Scripts direkt durchreichen
-  if (url.includes('jsdelivr.net') || url.includes('cdnjs.cloudflare.com') || url.includes('unpkg.com')) return;
-
-  // Karten-Tiles: cachen
-  if (url.includes('arcgisonline.com') || url.includes('virtualearth.net')) {
-    e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT)); return;
-  }
-  if (url.includes('tile.openstreetmap.org')) {
-    e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM)); return;
-  }
-
-  // Supabase API: niemals cachen
+  // ① Supabase API: NIEMALS cachen (Echtzeit + Auth)
   if (url.includes('supabase.co')) {
-    e.respondWith(fetch(e.request)); return;
+    e.respondWith(fetch(e.request).catch(() =>
+      new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    ));
+    return;
   }
 
-  // App-Shell: Cache first, dann Network
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  // ② Satellit-Tiles (Esri + Bing)
+  if (url.includes('arcgisonline.com') || url.includes('virtualearth.net')) {
+    e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT));
+    return;
+  }
+
+  // ③ OSM-Tiles
+  if (url.includes('tile.openstreetmap.org')) {
+    e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM));
+    return;
+  }
+
+  // ④ App-Shell + CDN: Cache First, dann Network (und nachcachen)
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request)
+        .then(response => {
+          if (response && response.ok && e.request.method === 'GET') {
+            const clone = response.clone();
+            caches.open(APP_CACHE).then(c => c.put(e.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          // Offline + nicht im Cache: HTML → Offline-Fallback (index.html)
+          if (e.request.headers.get('accept')?.includes('text/html')) {
+            return caches.match('/index.html');
+          }
+          return new Response('', { status: 503 });
+        });
+    })
+  );
 });
 
-// ── MESSAGES ──────────────────────────────────────────────────────────
-// WICHTIG: e.waitUntil() haelt den SW am Leben. Ohne das wird er von
-// iOS Safari aggressiv schlafengelegt und der Cache-Vorgang bricht ab.
+// ── MESSAGES ─────────────────────────────────────────────────────────
 self.addEventListener('message', e => {
   if (!e.data) return;
   if (e.data.type === 'SKIP_WAITING') { self.skipWaiting(); return; }
-  if (e.data.type === 'CACHE_TILES') {
-    e.waitUntil(handleCacheTiles(e));
-  }
+  if (e.data.type === 'CACHE_TILES')  { e.waitUntil(handleCacheTiles(e)); return; }
 });
 
+// ── TILE-CACHING (Karten voraufladen) ────────────────────────────────
 async function handleCacheTiles(e) {
-  const {urls, layer} = e.data;
+  const { urls, layer } = e.data;
   const cacheName = layer === 'sat' ? SAT_CACHE : TILE_CACHE;
-  const max = layer === 'sat' ? MAX_SAT : MAX_OSM;
-  const client = e.source;
-  function send(msg) {
-    if (!client) return;
-    try { client.postMessage(msg); } catch {}
-  }
+  const max       = layer === 'sat' ? MAX_SAT   : MAX_OSM;
+  const client    = e.source;
+  function send(msg) { if (!client) return; try { client.postMessage(msg); } catch {} }
   try {
     const cache = await caches.open(cacheName);
-    let done = 0;
-    let errors = 0;
+    let done = 0, errors = 0;
     const total = urls.length;
     for (let i = 0; i < urls.length; i += 6) {
       const batch = urls.slice(i, i + 6);
@@ -93,8 +155,7 @@ async function handleCacheTiles(e) {
           const existing = await cache.match(url);
           if (!existing) {
             const r = await fetch(url, { mode: 'cors' });
-            if (r && r.ok) await cache.put(url, r);
-            else errors++;
+            if (r && r.ok) await cache.put(url, r); else errors++;
           }
         } catch { errors++; }
         done++;
@@ -104,18 +165,15 @@ async function handleCacheTiles(e) {
     await limitCache(cacheName, max);
     send({ type: 'CACHE_DONE', total: done, errors });
   } catch (err) {
-    send({ type: 'CACHE_ERROR', error: String(err && err.message || err) });
+    send({ type: 'CACHE_ERROR', error: String(err?.message ?? err) });
   }
 }
 
-// ── BACKGROUND SYNC (vom Partner ergänzt) ──────────────────────────────
-// Wird ausgelöst wenn das Gerät nach einem Offline-Zeitraum wieder Netz hat —
-// auch wenn die App im Hintergrund läuft (Android Chrome). iOS Safari kennt
-// kein Background Sync → dort greift der visibilitychange-Listener in der App.
+// ── BACKGROUND SYNC ───────────────────────────────────────────────────
+// Android Chrome: feuert wenn Netz zurückkommt, auch im Hintergrund.
+// iOS Safari: kein Background Sync → Fallback via visibilitychange in offlineQueue.
 self.addEventListener('sync', e => {
-  if (e.tag === 'lignum-sync-queue') {
-    e.waitUntil(notifyClientsToSync());
-  }
+  if (e.tag === 'lignum-sync-queue') e.waitUntil(notifyClientsToSync());
 });
 
 async function notifyClientsToSync() {
