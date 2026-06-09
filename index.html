@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.6">
+  <meta name="app-version" content="11.7">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.6'")) {
+        if (!txt.includes("APP_VERSION = '11.7'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9975,6 +9975,8 @@ function cmpClearLayers(cmp) {
   cmp._connLayers = [];
   (cmp._laneHandles || []).forEach(m => { try { map.removeLayer(m); } catch {} });
   cmp._laneHandles = [];
+  (cmp._laneHits || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  cmp._laneHits = [];
 }
 
 // Ein Abteil neu zeichnen (Polygon + Eckpunkte + Gassen)
@@ -9999,13 +10001,18 @@ function cmpRender(cmp) {
   // Gassen generieren + zeichnen (im manuellen Modus NICHT neu generieren)
   if (!cmp.manual) cmp.lines = cmpComputeLines(cmp);
   cmp._lineLayers = [];
+  (cmp._laneHits || []).forEach(l => { try { map.removeLayer(l); } catch {} });
+  cmp._laneHits = [];
   cmp.lines.forEach((seg, idx) => {
     const isActive = cmp.manual && cmp._activeLane === idx;
-    const pl = L.polyline(seg, { color: col, weight: isActive ? 4 : 2, opacity: .9, interactive: !!cmp.manual }).addTo(map);
-    if (cmp.manual) {
-      pl.on('click', (e) => { L.DomEvent.stop(e); cmp._activeLane = idx; cmpRender(cmp); cmpUpdatePanel(); });
-    }
+    const pl = L.polyline(seg, { color: col, weight: isActive ? 5 : 2, opacity: .9, interactive: false }).addTo(map);
     cmp._lineLayers.push(pl);
+    if (cmp.manual) {
+      // breite, unsichtbare Trefferlinie → Gasse leicht antippbar (auch am iPhone)
+      const hit = L.polyline(seg, { color: col, weight: 24, opacity: 0, interactive: true }).addTo(map);
+      hit.on('click', (e) => { L.DomEvent.stop(e); cmp._activeLane = idx; cmpRender(cmp); cmpUpdatePanel(); });
+      cmp._laneHits.push(hit);
+    }
   });
   // Verbindungsstücke (Punkt 3) zeichnen
   if (typeof _cmpRenderConnectors === 'function') _cmpRenderConnectors(cmp);
@@ -10172,7 +10179,7 @@ function cmpRenderLaneHandles(cmp){
       cmp.lines[idx]=_cmpLaneFromCtrl(cmp,ctrl.a,ctrl.m,ctrl.b);
       const pl=cmp._lineLayers[idx]; if(pl) pl.setLatLngs(cmp.lines[idx]);
     });
-    m.on('dragend',()=>{ cmpUpdatePanel(); });
+    m.on('dragend',()=>{ cmpRender(cmp); cmpUpdatePanel(); });
     cmp._laneHandles.push(m);
   };
   mk('a','#2e7d53',false); mk('b','#2e7d53',false); mk('m','#e0a020',true);
@@ -10216,7 +10223,12 @@ function cmpManualCtrlHtml(c){
     '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Abteil l&ouml;schen</button>'+
   '</div>';
 }
-window.cmpEnterManual = function(){ cmpEnterManual(cmpGetSelected()); };
+window.cmpEnterManual = function(){
+  const c = cmpGetSelected();
+  if(!c){ if(typeof showToast==='function') showToast('Erst ein Abteil antippen'); return; }
+  cmpEnterManual(c);
+  if(typeof showToast==='function') showToast('✏️ Manueller Modus — Gasse antippen');
+};
 window.cmpExitManual  = function(){ cmpExitManual(cmpGetSelected()); };
 window.cmpDeleteActiveLane = cmpDeleteActiveLane;
 window.cmpAddLane = cmpAddLane;
