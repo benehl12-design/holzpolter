@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.4">
+  <meta name="app-version" content="11.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.4'")) {
+        if (!txt.includes("APP_VERSION = '11.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9973,6 +9973,8 @@ function cmpClearLayers(cmp) {
   cmp._lineLayers = [];
   (cmp._connLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   cmp._connLayers = [];
+  (cmp._laneHandles || []).forEach(m => { try { map.removeLayer(m); } catch {} });
+  cmp._laneHandles = [];
 }
 
 // Ein Abteil neu zeichnen (Polygon + Eckpunkte + Gassen)
@@ -9994,17 +9996,21 @@ function cmpRender(cmp) {
   }
   cmp._poly.on('click', (e) => { L.DomEvent.stop(e); cmpSelect(cmp.id); });
 
-  // Gassen generieren + zeichnen
-  cmp.lines = cmpComputeLines(cmp);
+  // Gassen generieren + zeichnen (im manuellen Modus NICHT neu generieren)
+  if (!cmp.manual) cmp.lines = cmpComputeLines(cmp);
   cmp._lineLayers = [];
-  cmp.lines.forEach(seg => {
-    const pl = L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map);
+  cmp.lines.forEach((seg, idx) => {
+    const isActive = cmp.manual && cmp._activeLane === idx;
+    const pl = L.polyline(seg, { color: col, weight: isActive ? 4 : 2, opacity: .9, interactive: !!cmp.manual }).addTo(map);
+    if (cmp.manual) {
+      pl.on('click', (e) => { L.DomEvent.stop(e); cmp._activeLane = idx; cmpRender(cmp); cmpUpdatePanel(); });
+    }
     cmp._lineLayers.push(pl);
   });
   // Verbindungsstücke (Punkt 3) zeichnen
   if (typeof _cmpRenderConnectors === 'function') _cmpRenderConnectors(cmp);
 
-  // Eckpunkte (nur wenn ausgewählt) — verziehbar
+  // Eckpunkte (nur wenn ausgewählt) — verziehbar (auch im manuellen Modus, um die Grenze zu ändern)
   cmp._verts = [];
   if (selected) {
     cmp.polygon.forEach((pt, idx) => {
@@ -10021,10 +10027,12 @@ function cmpRender(cmp) {
         cmp.polygon[idx] = [ll.lat, ll.lng];
         if (cmp._poly) cmp._poly.setLatLngs(cmp.polygon);
       });
-      m.on('dragend', () => { cmpRegenLines(cmp); });
+      // Grenze verschieben darf manuelle Gassen NICHT überschreiben
+      m.on('dragend', () => { if (cmp.manual) cmpRender(cmp); else cmpRegenLines(cmp); });
       cmp._verts.push(m);
     });
-    cmpRenderBendHandles(cmp);   // zwei Startlinien-Griffe (nur im Bearbeiten-Modus)
+    if (cmp.manual) cmpRenderLaneHandles(cmp);   // Griffe der aktiven Gasse
+    else cmpRenderBendHandles(cmp);              // zwei Startlinien-Griffe (Auto-Modus)
   }
 }
 
@@ -10099,6 +10107,7 @@ function cmpRenderBendHandles(cmp) {
 
 // Nur die Gassen-Linien eines Abteils neu berechnen (nach Drag/Dreh/Spacing)
 function cmpRegenLines(cmp) {
+  if (cmp.manual) { cmpRender(cmp); return; }   // manuelle Gassen nicht überschreiben
   (cmp._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   cmp.lines = cmpComputeLines(cmp);
   const col = cmp.color || '#e8b070';
@@ -10111,6 +10120,106 @@ function cmpRegenLines(cmp) {
   if (typeof _cmpRenderConnectors === 'function') _cmpRenderConnectors(cmp);
   cmpUpdatePanel();
 }
+
+// ── EINZELNE GASSEN BEARBEITEN (manueller Modus) ──────────────────────
+// Modell: exakter Abstand bleibt für unberührte Gassen (Original-Polylinien in cmp.lines).
+// Wird eine Gasse angefasst, wird NUR sie zu einer glatten 3-Punkt-Kurve (Start–Mitte–Ende).
+function _cmpProjFor(cmp){
+  let cLat=0,cLng=0; cmp.polygon.forEach(p=>{cLat+=p[0];cLng+=p[1];}); cLat/=cmp.polygon.length; cLng/=cmp.polygon.length;
+  return { proj: trailLocalProjection(cLat), cLat, cLng };
+}
+// Glatte Gasse aus 3 Kontrollpunkten (Start, Mitte, Ende), Ergebnis in [lat,lng]
+function _cmpLaneFromCtrl(cmp, a, m, b){
+  const {proj,cLat,cLng} = _cmpProjFor(cmp);
+  const A=proj.toLocal(a[0],a[1],cLat,cLng), M=proj.toLocal(m[0],m[1],cLat,cLng), B=proj.toLocal(b[0],b[1],cLat,cLng);
+  let pts=_cmpCatmullRom([A,M,B], 14);
+  pts=_cmpResamplePoly(pts, Math.max((cmp.spacing||12)*0.4,4));
+  return pts.map(p=>{const l=proj.toLatLng(p.x,p.y,cLat,cLng);return [l.lat,l.lng];});
+}
+// Kontrollpunkte (erster, mittlerer, letzter) einer bestehenden Gasse ableiten
+function _cmpCtrlOfLane(line){
+  if(!line||line.length<2) return null;
+  return { a: line[0].slice(), m: line[Math.floor(line.length/2)].slice(), b: line[line.length-1].slice() };
+}
+function cmpEnterManual(cmp){
+  if(!cmp) return;
+  cmp.lines = cmpComputeLines(cmp);   // exakt-versetzte Basis als Startpunkt
+  cmp.manual = true; cmp._activeLane = null; cmp._laneCtrl = {};
+  cmpRender(cmp); cmpUpdatePanel();
+}
+function cmpExitManual(cmp){
+  if(!cmp) return;
+  if(!confirm('Manuelle Gassen verwerfen und automatisch neu erzeugen?')) return;
+  cmp.manual = false; cmp._activeLane = null; cmp._laneCtrl = {};
+  cmpRegenLines(cmp); cmpRender(cmp); cmpUpdatePanel();
+}
+function cmpRenderLaneHandles(cmp){
+  (cmp._laneHandles||[]).forEach(m=>{try{map.removeLayer(m);}catch{}});
+  cmp._laneHandles=[];
+  const idx=cmp._activeLane;
+  if(idx==null || !cmp.lines[idx]) return;
+  if(!cmp._laneCtrl) cmp._laneCtrl={};
+  if(!cmp._laneCtrl[idx]) cmp._laneCtrl[idx]=_cmpCtrlOfLane(cmp.lines[idx]);
+  const ctrl=cmp._laneCtrl[idx]; if(!ctrl) return;
+  const mk=(key,color,isMid)=>{
+    const m=L.marker(ctrl[key],{draggable:true,zIndexOffset:1400,autoPan:false,
+      icon:L.divIcon({className:'cmp-lane-h',
+        html:'<div style="width:'+(isMid?26:22)+'px;height:'+(isMid?26:22)+'px;border-radius:'+(isMid?'5px':'50%')+';background:'+(isMid?'rgba(255,210,112,.65)':'rgba(255,255,255,.92)')+';border:3px solid '+color+';box-shadow:0 1px 7px rgba(0,0,0,.55);"></div>',
+        iconSize:[isMid?34:28,isMid?34:28],iconAnchor:[isMid?17:14,isMid?17:14]})
+    }).addTo(map);
+    m.on('drag',(ev)=>{
+      const ll=ev.target.getLatLng(); ctrl[key]=[ll.lat,ll.lng];
+      cmp.lines[idx]=_cmpLaneFromCtrl(cmp,ctrl.a,ctrl.m,ctrl.b);
+      const pl=cmp._lineLayers[idx]; if(pl) pl.setLatLngs(cmp.lines[idx]);
+    });
+    m.on('dragend',()=>{ cmpUpdatePanel(); });
+    cmp._laneHandles.push(m);
+  };
+  mk('a','#2e7d53',false); mk('b','#2e7d53',false); mk('m','#e0a020',true);
+  // Löschen-Griff (oben rechts neben der Mitte)
+  const del=L.marker(ctrl.m,{draggable:false,zIndexOffset:1500,autoPan:false,
+    icon:L.divIcon({className:'cmp-lane-del',
+      html:'<div style="transform:translate(20px,-20px);width:26px;height:26px;border-radius:50%;background:#d0392b;border:2px solid #fff;color:#fff;font-size:16px;line-height:22px;text-align:center;box-shadow:0 1px 6px rgba(0,0,0,.55);">&times;</div>',
+      iconSize:[26,26],iconAnchor:[13,13]})
+  }).addTo(map);
+  del.on('click',(e)=>{ L.DomEvent.stop(e); cmpDeleteActiveLane(); });
+  cmp._laneHandles.push(del);
+}
+function cmpDeleteActiveLane(){
+  const cmp=cmpGetSelected(); if(!cmp||cmp._activeLane==null) return;
+  cmp.lines.splice(cmp._activeLane,1);
+  cmp._laneCtrl={}; cmp._activeLane=null;   // Index-Cache leeren (Indizes verschieben sich)
+  cmpRender(cmp); cmpUpdatePanel();
+}
+function cmpAddLane(){
+  const cmp=cmpGetSelected(); if(!cmp) return;
+  if(!cmp.manual){ cmpEnterManual(cmp); }
+  const {proj,cLat,cLng}=_cmpProjFor(cmp);
+  const polyM=cmp.polygon.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  let minx=Infinity,maxx=-Infinity,miny=Infinity,maxy=-Infinity;
+  polyM.forEach(p=>{if(p.x<minx)minx=p.x;if(p.x>maxx)maxx=p.x;if(p.y<miny)miny=p.y;if(p.y>maxy)maxy=p.y;});
+  const a=(cmp.angleDeg||0)*Math.PI/180, dx=Math.cos(a), dy=Math.sin(a);
+  const cx=(minx+maxx)/2, cy=(miny+maxy)/2, half=Math.max(maxx-minx,maxy-miny)/2;
+  const toLL=(x,y)=>{const l=proj.toLatLng(x,y,cLat,cLng);return [l.lat,l.lng];};
+  cmp.lines.push([ toLL(cx-dx*half,cy-dy*half), toLL(cx+dx*half,cy+dy*half) ]);
+  cmp._laneCtrl={}; cmp._activeLane=cmp.lines.length-1;
+  cmpRender(cmp); cmpUpdatePanel();
+}
+function cmpManualCtrlHtml(c){
+  const hasActive = c._activeLane!=null && c.lines[c._activeLane];
+  return '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">'+
+    '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:8px;">&#9999;&#65039; Gassen einzeln &middot; Abteil '+c.id+' ('+c.lines.length+' Gassen)</div>'+
+    '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;line-height:1.4;">Tippe eine Gasse an &rarr; drei Griffe (Enden + Mitte). Mitte ziehen = nur <b>diese</b> Gasse biegt symmetrisch. Unber&uuml;hrte Gassen behalten den exakten Abstand.</div>'+
+    '<button onclick="cmpAddLane()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:none;background:#3a8a3a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">+ Gasse hinzuf&uuml;gen</button>'+
+    (hasActive ? '<button onclick="cmpDeleteActiveLane()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Aktive Gasse l&ouml;schen</button>' : '')+
+    '<button onclick="cmpExitManual()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.12);color:#ffd070;font-size:13px;cursor:pointer;">&#8634; Auto-Layout (verwirft manuell)</button>'+
+    '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Abteil l&ouml;schen</button>'+
+  '</div>';
+}
+window.cmpEnterManual = function(){ cmpEnterManual(cmpGetSelected()); };
+window.cmpExitManual  = function(){ cmpExitManual(cmpGetSelected()); };
+window.cmpDeleteActiveLane = cmpDeleteActiveLane;
+window.cmpAddLane = cmpAddLane;
 
 function cmpRenderAll() { _cmpCompartments.forEach(cmpRender); }
 
@@ -10956,6 +11065,7 @@ function cmpUpdatePanel() {
           '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:48px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>' +
         '</div>' +
       '</div>' +
+      '<button onclick="cmpEnterManual()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(70,185,122,.5);background:rgba(70,185,122,.15);color:#8fe0b0;font-size:14px;font-weight:700;cursor:pointer;">&#9999;&#65039; Gassen einzeln bearbeiten</button>' +
       '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">🗑 Abteil löschen</button>' +
     '</div>'
   ) : '<div style="margin-top:10px;font-size:13px;color:#a0c8a0;line-height:1.4;">Tippe ein Abteil an zum Bearbeiten — oder zeichne die ganze Fläche und nutze „🪄 Auto".</div>';
@@ -10965,7 +11075,7 @@ function cmpUpdatePanel() {
     '<div style="margin-top:12px;">' +
       '<input id="cmp-name" placeholder="Name (z.B. Schlag Nord)" value="' + (document.getElementById('cmp-name')?.value || '') + '" style="width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:16px;margin-bottom:10px;">' +
       '<div style="display:flex;flex-wrap:wrap;">' + (list || '<span style="font-size:13px;color:#a0c8a0;">Noch keine Abteile</span>') + '</div>' +
-      ctrl +
+      ((c && c.manual) ? cmpManualCtrlHtml(c) : ctrl) +
       '<button onclick="cmpAutoSplit()" style="width:100%;margin-top:12px;padding:13px;border-radius:12px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.14);color:#ffd070;font-size:14px;font-weight:700;cursor:pointer;">🪄 Auto: an Wegen teilen</button>' +
       '<button onclick="cmpSave()" style="width:100%;margin-top:10px;padding:15px;border-radius:12px;border:none;background:linear-gradient(135deg,#4aaa4a,#2d8a2d);color:#fff;font-size:16px;font-weight:700;cursor:pointer;">✓ Fertig &amp; Speichern</button>' +
       '<button onclick="cmpCancel()" style="width:100%;margin-top:8px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#d8d8d8;font-size:13px;cursor:pointer;">✕ Abbrechen (nicht speichern)</button>' +
@@ -12930,16 +13040,32 @@ document.getElementById('geojson-input').addEventListener('change',function(){
 
 function addGeoJSONLayer(geojson,name,color,dbId){
   let count=0;
+  const hits=[];   // unsichtbare Treffer-Linien entlang der Grenze (nur diese klickbar)
   const layer=L.geoJSON(geojson,{
-    style:{color:color,weight:2.5,opacity:.9,fillColor:color,fillOpacity:.06},
+    // Fläche bleibt sichtbar, ist aber NICHT klickbar (interactive:false)
+    style:{color:color,weight:2.5,opacity:.9,fillColor:color,fillOpacity:.06,interactive:false},
     onEachFeature:(feat,lyr)=>{
       count++;
       const p=feat.properties||{};
       const lbl=p.fastighetsbeteckning||p.beteckning||p.name||p.id||'';
       const area=p.areal_m2?(p.areal_m2/10000).toFixed(2)+' ha':'';
-      if(lbl||area)lyr.bindPopup('<b>'+(lbl||'Fastighet')+'</b><br>'+area);
+      const popupHtml=(lbl||area)?('<b>'+(lbl||'Fastighet')+'</b><br>'+area):null;
+      if(!popupHtml)return;
+      // Alle Ringe (Polygon-Außenring, Löcher, MultiPolygon) einsammeln
+      const rings=[];
+      const collect=(arr)=>{ if(!Array.isArray(arr))return;
+        if(arr.length&&arr[0] instanceof L.LatLng){rings.push(arr);return;} arr.forEach(collect); };
+      try{ collect(lyr.getLatLngs()); }catch{}
+      // Pro Ring eine dicke, unsichtbare Linie als Klick-Ziel → Popup hängt an der GRENZE
+      rings.forEach(ring=>{
+        if(!ring||ring.length<2)return;
+        const hit=L.polyline(ring.concat([ring[0]]),{color:color,weight:16,opacity:0,interactive:true});
+        hit.bindPopup(popupHtml);
+        hits.push(hit);
+      });
     }
   }).addTo(map);
+  hits.forEach(h=>layer.addLayer(h));   // in dieselbe Gruppe → wird beim Entfernen mit gelöscht
   try{map.fitBounds(layer.getBounds(),{padding:[20,20]});}catch{}
   grenzenLayers.push({name:name,color:color,count:count,layer:layer,dbId:dbId});
   updateLayerList();
