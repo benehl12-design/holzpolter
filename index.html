@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.7">
+  <meta name="app-version" content="11.8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.7'")) {
+        if (!txt.includes("APP_VERSION = '11.8'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -9295,19 +9295,18 @@ function _renderSavedTrailPlan(plan) {
     plan.compartments.forEach((cmp, i) => {
       const col = colors[i % colors.length];
       if (Array.isArray(cmp.polygon) && cmp.polygon.length >= 3 && !cmp.hide_outline) {
-        const pl = L.polygon(cmp.polygon, { color: col, weight: 2, opacity: .7, fillColor: col, fillOpacity: .04 }).addTo(map);
-        pl.bindPopup('<b>🚜 ' + (plan.name || 'Plan') + '</b><br>Abteil ' + (i+1) + ' · ' + (Array.isArray(cmp.lines)?cmp.lines.length:0) + ' Gassen');
+        const pl = L.polygon(cmp.polygon, { color: col, weight: 2, opacity: .7, fillColor: col, fillOpacity: .04, interactive: false }).addTo(map);
         layers.push(pl);
       }
       (Array.isArray(cmp.lines) ? cmp.lines : []).forEach(seg => {
-        layers.push(L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map));
+        layers.push(L.polyline(seg, { color: col, weight: 2, opacity: .9, interactive: false }).addTo(map));
       });
       // Verbindungsstücke (Punkt 3) — beide Formate unterstützen
       (Array.isArray(cmp.connectors) ? cmp.connectors : []).forEach(conn => {
         let a, b;
         if (Array.isArray(conn)) { a = conn[0]; b = conn[1]; }
         else if (conn && conn.from && conn.to) { a = conn.from; b = conn.to; }
-        if (a && b) layers.push(L.polyline([a, b], { color: '#5ad0c0', weight: 3, opacity: .95 }).addTo(map));
+        if (a && b) layers.push(L.polyline([a, b], { color: '#5ad0c0', weight: 3, opacity: .95, interactive: false }).addTo(map));
       });
     });
     // Wege
@@ -9317,7 +9316,7 @@ function _renderSavedTrailPlan(plan) {
       accPaths0 = (typeof st0[0][0] === 'number') ? [st0] : st0;
     }
     accPaths0.forEach(p => {
-      if (Array.isArray(p) && p.length >= 2) layers.push(L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4' }).addTo(map));
+      if (Array.isArray(p) && p.length >= 2) layers.push(L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4', interactive: false }).addTo(map));
     });
     _trailPlanLayers[plan.id] = { polygon: null, lines: layers, edges: [], paths: [], connectors: [] };
     return;
@@ -9341,28 +9340,22 @@ function _renderSavedTrailPlan(plan) {
   const polyLayer = polygon.length >= 3
     ? L.polygon(polygon, {
         color: '#c87020', weight: 2, opacity: .7,
-        fillColor: '#c87020', fillOpacity: .03
+        fillColor: '#c87020', fillOpacity: .03, interactive: false
       }).addTo(map)
     : null;
-  if (polyLayer) {
-    polyLayer.bindPopup(
-      '<b>🚜 ' + (plan.name || 'Plan') + '</b><br>' +
-      plan.trail_count + ' Fahrgassen · ' + plan.spacing_m + ' m Abstand'
-    );
-  }
   const lineLayers = lines.map(seg =>
-    L.polyline(seg, { color: '#e8b070', weight: 2, opacity: .8 }).addTo(map)
+    L.polyline(seg, { color: '#e8b070', weight: 2, opacity: .8, interactive: false }).addTo(map)
   );
   const edgeLayers = edges.map(seg =>
-    L.polyline(seg, { color: '#ff6b3d', weight: 2.5, opacity: .85, dashArray: '6,2' }).addTo(map)
+    L.polyline(seg, { color: '#ff6b3d', weight: 2.5, opacity: .85, dashArray: '6,2', interactive: false }).addTo(map)
   );
   const pathLayers = accPaths
     .filter(p => Array.isArray(p) && p.length >= 2)
-    .map(p => L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4' }).addTo(map));
+    .map(p => L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4', interactive: false }).addTo(map));
   // Fahrlogik-Verbinder (blau)
   const connectors = Array.isArray(plan.connectors) ? plan.connectors : [];
   const connLayers = connectors.map(seg =>
-    L.polyline(seg, { color: '#3aa0ff', weight: 2.5, opacity: .85 }).addTo(map)
+    L.polyline(seg, { color: '#3aa0ff', weight: 2.5, opacity: .85, interactive: false }).addTo(map)
   );
 
   _trailPlanLayers[plan.id] = { polygon: polyLayer, lines: lineLayers, edges: edgeLayers, paths: pathLayers, connectors: connLayers };
