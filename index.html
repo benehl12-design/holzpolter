@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.8">
+  <meta name="app-version" content="11.9">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.8'")) {
+        if (!txt.includes("APP_VERSION = '11.9'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -7789,6 +7789,7 @@ let _cmpDrawPts      = [];        // Punkte des in Zeichnung befindlichen Abteil
 let _cmpDrawLayer    = null;      // Vorschau-Polygon beim Zeichnen
 let _cmpDrawMarkers  = [];        // Eckpunkt-Marker beim Zeichnen
 let _cmpIdSeq        = 1;         // fortlaufende ID
+let _cmpEditingPlanId = null;     // gesetzt wenn ein gespeicherter Plan re-editiert wird
 const _CMP_COLORS    = ['#e8b070', '#7ec8a0', '#c89cd8', '#d89090', '#90c0e0', '#d8c870'];
 
 // ── ENDE ABTEIL-EDITOR STATE ──
@@ -9429,6 +9430,7 @@ async function renderTrailPlansList() {
           ${p.trail_count} Fahrgassen · ${p.spacing_m} m Abstand · erfasst am ${date}
         </div>
         <div class="trail-card-actions">
+          <button class="trail-card-btn" onclick="cmpEditPlan('${p.id}')">✏️ Bearbeiten</button>
           <button class="trail-card-btn" onclick="jumpToTrailPlan('${p.id}')">🗺 Karte</button>
           <button class="trail-card-btn gpx" onclick="exportTrailPlanGpx('${p.id}')">⬇ GPX</button>
           <button class="trail-card-btn del" onclick="deleteTrailPlan('${p.id}')">🗑 Löschen</button>
@@ -9460,6 +9462,61 @@ async function jumpToTrailPlan(planId) {
   setTimeout(doJump, 800);
   setTimeout(() => { doJump(); window._pendingDriverJump = false; }, 1600);
 }
+
+async function cmpEditPlan(planId){
+  let plan=null;
+  try{ const d=await dbFetch('trail_plans?id=eq.'+planId+'&select=*'); plan=d&&d[0]; }catch{}
+  if(!plan){ if(typeof showToast==='function') showToast('Plan nicht gefunden'); return; }
+  if(typeof closeTrailPlansList==='function') closeTrailPlansList();
+  _removeSavedTrailPlan(planId);                 // Anzeige-Layer weg (sonst doppelt)
+  if(typeof showDashMap==='function') showDashMap();
+  // Editor frisch aufsetzen
+  _cmpActive=true; _cmpCompartments=[]; _cmpSelectedId=null; _cmpIdSeq=1;
+  _trailPaths=[]; _clearTrailPathLayers();
+  _cmpEditingPlanId=planId;                       // Speichern überschreibt diesen Plan
+  // Wege laden + anzeigen
+  const st=plan.access_path;
+  if(Array.isArray(st)&&st.length&&Array.isArray(st[0])&&st[0].length){
+    _trailPaths=(typeof st[0][0]==='number')?[st]:st;
+  }
+  _trailPaths.forEach(p=>{ if(Array.isArray(p)&&p.length>=2){ const l=L.polyline(p,{color:'#5294d0',weight:4,opacity:.85,dashArray:'8,4',interactive:false}).addTo(map); _trailPathLayers.push(l); } });
+  const mkLines=(arr)=>Array.isArray(arr)?arr.map(seg=>Array.isArray(seg)?seg.map(pt=>Array.isArray(pt)?pt.slice():pt):seg):[];
+  const comps=Array.isArray(plan.compartments)?plan.compartments:[];
+  if(comps.length){
+    comps.forEach(sc=>{
+      const id=_cmpIdSeq++;
+      _cmpCompartments.push({
+        id,
+        polygon:Array.isArray(sc.polygon)?sc.polygon.map(p=>p.slice()):[],
+        angleDeg:sc.angle_deg||0, spacing:sc.spacing_m||_trailSpacing,
+        splitAtRoad:!!sc.split_at_road, followRoad:sc.follow_road!==false,
+        bend:sc.bend||null, connectors:Array.isArray(sc.connectors)?sc.connectors:[],
+        hideOutline:!!sc.hide_outline, lines:mkLines(sc.lines),
+        manual:true, _activeLane:null, _laneCtrl:{},
+        color:_CMP_COLORS[(_cmpCompartments.length)%_CMP_COLORS.length],
+        _poly:null,_verts:[],_lineLayers:[],_laneHits:[],_laneHandles:[]
+      });
+    });
+  } else if(Array.isArray(plan.polygon)&&plan.polygon.length>=3){
+    const id=_cmpIdSeq++;
+    _cmpCompartments.push({
+      id, polygon:plan.polygon.map(p=>p.slice()), angleDeg:plan.orientation_deg||0,
+      spacing:plan.spacing_m||_trailSpacing, splitAtRoad:false, followRoad:true,
+      bend:null, connectors:Array.isArray(plan.connectors)?plan.connectors:[],
+      hideOutline:false, lines:mkLines(plan.lines),
+      manual:true, _activeLane:null, _laneCtrl:{},
+      color:_CMP_COLORS[0], _poly:null,_verts:[],_lineLayers:[],_laneHits:[],_laneHandles:[]
+    });
+  }
+  _cmpShowPanel();
+  if(_cmpCompartments.length){
+    try{ const all=[]; _cmpCompartments.forEach(c=>c.polygon.forEach(p=>all.push(p))); if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[50,50],maxZoom:17}); }catch{}
+    cmpSelect(_cmpCompartments[0].id);
+    const ni=document.getElementById('cmp-name'); if(ni&&plan.name) ni.value=plan.name;
+  } else { cmpUpdatePanel(); }
+  if(typeof showToast==='function') showToast('✏️ Plan geladen — Gassen einzeln editierbar');
+}
+window.cmpEditPlan = cmpEditPlan;
 
 async function deleteTrailPlan(planId) {
   // Direkt löschen ohne Bestätigungs-Dialog — mit Undo-Möglichkeit über den Toast
@@ -10480,6 +10537,7 @@ function startCompartmentEditor() {
   _cmpCompartments = [];
   _cmpSelectedId = null;
   _cmpIdSeq = 1;
+  _cmpEditingPlanId = null;
   // Wege-State zurücksetzen, dann Wege-Zeichnen anbieten (gleicher Flow wie bisher)
   _trailPaths = [];
   _clearTrailPathLayers();
@@ -10969,6 +11027,7 @@ function cmpCancel() {
   _cmpCompartments.forEach(cmpClearLayers);
   _cmpCompartments = [];
   _trailPaths = []; _clearTrailPathLayers();
+  _cmpEditingPlanId = null;
   const p = document.getElementById('cmp-panel'); if (p) p.style.display = 'none';
   setTxt('Abgebrochen');
 }
@@ -10982,23 +11041,34 @@ async function cmpSave() {
     return { polygon: c.polygon, angle_deg: c.angleDeg, spacing_m: c.spacing, split_at_road: c.splitAtRoad, follow_road: (c.followRoad !== false), bend: (c.bend && Math.abs(c.bend.amount||0)>0.5) ? c.bend : null, connectors: c.connectors || [], hide_outline: !!c.hideOutline, lines: c.lines };
   });
   try {
-    const saved = await dbFetch('trail_plans?select=*', {
-      method: 'POST', prefer: 'return=representation',
-      body: {
-        company_id: currentProfile.company_id,
-        name,
-        polygon: _cmpCompartments[0].polygon,   // Fallback fürs Listen-Preview
-        lines: [],
-        access_path: _trailPaths.length ? _trailPaths : null,
-        compartments: comps,
-        spacing_m: _trailSpacing,
-        orientation_deg: 0,
-        trail_count: total,
-        created_by: currentUser.id
-      }
-    });
+    const body = {
+      name,
+      polygon: _cmpCompartments[0].polygon,   // Fallback fürs Listen-Preview
+      lines: [],
+      access_path: _trailPaths.length ? _trailPaths : null,
+      compartments: comps,
+      spacing_m: _trailSpacing,
+      orientation_deg: 0,
+      trail_count: total
+    };
+    let saved;
+    if (_cmpEditingPlanId) {
+      // bestehenden Plan überschreiben
+      saved = await dbFetch('trail_plans?id=eq.' + _cmpEditingPlanId + '&select=*', {
+        method: 'PATCH', prefer: 'return=representation', body
+      });
+    } else {
+      body.company_id = currentProfile.company_id;
+      body.created_by = currentUser.id;
+      saved = await dbFetch('trail_plans?select=*', {
+        method: 'POST', prefer: 'return=representation', body
+      });
+    }
     if (saved && saved[0]) {
       showToast('✓ ' + _cmpCompartments.length + ' Abteile, ' + total + ' Gassen gespeichert');
+      const wasEditing = _cmpEditingPlanId;
+      _cmpEditingPlanId = null;
+      if (wasEditing) _removeSavedTrailPlan(wasEditing);   // alte Anzeige weg
       cmpCancel();
       _renderSavedTrailPlan(saved[0]);
     }
@@ -11035,7 +11105,7 @@ function cmpUpdatePanel() {
     '<div style="display:flex;gap:8px;align-items:center;">' +
       '<button onclick="cmpTogglePanel()" aria-label="Aufklappen" style="flex:0 0 auto;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:18px;cursor:pointer;">' + (_cmpPanelOpen ? '▾' : '▸') + '</button>' +
       '<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;line-height:1.3;">' +
-        '<b style="color:#fff;">🚜 ' + (n ? n + ' Abteil' + (n===1?'':'e') : 'Abteil-Editor') + '</b>' +
+        '<b style="color:#fff;">🚜 ' + (n ? n + ' Abteil' + (n===1?'':'e') : 'Abteil-Editor') + '</b>' + '<span style="font-size:10px;color:#6a9e6a;margin-left:6px;">v' + (document.querySelector('meta[name=app-version]')?.content||'?') + '</span>' +
         (c ? '<br><span style="color:#ffd070;font-size:12px;">Abteil ' + c.id + ' · ' + c.lines.length + ' Gassen</span>' : '<br><span style="color:#a0c8a0;font-size:12px;">Fläche zeichnen oder Auto</span>') +
       '</div>' +
       '<button onclick="cmpStartDrawCompartment()" style="flex:0 0 auto;height:44px;padding:0 14px;border-radius:12px;border:none;background:linear-gradient(135deg,#4aaa4a,#3a8a3a);color:#fff;font-size:20px;font-weight:700;cursor:pointer;" aria-label="Abteil zeichnen">+</button>' +
