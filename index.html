@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.1">
+  <meta name="app-version" content="11.4">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -431,6 +431,63 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .gpbtn:active{opacity:.75;}
 .gpbtn.blue{background:var(--blue);color:#e6f1fb;}
 .gpbtn.del {background:#fde8e8;color:var(--red);border:1px solid rgba(163,32,32,.2);margin-bottom:0;}
+
+
+/* ── ERNTEVARIANTEN-RECHNER (Admin, v11.4) ── */
+#kalk-panel{
+  position:fixed; inset:0; z-index:9500;
+  --bg:#0f1813; --panel:#16241c; --panel2:#1d2f25; --line:#2c4536;
+  --txt:#e7efe9; --muted:#8fa899; --accent:#46b97a; --accent-dim:#2e7d53;
+  --warn:#e0a93b; --bad:#d97362; --good:#5fcf8e;
+  background:#0f1813; color:#e7efe9;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:15px; line-height:1.45;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:16px; padding-top:calc(var(--safe-top,0px) + 16px); padding-bottom:60px;
+}
+#kalk-close{
+  position:fixed; top:calc(var(--safe-top,0px) + 10px); right:14px; z-index:9600;
+  width:38px; height:38px; border-radius:50%;
+  background:#1d2f25; border:1px solid #2c4536; color:#e7efe9;
+  font-size:22px; line-height:36px; text-align:center; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#kalk-panel *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+#kalk-panel h1{font-size:20px;margin:0 38px 2px 0;font-weight:600;}
+#kalk-panel .sub{color:var(--muted);font-size:13px;margin:0 0 18px;}
+#kalk-panel .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 14px 16px;margin-bottom:14px;}
+#kalk-panel .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:0 0 12px;font-weight:600;}
+#kalk-panel .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;}
+#kalk-panel .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 12px;}
+#kalk-panel label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+#kalk-panel input,#kalk-panel select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px 10px;font-size:15px;font-variant-numeric:tabular-nums;}
+#kalk-panel input:focus,#kalk-panel select:focus{outline:none;border-color:var(--accent);}
+#kalk-panel .unit{font-size:11px;color:var(--muted);}
+#kalk-panel .hint{font-size:11px;color:var(--muted);margin:8px 0 0;line-height:1.5;}
+#kalk-panel textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;}
+#kalk-panel button{background:var(--accent-dim);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+#kalk-panel .res{margin-top:4px;}
+#kalk-panel .vcard{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:9px;}
+#kalk-panel .vcard.best{border-color:var(--accent-dim);box-shadow:0 0 0 1px var(--accent-dim);}
+#kalk-panel .vhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;}
+#kalk-panel .vname{font-weight:600;font-size:15px;}
+#kalk-panel .vtag{font-size:11px;color:var(--muted);background:var(--panel);padding:2px 8px;border-radius:20px;border:1px solid var(--line);}
+#kalk-panel .netto{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;}
+#kalk-panel .netto.pos{color:var(--good);}
+#kalk-panel .mix{font-size:11px;color:var(--muted);margin:0 0 8px;}
+#kalk-panel .lines{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px;}
+#kalk-panel .lines .lbl{color:var(--muted);}
+#kalk-panel .lines .val{text-align:right;font-variant-numeric:tabular-nums;}
+#kalk-panel .lines .val.sub{color:var(--bad);}
+#kalk-panel .sens{display:flex;justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:12px;}
+#kalk-panel .sens div{text-align:center;flex:1;}
+#kalk-panel .sens .k{color:var(--muted);font-size:11px;display:block;margin-bottom:1px;}
+#kalk-panel .sens .schlecht{color:var(--bad);}
+#kalk-panel .sens .gut{color:var(--good);}
+#kalk-panel .sens b{font-variant-numeric:tabular-nums;font-weight:600;}
+#kalk-panel .note{font-size:12px;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;line-height:1.55;margin-top:6px;}
+#kalk-panel .note b{color:var(--warn);}
+#kalk-panel .src{font-size:11px;color:var(--muted);margin-top:8px;}
 
 /* ── BOTTOMBAR ── */
 #bottombar{
@@ -1962,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.1'")) {
+        if (!txt.includes("APP_VERSION = '11.4'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2475,6 +2532,18 @@ if ('serviceWorker' in navigator) {
       </div>
     </button>
 
+    <!-- Kalkulation (nur Admin) -->
+    <div id="smenu-sec-kalk" style="display:none;">
+    <div class="slide-section-title">Kalkulation</div>
+    <button class="slide-btn" onclick="closeSlideMenu();openKalk();">
+      <div class="slide-btn-icon" style="background:rgba(70,185,122,.22);color:#5fcf8e;">🧮</div>
+      <div class="slide-btn-info">
+        <div class="slide-btn-label">Erntevarianten-Rechner</div>
+        <div class="slide-btn-desc">Holzerl&ouml;s je Erntem&ouml;glichkeit sch&auml;tzen</div>
+      </div>
+    </button>
+    </div>
+
     <!-- Harvester -->
     <div class="slide-section-title" id="smenu-sec-harvester">Harvester</div>
     <button class="slide-btn" id="smenu-track" onclick="document.getElementById('btn-track').click();closeSlideMenu()">
@@ -2571,6 +2640,85 @@ if ('serviceWorker' in navigator) {
     <div id="layer-list">Keine Ebenen geladen.</div>
     <button class="gpbtn del" id="btn-grenzen-clear">🗑 Alle entfernen</button>
   </div>
+</div>
+
+<!-- ERNTEVARIANTEN-RECHNER PANEL (Admin) -->
+<div id="kalk-panel" class="hidden">
+<div id="kalk-close" onclick="closeKalk()">&times;</div>
+<h1>Erntevarianten-Rechner</h1>
+<p class="sub">Holzerlös je Erntemöglichkeit · <b style="color:var(--warn)">vor Erntekosten</b> · SEK, vor Steuer · Preise: Skogsstyrelsen Q1 2026</p>
+
+<div class="card">
+  <h2>Laserdaten einfügen</h2>
+  <p class="hint" style="margin-top:-4px;margin-bottom:10px;">In Skogsstyrelsen auf „Daten kopieren" tippen, hier einfügen, „Übernehmen" drücken.</p>
+  <textarea id="paste" rows="4" placeholder="Kopierten Text hier einfügen…"></textarea>
+  <button id="btnParse" style="margin-top:10px;">Daten übernehmen</button>
+  <p id="parseStatus" class="hint" style="margin-top:11px;"></p>
+</div>
+
+<div class="card">
+  <h2>Objektdaten</h2>
+  <div class="grid">
+    <div><label>Produktive Fläche <span class="unit">(ha)</span></label><input id="flaeche" type="number" step="0.1" value="10.0"></div>
+    <div><label>Stehender Vorrat <span class="unit">(m³sk)</span></label><input id="vorrat" type="number" step="1" value="1311"></div>
+    <div><label>Umrechnung <span class="unit">m³sk → m³fub</span></label><input id="faktor" type="number" step="0.001" value="1.188"></div>
+    <div><label>Mittl. Durchmesser <span class="unit">(cm, BHD)</span></label><input id="dbh" type="number" step="0.1" value="19"></div>
+  </div>
+  <p class="hint" id="fubinfo"></p>
+</div>
+
+<div class="card">
+  <h2>Bestand & Sortiment</h2>
+  <div class="grid3">
+    <div><label>Kiefer <span class="unit">(%)</span></label><input id="sp_k" type="number" value="55"></div>
+    <div><label>Fichte <span class="unit">(%)</span></label><input id="sp_f" type="number" value="35"></div>
+    <div><label>Laub <span class="unit">(%)</span></label><input id="sp_l" type="number" value="10"></div>
+  </div>
+  <div class="grid" style="margin-top:10px;">
+    <div><label>Sägeholzanteil Endhieb <span class="unit">(% v. Volumen)</span></label><input id="timmer" type="number" value="31"></div>
+    <div><label>Energieholz-Anteil <span class="unit">(% v. Volumen)</span></label><input id="energie" type="number" value="8"></div>
+  </div>
+  <p class="hint">Sägeholzanteil aus Durchmesser geschätzt (anpassbar). Rest = Massaved, aufgeteilt nach Nadel-/Laubanteil. Durchforstung liefert weniger Sägeholz als der Endhieb – je Variante hinterlegt.</p>
+</div>
+
+<div class="card">
+  <h2>Holzpreise <span class="unit">(SEK/m³fub)</span></h2>
+  <div class="grid">
+    <div><label>Landesteil</label>
+      <select id="region">
+        <option>Norrbotten</option><option>Västerbotten</option>
+      </select></div>
+    <div><label>Lieferform</label>
+      <select id="lieferform">
+        <option value="leveransvirke">Leveransvirke (selbst liefern)</option>
+        <option value="avverkningsuppdrag">Avverkningsuppdrag (Auftrag)</option>
+      </select></div>
+  </div>
+  <div class="grid3" style="margin-top:10px;">
+    <div><label>Kiefer-Sägeholz</label><input id="p_tall" type="number" value="765"></div>
+    <div><label>Fichte-Sägeholz</label><input id="p_gran" type="number" value="788"></div>
+    <div><label>Massaved Nadel</label><input id="p_masB" type="number" value="576"></div>
+    <div><label>Massaved Laub</label><input id="p_masL" type="number" value="567"></div>
+    <div><label>Brennholz/Energie</label><input id="p_bransle" type="number" value="472"></div>
+  </div>
+  <p class="src">Stand Q1 2026, Quelle Skogsstyrelsen (Landesteil Norra Norrland – deckt Norrbotten + Västerbotten ab). Für exakte Rechnung mit der echten Käuferliste (SCA/Norra Skog) überschreiben.</p>
+</div>
+
+<div class="card">
+  <h2>Kulturkosten</h2>
+  <div class="grid">
+    <div><label>Kulturkosten <span class="unit">(SEK/ha, bei Endhieb)</span></label><input id="kultur_ha" type="number" value="10750"></div>
+    <div><label>Schirmschlag-Pauschale <span class="unit">(SEK)</span></label><input id="kultur_schirm" type="number" value="15000"></div>
+  </div>
+  <p class="hint">Kulturkosten sind kein Ernteaufwand (Wiederbewaldung nach Endhieb/Schirm) und bleiben deshalb drin.</p>
+</div>
+
+<h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:18px 4px 10px;">Erlös je Variante (vor Erntekosten)</h2>
+<div class="res" id="results"></div>
+
+<div class="note">
+  <b>Wichtig:</b> Erntekosten sind hier <b>nicht</b> abgezogen. Die Zahl ist der reine Holzerlös (bei Endhieb/Schirm minus Kulturkosten), <i>nicht</i> der Gewinn – deine Maschinen-/Lohnkosten musst du separat abziehen. Größte Unsicherheit bleibt der geschätzte Sortimentsmix und das Laser-Volumen (±10–15 %), das die Sensitivität nicht abdeckt. Kein Zeitwert/NPV.
+</div>
 </div>
 
 <div id="pwa-bar" class="hidden">
@@ -6538,6 +6686,10 @@ function startMode(mode) {
     const el = document.getElementById(id);
     if (el) el.style.display = isForward ? 'none' : '';
   });
+
+  // Erntevarianten-Rechner nur für Admin
+  const kalkSec = document.getElementById('smenu-sec-kalk');
+  if (kalkSec) kalkSec.style.display = isAdmin ? '' : 'none';
 
   const topbar    = document.getElementById('topbar');
   const statusbar = document.getElementById('statusbar');
@@ -13756,5 +13908,159 @@ window.runPdfExport = runPdfExport;
   </div>
 </div>
 
+<!-- ERNTEVARIANTEN-RECHNER LOGIK (Admin, gekapselt) -->
+<script>
+(function(){
+// === Offizielle Preise Skogsstyrelsen Q1 2026 (kr/m3fub, volymvägt) ===
+const PRICES = {
+  leveransvirke: {
+    'Norrbotten':  {tall:765,gran:788,masB:576,masL:567,bransle:472},
+    'Västerbotten':{tall:765,gran:788,masB:576,masL:567,bransle:472},
+  },
+  avverkningsuppdrag: {
+    'Norrbotten':  {tall:736,gran:696,masB:476,masL:494,bransle:472},
+    'Västerbotten':{tall:736,gran:696,masB:476,masL:494,bransle:472},
+  }
+};
+const variants = [
+  {name:'Vorsichtige Durchforstung', tag:'25 % gallring', entnahme:0.25, timFaktor:0.45, kultur:'none'},
+  {name:'Stärkere Durchforstung',    tag:'35 % gallring', entnahme:0.35, timFaktor:0.45, kultur:'none'},
+  {name:'Schirmschlag',              tag:'50 % selektiv', entnahme:0.50, timFaktor:0.80, kultur:'schirm'},
+  {name:'Endhieb',                   tag:'100 %',         entnahme:1.00, timFaktor:1.00, kultur:'area'},
+];
+
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString('de-DE');
+const pct = n => (n*100).toFixed(0);
+const val = id => parseFloat($(id).value) || 0;
+function timmerFromDbh(dbh){ return Math.max(0, Math.min(0.78, (dbh-14)/16)); }
+
+function applyPrices(){
+  const p = PRICES[$('lieferform').value][$('region').value];
+  if(!p) return;
+  $('p_tall').value=p.tall; $('p_gran').value=p.gran;
+  $('p_masB').value=p.masB; $('p_masL').value=p.masL; $('p_bransle').value=p.bransle;
+}
+
+function compute(){
+  const flaeche=val('flaeche'), vorrat=val('vorrat'), faktor=val('faktor')||1;
+  const m3fub_total = vorrat/faktor;
+  $('fubinfo').textContent = `${fmt(vorrat)} m³sk ≈ ${fmt(m3fub_total)} m³fub  ·  ${(flaeche>0?fmt(vorrat/flaeche):0)} m³sk/ha`;
+
+  let k=val('sp_k'), f=val('sp_f'), l=val('sp_l'); const sum=k+f+l;
+  const sK=sum>0?k/sum:0, sF=sum>0?f/sum:0, sL=sum>0?l/sum:0; const conifer=sK+sF;
+  const baseTim=val('timmer')/100, ener=Math.min(0.9,val('energie')/100);
+  const P={tall:val('p_tall'),gran:val('p_gran'),masB:val('p_masB'),masL:val('p_masL'),bransle:val('p_bransle')};
+  const kultur_ha=val('kultur_ha'), kultur_schirm=val('kultur_schirm');
+
+  let best=-Infinity,bestIdx=-1;
+  const rows=variants.map((v,i)=>{
+    let tim=baseTim*v.timFaktor; if(tim+ener>1) tim=Math.max(0,1-ener);
+    const pulp=Math.max(0,1-tim-ener);
+    const tK=conifer>0?tim*(sK/conifer):0, tF=conifer>0?tim*(sF/conifer):0;
+    const masB=pulp*conifer, masL=pulp*sL;
+    const mischpreis=tK*P.tall+tF*P.gran+masB*P.masB+masL*P.masL+ener*P.bransle;
+    const ernte=m3fub_total*v.entnahme;
+    const brutto=ernte*mischpreis;
+    let kultur=0;
+    if(v.kultur==='area') kultur=flaeche*kultur_ha;
+    else if(v.kultur==='schirm') kultur=kultur_schirm;
+    const erloes=brutto-kultur;
+    const rest=vorrat*(1-v.entnahme);
+    const schlecht=brutto*0.9-kultur;
+    const gut=brutto*1.1-kultur;
+    if(erloes>best){best=erloes;bestIdx=i;}
+    return {v,mischpreis,tim,pulp,ener,ernte,brutto,kultur,erloes,rest,schlecht,gut};
+  });
+
+  $('results').innerHTML = rows.map((r,i)=>`
+    <div class="vcard ${i===bestIdx?'best':''}">
+      <div class="vhead">
+        <div><div class="vname">${r.v.name}</div><span class="vtag">${r.v.tag}</span></div>
+        <div class="netto ${r.erloes>=0?'pos':''}">${fmt(r.erloes)}<span style="font-size:11px;color:var(--muted)"> SEK</span></div>
+      </div>
+      <div class="mix">Mix: ${pct(r.tim)} % Säge · ${pct(r.pulp)} % Massa · ${pct(r.ener)} % Energie → Ø ${fmt(r.mischpreis)} SEK/m³fub</div>
+      <div class="lines">
+        <span class="lbl">Entnahme</span><span class="val">${fmt(r.ernte)} m³fub</span>
+        <span class="lbl">Bruttoerlös</span><span class="val">${fmt(r.brutto)}</span>
+        ${r.kultur>0?`<span class="lbl">Kulturkosten</span><span class="val sub">−${fmt(r.kultur)}</span>`:''}
+        <span class="lbl">Restbestand</span><span class="val">${fmt(r.rest)} m³sk</span>
+      </div>
+      <div class="sens">
+        <div><span class="k">Schlechtfall</span><b class="schlecht">${fmt(r.schlecht)}</b></div>
+        <div><span class="k">Basis</span><b>${fmt(r.erloes)}</b></div>
+        <div><span class="k">Gut-Fall</span><b class="gut">${fmt(r.gut)}</b></div>
+      </div>
+    </div>`).join('');
+}
+
+// === Laserdaten-Parser ===
+function normNum(s){s=s.replace(/\s/g,'');
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');return parseFloat(s);}
+function inlineNum(line){const p=line.split(/\.{2,}|:/);let seg=p.length>1?p[p.length-1]:line;
+  seg=seg.replace(/m[²³23]|km/gi,' ');const t=seg.match(/\d[\d\s.,]*\d|\d/g);
+  if(!t)return NaN;return normNum(t[t.length-1]);}
+function valueLineNum(line){let s=line.replace(/%/g,'').replace(/m[²³23]\S*/gi,'').trim();
+  if(/[a-zäöüåA-ZÄÖÜÅ]/.test(s))return NaN;return normNum(s);}
+function keyOf(low){
+  if(low.includes('produktiv')&&!low.includes('unproduktiv')&&low.includes('ha'))return'flaeche_prod';
+  if(low.includes('oberfläche')||low.includes('areal'))return'oberflaeche';
+  if(low.includes('holzreserv')||low.includes('virkesförråd')||low.includes('virkesforrad'))return'vorrat_ha';
+  if(low.includes('gesamtholz')||low.includes('virkesvolym')||(low.includes('total')&&low.includes('virke')))return'vorrat_total';
+  if(low.includes('durchmesser')||low.includes('diameter'))return'dbh';
+  if(low.includes('kiefer')||low.includes('tallskog'))return'kiefer';
+  if(low.includes('fichte')||low.includes('granskog'))return'fichte';
+  if((low.includes('laub')||low.includes('lövskog')||low.includes('lovskog'))&&!low.includes('mischwald'))return'laub';
+  if(low.includes('misch')||low.includes('blandskog'))return'misch';
+  return null;}
+function parseData(){
+  const raw=$('paste').value;
+  if(!raw.trim()){setStatus('warn','Erst Text einfügen.');return;}
+  const lines=raw.split(/\n/).map(s=>s.trim()).filter(s=>s.length);
+  const f={};
+  for(let i=0;i<lines.length;i++){
+    const key=keyOf(lines[i].toLowerCase()); if(!key)continue;
+    let v=inlineNum(lines[i]);
+    if(isNaN(v)){for(let j=i+1;j<=i+2&&j<lines.length;j++){const nv=valueLineNum(lines[j]);if(!isNaN(nv)){v=nv;break;}}}
+    if(!isNaN(v)&&f[key]==null)f[key]=v;
+  }
+  const flaeche=f.flaeche_prod??f.oberflaeche;
+  let vorrat=f.vorrat_total;
+  if(vorrat==null&&f.vorrat_ha!=null&&flaeche!=null)vorrat=Math.round(f.vorrat_ha*flaeche);
+  if(flaeche!=null&&!isNaN(flaeche))$('flaeche').value=flaeche;
+  if(vorrat!=null&&!isNaN(vorrat))$('vorrat').value=vorrat;
+  if(f.dbh!=null){$('dbh').value=f.dbh; $('timmer').value=Math.round(timmerFromDbh(f.dbh)*100);}
+  if(f.kiefer!=null||f.fichte!=null||f.laub!=null){
+    const k=f.kiefer||0,fi=f.fichte||0,l=f.laub||0,s=k+fi+l;
+    if(s>0){$('sp_k').value=Math.round(k/s*100);$('sp_f').value=Math.round(fi/s*100);$('sp_l').value=Math.round(l/s*100);}
+  }
+  compute();
+  const msgs=[];
+  if(f.flaeche_prod!=null)msgs.push(`produktive Fläche <b>${f.flaeche_prod} ha</b>`);
+  else if(f.oberflaeche!=null)msgs.push(`Fläche <b>${f.oberflaeche} ha</b> ⚠ (gesamt, prüfen)`);
+  if(vorrat!=null)msgs.push(`Vorrat <b>${fmt(vorrat)} m³sk</b>`);
+  if(f.dbh!=null)msgs.push(`Durchmesser <b>${f.dbh} cm</b> → Sägeholz ~${Math.round(timmerFromDbh(f.dbh)*100)} %`);
+  const sp=[];
+  if(f.kiefer!=null)sp.push(`Kiefer ${f.kiefer}%`); if(f.fichte!=null)sp.push(`Fichte ${f.fichte}%`); if(f.laub!=null)sp.push(`Laub ${f.laub}%`);
+  if(sp.length)msgs.push(`Baumarten: ${sp.join(', ')}`);
+  if(msgs.length)setStatus('good','✓ Übernommen — '+msgs.join(' · '));
+  else setStatus('warn','⚠ Nichts erkannt. Schick mir das Textformat, dann passe ich den Parser an.');
+}
+function setStatus(kind,html){const el=$('parseStatus');el.innerHTML=html;
+  el.style.color=kind==='good'?'var(--good)':'var(--warn)';}
+
+// Wiring
+$('btnParse').addEventListener('click',parseData);
+$('region').addEventListener('change',()=>{applyPrices();compute();});
+$('lieferform').addEventListener('change',()=>{applyPrices();compute();});
+$('dbh').addEventListener('input',()=>{$('timmer').value=Math.round(timmerFromDbh(val('dbh'))*100);compute();});
+['flaeche','vorrat','faktor','sp_k','sp_f','sp_l','timmer','energie','p_tall','p_gran','p_masB','p_masL','p_bransle','kultur_ha','kultur_schirm']
+  .forEach(id=>{const el=$(id);if(el)el.addEventListener('input',compute);});
+compute();
+window.openKalk = function(){ document.getElementById('kalk-panel').classList.remove('hidden'); compute(); };
+window.closeKalk = function(){ document.getElementById('kalk-panel').classList.add('hidden'); };
+})();
+</script>
 </body>
 </html>
