@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="11.9">
+  <meta name="app-version" content="12.1">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '11.9'")) {
+        if (!txt.includes("APP_VERSION = '12.1'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -10057,10 +10057,19 @@ function cmpRender(cmp) {
     const isActive = cmp.manual && cmp._activeLane === idx;
     const pl = L.polyline(seg, { color: col, weight: isActive ? 5 : 2, opacity: .9, interactive: false }).addTo(map);
     cmp._lineLayers.push(pl);
-    if (cmp.manual) {
-      // breite, unsichtbare Trefferlinie → Gasse leicht antippbar (auch am iPhone)
-      const hit = L.polyline(seg, { color: col, weight: 24, opacity: 0, interactive: true }).addTo(map);
-      hit.on('click', (e) => { L.DomEvent.stop(e); cmp._activeLane = idx; cmpRender(cmp); cmpUpdatePanel(); });
+    if (selected) {
+      // Jede Gasse antippbar: erstes Antippen startet (falls nötig) den Einzel-Modus
+      // und wählt genau diese Gasse — kein separater Button nötig.
+      const hit = L.polyline(seg, { color: col, weight: 26, opacity: 0, interactive: true }).addTo(map);
+      hit.on('click', (e) => {
+        L.DomEvent.stop(e);
+        if (!cmp.manual) {
+          cmp.manual = true; cmp._laneCtrl = {};
+          if (typeof showToast === 'function') showToast('✏️ Gasse wird einzeln bearbeitet');
+        }
+        cmp._activeLane = idx;
+        cmpRender(cmp); cmpUpdatePanel();
+      });
       cmp._laneHits.push(hit);
     }
   });
@@ -10186,17 +10195,19 @@ function _cmpProjFor(cmp){
   return { proj: trailLocalProjection(cLat), cLat, cLng };
 }
 // Glatte Gasse aus 3 Kontrollpunkten (Start, Mitte, Ende), Ergebnis in [lat,lng]
-function _cmpLaneFromCtrl(cmp, a, m, b){
+function _cmpLaneFromCtrl(cmp, ctrlArr){
+  if(!Array.isArray(ctrlArr) || ctrlArr.length<2) return [];
   const {proj,cLat,cLng} = _cmpProjFor(cmp);
-  const A=proj.toLocal(a[0],a[1],cLat,cLng), M=proj.toLocal(m[0],m[1],cLat,cLng), B=proj.toLocal(b[0],b[1],cLat,cLng);
-  let pts=_cmpCatmullRom([A,M,B], 14);
+  const pm = ctrlArr.map(p=>proj.toLocal(p[0],p[1],cLat,cLng));
+  let pts = (pm.length===2) ? [pm[0],pm[1]] : _cmpCatmullRom(pm, 14);
   pts=_cmpResamplePoly(pts, Math.max((cmp.spacing||12)*0.4,4));
   return pts.map(p=>{const l=proj.toLatLng(p.x,p.y,cLat,cLng);return [l.lat,l.lng];});
 }
-// Kontrollpunkte (erster, mittlerer, letzter) einer bestehenden Gasse ableiten
+// Steuerpunkte einer bestehenden Gasse ableiten: Anfang, Mitte, Ende (Array)
 function _cmpCtrlOfLane(line){
   if(!line||line.length<2) return null;
-  return { a: line[0].slice(), m: line[Math.floor(line.length/2)].slice(), b: line[line.length-1].slice() };
+  if(line.length===2) return [ line[0].slice(), line[1].slice() ];
+  return [ line[0].slice(), line[Math.floor(line.length/2)].slice(), line[line.length-1].slice() ];
 }
 function cmpEnterManual(cmp){
   if(!cmp) return;
@@ -10216,32 +10227,73 @@ function cmpRenderLaneHandles(cmp){
   const idx=cmp._activeLane;
   if(idx==null || !cmp.lines[idx]) return;
   if(!cmp._laneCtrl) cmp._laneCtrl={};
-  if(!cmp._laneCtrl[idx]) cmp._laneCtrl[idx]=_cmpCtrlOfLane(cmp.lines[idx]);
-  const ctrl=cmp._laneCtrl[idx]; if(!ctrl) return;
-  const mk=(key,color,isMid)=>{
-    const m=L.marker(ctrl[key],{draggable:true,zIndexOffset:1400,autoPan:false,
+  if(!Array.isArray(cmp._laneCtrl[idx])) cmp._laneCtrl[idx]=_cmpCtrlOfLane(cmp.lines[idx]);
+  const ctrl=cmp._laneCtrl[idx]; if(!Array.isArray(ctrl)||ctrl.length<2) return;
+
+  // Gasse LIVE aus den Steuerpunkten neu berechnen + sichtbare Linie sofort aktualisieren
+  const redraw=()=>{
+    cmp.lines[idx]=_cmpLaneFromCtrl(cmp,ctrl);
+    if(cmp._lineLayers[idx]) cmp._lineLayers[idx].setLatLngs(cmp.lines[idx]);
+    if(cmp._laneHits && cmp._laneHits[idx]) cmp._laneHits[idx].setLatLngs(cmp.lines[idx]);
+  };
+
+  // Ein Griff je Steuerpunkt: Enden (grün, rund) + Scheitelpunkte (gelb, eckig)
+  ctrl.forEach((pt,ci)=>{
+    const isEnd=(ci===0||ci===ctrl.length-1);
+    const m=L.marker(pt,{draggable:true,zIndexOffset:1400,autoPan:false,
       icon:L.divIcon({className:'cmp-lane-h',
-        html:'<div style="width:'+(isMid?26:22)+'px;height:'+(isMid?26:22)+'px;border-radius:'+(isMid?'5px':'50%')+';background:'+(isMid?'rgba(255,210,112,.65)':'rgba(255,255,255,.92)')+';border:3px solid '+color+';box-shadow:0 1px 7px rgba(0,0,0,.55);"></div>',
-        iconSize:[isMid?34:28,isMid?34:28],iconAnchor:[isMid?17:14,isMid?17:14]})
+        html:'<div style="width:'+(isEnd?22:26)+'px;height:'+(isEnd?22:26)+'px;border-radius:'+(isEnd?'50%':'5px')+';background:'+(isEnd?'rgba(255,255,255,.92)':'rgba(255,210,112,.7)')+';border:3px solid '+(isEnd?'#2e7d53':'#e0a020')+';box-shadow:0 1px 7px rgba(0,0,0,.55);"></div>',
+        iconSize:[isEnd?28:32,isEnd?28:32],iconAnchor:[isEnd?14:16,isEnd?14:16]})
     }).addTo(map);
-    m.on('drag',(ev)=>{
-      const ll=ev.target.getLatLng(); ctrl[key]=[ll.lat,ll.lng];
-      cmp.lines[idx]=_cmpLaneFromCtrl(cmp,ctrl.a,ctrl.m,ctrl.b);
-      const pl=cmp._lineLayers[idx]; if(pl) pl.setLatLngs(cmp.lines[idx]);
-    });
+    m.on('drag',(ev)=>{ const ll=ev.target.getLatLng(); ctrl[ci]=[ll.lat,ll.lng]; redraw(); });
     m.on('dragend',()=>{ cmpRender(cmp); cmpUpdatePanel(); });
     cmp._laneHandles.push(m);
-  };
-  mk('a','#2e7d53',false); mk('b','#2e7d53',false); mk('m','#e0a020',true);
-  // Löschen-Griff (oben rechts neben der Mitte)
-  const del=L.marker(ctrl.m,{draggable:false,zIndexOffset:1500,autoPan:false,
+  });
+
+  // GANZE Gasse verschieben (blauer Griff bei 35 % der ersten Strecke)
+  const a0=ctrl[0], a1=ctrl[1];
+  const movePos=[a0[0]+(a1[0]-a0[0])*0.35, a0[1]+(a1[1]-a0[1])*0.35];
+  let last=null;
+  const mv=L.marker(movePos,{draggable:true,zIndexOffset:1460,autoPan:false,
+    icon:L.divIcon({className:'cmp-lane-move',
+      html:'<div style="width:30px;height:30px;border-radius:50%;background:rgba(58,160,255,.9);border:3px solid #fff;color:#fff;font-size:15px;line-height:26px;text-align:center;box-shadow:0 1px 7px rgba(0,0,0,.55);">&#10021;</div>',
+      iconSize:[34,34],iconAnchor:[17,17]})
+  }).addTo(map);
+  mv.on('dragstart',(ev)=>{ last=ev.target.getLatLng(); });
+  mv.on('drag',(ev)=>{
+    const ll=ev.target.getLatLng();
+    if(!last){ last=ll; return; }
+    const dLat=ll.lat-last.lat, dLng=ll.lng-last.lng; last=ll;
+    for(let i=0;i<ctrl.length;i++) ctrl[i]=[ctrl[i][0]+dLat, ctrl[i][1]+dLng];
+    redraw();
+  });
+  mv.on('dragend',()=>{ cmpRender(cmp); cmpUpdatePanel(); });
+  cmp._laneHandles.push(mv);
+
+  // Gasse löschen (rotes × bei 65 % der letzten Strecke)
+  const b0=ctrl[ctrl.length-2], b1=ctrl[ctrl.length-1];
+  const delPos=[b0[0]+(b1[0]-b0[0])*0.65, b0[1]+(b1[1]-b0[1])*0.65];
+  const del=L.marker(delPos,{draggable:false,zIndexOffset:1500,autoPan:false,
     icon:L.divIcon({className:'cmp-lane-del',
-      html:'<div style="transform:translate(20px,-20px);width:26px;height:26px;border-radius:50%;background:#d0392b;border:2px solid #fff;color:#fff;font-size:16px;line-height:22px;text-align:center;box-shadow:0 1px 6px rgba(0,0,0,.55);">&times;</div>',
+      html:'<div style="width:26px;height:26px;border-radius:50%;background:#d0392b;border:2px solid #fff;color:#fff;font-size:16px;line-height:22px;text-align:center;box-shadow:0 1px 6px rgba(0,0,0,.55);">&times;</div>',
       iconSize:[26,26],iconAnchor:[13,13]})
   }).addTo(map);
   del.on('click',(e)=>{ L.DomEvent.stop(e); cmpDeleteActiveLane(); });
   cmp._laneHandles.push(del);
 }
+// Zusätzliche Kurve (Steuerpunkt) in die aktive Gasse einfügen
+function cmpAddCurve(){
+  const cmp=cmpGetSelected(); if(!cmp||cmp._activeLane==null) return;
+  if(!cmp._laneCtrl) cmp._laneCtrl={};
+  if(!Array.isArray(cmp._laneCtrl[cmp._activeLane])) cmp._laneCtrl[cmp._activeLane]=_cmpCtrlOfLane(cmp.lines[cmp._activeLane]);
+  const ctrl=cmp._laneCtrl[cmp._activeLane]; if(!Array.isArray(ctrl)||ctrl.length<2) return;
+  let bi=0,bd=-1;
+  for(let i=0;i<ctrl.length-1;i++){ const d=Math.hypot(ctrl[i+1][0]-ctrl[i][0], ctrl[i+1][1]-ctrl[i][1]); if(d>bd){bd=d;bi=i;} }
+  ctrl.splice(bi+1,0,[(ctrl[bi][0]+ctrl[bi+1][0])/2,(ctrl[bi][1]+ctrl[bi+1][1])/2]);
+  cmp.lines[cmp._activeLane]=_cmpLaneFromCtrl(cmp,ctrl);
+  cmpRender(cmp); cmpUpdatePanel();
+}
+window.cmpAddCurve=cmpAddCurve;
 function cmpDeleteActiveLane(){
   const cmp=cmpGetSelected(); if(!cmp||cmp._activeLane==null) return;
   cmp.lines.splice(cmp._activeLane,1);
@@ -10266,8 +10318,9 @@ function cmpManualCtrlHtml(c){
   const hasActive = c._activeLane!=null && c.lines[c._activeLane];
   return '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">'+
     '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:8px;">&#9999;&#65039; Gassen einzeln &middot; Abteil '+c.id+' ('+c.lines.length+' Gassen)</div>'+
-    '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;line-height:1.4;">Tippe eine Gasse an &rarr; drei Griffe (Enden + Mitte). Mitte ziehen = nur <b>diese</b> Gasse biegt symmetrisch. Unber&uuml;hrte Gassen behalten den exakten Abstand.</div>'+
+    '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;line-height:1.4;">Gasse antippen &rarr; Griffe: <b style="color:#8fe0b0;">gr&uuml;n</b>=Enden, <b style="color:#ffd070;">gelb</b>=Scheitelpunkt(e), <b style="color:#7ec0ff;">blau &#10021;</b>=ganze Gasse verschieben, <b style="color:#ff9a8a;">rot &times;</b>=l&ouml;schen. &Auml;nderungen sind <b>live</b>.</div>'+
     '<button onclick="cmpAddLane()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:none;background:#3a8a3a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">+ Gasse hinzuf&uuml;gen</button>'+
+    (hasActive ? '<button onclick="cmpAddCurve()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.45);background:rgba(255,208,112,.14);color:#ffd070;font-size:13px;font-weight:600;cursor:pointer;">+ Kurve in dieser Gasse</button>' : '')+
     (hasActive ? '<button onclick="cmpDeleteActiveLane()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Aktive Gasse l&ouml;schen</button>' : '')+
     '<button onclick="cmpExitManual()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.12);color:#ffd070;font-size:13px;cursor:pointer;">&#8634; Auto-Layout (verwirft manuell)</button>'+
     '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Abteil l&ouml;schen</button>'+
@@ -11140,6 +11193,7 @@ function cmpUpdatePanel() {
           '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:48px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>' +
         '</div>' +
       '</div>' +
+      '<div style="font-size:12px;color:#8fe0b0;margin-bottom:6px;line-height:1.4;">✏️ <b>Tipp:</b> Eine Gasse antippen, um sie einzeln zu bearbeiten (Enden + Mitte ziehen, ✕ löscht).</div>' +
       '<button onclick="cmpEnterManual()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(70,185,122,.5);background:rgba(70,185,122,.15);color:#8fe0b0;font-size:14px;font-weight:700;cursor:pointer;">&#9999;&#65039; Gassen einzeln bearbeiten</button>' +
       '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">🗑 Abteil löschen</button>' +
     '</div>'
