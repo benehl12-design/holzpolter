@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.1">
+  <meta name="app-version" content="12.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.1'")) {
+        if (!txt.includes("APP_VERSION = '12.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -10209,6 +10209,13 @@ function _cmpCtrlOfLane(line){
   if(line.length===2) return [ line[0].slice(), line[1].slice() ];
   return [ line[0].slice(), line[Math.floor(line.length/2)].slice(), line[line.length-1].slice() ];
 }
+function _cmpProjPointSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax, dy=by-ay; const L2=dx*dx+dy*dy;
+  let t = L2>0 ? ((px-ax)*dx+(py-ay)*dy)/L2 : 0;
+  t=Math.max(0,Math.min(1,t));
+  const x=ax+dx*t, y=ay+dy*t;
+  return {x,y,d:Math.hypot(px-x,py-y)};
+}
 function cmpEnterManual(cmp){
   if(!cmp) return;
   cmp.lines = cmpComputeLines(cmp);   // exakt-versetzte Basis als Startpunkt
@@ -10229,6 +10236,7 @@ function cmpRenderLaneHandles(cmp){
   if(!cmp._laneCtrl) cmp._laneCtrl={};
   if(!Array.isArray(cmp._laneCtrl[idx])) cmp._laneCtrl[idx]=_cmpCtrlOfLane(cmp.lines[idx]);
   const ctrl=cmp._laneCtrl[idx]; if(!Array.isArray(ctrl)||ctrl.length<2) return;
+  const {proj,cLat,cLng}=_cmpProjFor(cmp);
 
   // Gasse LIVE aus den Steuerpunkten neu berechnen + sichtbare Linie sofort aktualisieren
   const redraw=()=>{
@@ -10237,7 +10245,9 @@ function cmpRenderLaneHandles(cmp){
     if(cmp._laneHits && cmp._laneHits[idx]) cmp._laneHits[idx].setLatLngs(cmp.lines[idx]);
   };
 
-  // Ein Griff je Steuerpunkt: Enden (grün, rund) + Scheitelpunkte (gelb, eckig)
+  // Ein Griff je Steuerpunkt: Enden (grün, rund) + Scheitelpunkte (gelb, eckig).
+  // Enden rasten magnetisch an andere Gassen ein — Hysterese: einrasten < lösen.
+  const SNAP_IN = 5, SNAP_OUT = 12;   // Meter
   ctrl.forEach((pt,ci)=>{
     const isEnd=(ci===0||ci===ctrl.length-1);
     const m=L.marker(pt,{draggable:true,zIndexOffset:1400,autoPan:false,
@@ -10245,8 +10255,41 @@ function cmpRenderLaneHandles(cmp){
         html:'<div style="width:'+(isEnd?22:26)+'px;height:'+(isEnd?22:26)+'px;border-radius:'+(isEnd?'50%':'5px')+';background:'+(isEnd?'rgba(255,255,255,.92)':'rgba(255,210,112,.7)')+';border:3px solid '+(isEnd?'#2e7d53':'#e0a020')+';box-shadow:0 1px 7px rgba(0,0,0,.55);"></div>',
         iconSize:[isEnd?28:32,isEnd?28:32],iconAnchor:[isEnd?14:16,isEnd?14:16]})
     }).addTo(map);
-    m.on('drag',(ev)=>{ const ll=ev.target.getLatLng(); ctrl[ci]=[ll.lat,ll.lng]; redraw(); });
-    m.on('dragend',()=>{ cmpRender(cmp); cmpUpdatePanel(); });
+    if(isEnd){
+      let targets=null, snapped=false;
+      m.on('dragstart',()=>{
+        // andere Gassen einmalig in lokale Meter vorberechnen
+        targets=[];
+        cmp.lines.forEach((ln,li)=>{ if(li===idx||!Array.isArray(ln)||ln.length<2) return;
+          targets.push(ln.map(p=>proj.toLocal(p[0],p[1],cLat,cLng))); });
+        snapped=false;
+      });
+      m.on('drag',(ev)=>{
+        const ll=ev.target.getLatLng();
+        const P=proj.toLocal(ll.lat,ll.lng,cLat,cLng);
+        let best=null;
+        (targets||[]).forEach(line=>{
+          for(let i=0;i<line.length-1;i++){
+            const s=_cmpProjPointSeg(P.x,P.y,line[i].x,line[i].y,line[i+1].x,line[i+1].y);
+            if(!best||s.d<best.d) best=s;
+          }
+        });
+        if(best && best.d < (snapped?SNAP_OUT:SNAP_IN)){
+          snapped=true;
+          const s=proj.toLatLng(best.x,best.y,cLat,cLng);
+          ctrl[ci]=[s.lat,s.lng];
+          try{ ev.target.setLatLng([s.lat,s.lng]); }catch{}
+        } else {
+          snapped=false;
+          ctrl[ci]=[ll.lat,ll.lng];
+        }
+        redraw();
+      });
+      m.on('dragend',()=>{ snapped=false; cmpRender(cmp); cmpUpdatePanel(); });
+    } else {
+      m.on('drag',(ev)=>{ const ll=ev.target.getLatLng(); ctrl[ci]=[ll.lat,ll.lng]; redraw(); });
+      m.on('dragend',()=>{ cmpRender(cmp); cmpUpdatePanel(); });
+    }
     cmp._laneHandles.push(m);
   });
 
@@ -10314,12 +10357,58 @@ function cmpAddLane(){
   cmp._laneCtrl={}; cmp._activeLane=cmp.lines.length-1;
   cmpRender(cmp); cmpUpdatePanel();
 }
+// Gewählten Abstand auf die (manuell bearbeiteten) Gassen anwenden:
+// jede Gasse behält ihre FORM, wird nur senkrecht auf das exakte Raster verschoben
+// und am Polygon geclippt → natürliche Enden bleiben (z. B. schräg auslaufende Gassen).
+function cmpApplySpacing(){
+  const cmp=cmpGetSelected(); if(!cmp||!cmp.lines.length) return;
+  const spacingM = cmp.spacing||12;
+  const {proj,cLat,cLng}=_cmpProjFor(cmp);
+  const a = -(cmp.angleDeg||0)*Math.PI/180, cosA=Math.cos(a), sinA=Math.sin(a);
+  const rot=(p)=>({x:p.x*cosA-p.y*sinA, y:p.x*sinA+p.y*cosA});
+  const unrot=(p)=>{const c2=Math.cos(-a),s2=Math.sin(-a);return {x:p.x*c2-p.y*s2, y:p.x*s2+p.y*c2};};
+  const polyR = cmp.polygon.map(p=>{const m=proj.toLocal(p[0],p[1],cLat,cLng);return rot(m);});
+  const lanes = cmp.lines.map(line=>{
+    const pr=line.map(p=>{const m=proj.toLocal(p[0],p[1],cLat,cLng);return rot(m);});
+    const cy=pr.reduce((s,p)=>s+p.y,0)/pr.length;
+    return {pr, cy};
+  });
+  const order = lanes.map((l,i)=>i).sort((i,j)=>lanes[i].cy-lanes[j].cy);
+  const n = order.length;
+  const meanCy = lanes.reduce((s,l)=>s+l.cy,0)/n;
+  const out=[];
+  order.forEach((li,k)=>{
+    const targetCy = meanCy + (k - (n-1)/2)*spacingM;   // gleichmäßig, zentriert
+    const dy = targetCy - lanes[li].cy;
+    const shifted = lanes[li].pr.map(p=>({x:p.x, y:p.y+dy}));   // nur quer verschieben (Form bleibt)
+    _cmpClipPolylineToPolygon(shifted, polyR).forEach(seg=>{
+      if(seg.length<2) return;
+      let L=0; for(let i=0;i<seg.length-1;i++) L+=Math.hypot(seg[i+1].x-seg[i].x, seg[i+1].y-seg[i].y);
+      if(L < Math.max(spacingM*0.3,5)) return;
+      const ll=seg.map(p=>{const b=unrot(p); const g=proj.toLatLng(b.x,b.y,cLat,cLng); return [g.lat,g.lng];});
+      out.push(ll);
+    });
+  });
+  if(!out.length){ if(typeof showToast==='function') showToast('Abstand konnte nicht angewendet werden'); return; }
+  cmp.lines = out; cmp._laneCtrl = {}; cmp._activeLane = null; cmp.manual = true;
+  cmpRender(cmp); cmpUpdatePanel();
+  if(typeof showToast==='function') showToast('↔ Abstand auf '+spacingM+' m angeglichen ('+out.length+' Gassen)');
+}
+window.cmpApplySpacing = cmpApplySpacing;
+
 function cmpManualCtrlHtml(c){
   const hasActive = c._activeLane!=null && c.lines[c._activeLane];
   return '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);">'+
     '<div style="font-size:13px;color:#ffd070;font-weight:600;margin-bottom:8px;">&#9999;&#65039; Gassen einzeln &middot; Abteil '+c.id+' ('+c.lines.length+' Gassen)</div>'+
     '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;line-height:1.4;">Gasse antippen &rarr; Griffe: <b style="color:#8fe0b0;">gr&uuml;n</b>=Enden, <b style="color:#ffd070;">gelb</b>=Scheitelpunkt(e), <b style="color:#7ec0ff;">blau &#10021;</b>=ganze Gasse verschieben, <b style="color:#ff9a8a;">rot &times;</b>=l&ouml;schen. &Auml;nderungen sind <b>live</b>.</div>'+
     '<button onclick="cmpAddLane()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:none;background:#3a8a3a;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">+ Gasse hinzuf&uuml;gen</button>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">'+
+      '<button onclick="cmpApplySpacing()" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(120,180,255,.5);background:rgba(58,160,255,.18);color:#bfe0ff;font-size:13px;font-weight:600;cursor:pointer;">&#8596; Abstand angleichen</button>'+
+      '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 10px;">'+
+        '<input type="number" value="'+c.spacing+'" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:46px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:#7ea0c8;margin-bottom:8px;line-height:1.4;">&#8596; verschiebt jede Gasse nur senkrecht auf den gleichen Abstand (Form &amp; Biegungen bleiben), Enden am Rand bleiben erhalten.</div>'+
     (hasActive ? '<button onclick="cmpAddCurve()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.45);background:rgba(255,208,112,.14);color:#ffd070;font-size:13px;font-weight:600;cursor:pointer;">+ Kurve in dieser Gasse</button>' : '')+
     (hasActive ? '<button onclick="cmpDeleteActiveLane()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Aktive Gasse l&ouml;schen</button>' : '')+
     '<button onclick="cmpExitManual()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.12);color:#ffd070;font-size:13px;cursor:pointer;">&#8634; Auto-Layout (verwirft manuell)</button>'+
