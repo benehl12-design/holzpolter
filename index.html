@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.3">
+  <meta name="app-version" content="12.4">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.3'")) {
+        if (!txt.includes("APP_VERSION = '12.4'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2042,9 +2042,38 @@ if ('serviceWorker' in navigator) {
 /* In großen Icon-Kacheln zentriert darstellen */
 .mc-icon .ico-harvester, .adash-main-icon .ico-harvester{vertical-align:middle;}
 
+
+/* ── SONNENMODUS (helle, kontrastreiche Ansicht für draußen bei Sonne) ── */
+body.sunmode{filter:invert(1) hue-rotate(180deg);}
+body.sunmode .leaflet-container{filter:invert(1) hue-rotate(180deg) brightness(1.12) contrast(1.04);}
+body.sunmode img[src*="icon-192"]{filter:invert(1) hue-rotate(180deg);}
 </style>
 </head>
 <body>
+<script>
+/* Sonnenmodus: sofort anwenden (kein Flackern) + global verfügbare Umschaltung */
+(function(){
+  function apply(on){
+    document.body.classList.toggle('sunmode', on);
+    try{ localStorage.setItem('lignum_sunmode', on?'1':'0'); }catch(e){}
+    var wrap=document.getElementById('sunmode-toggle-wrap');
+    var knob=document.getElementById('sunmode-toggle-knob');
+    var tb=document.getElementById('btn-sunmode');
+    if(wrap) wrap.style.background = on?'#34c759':'#48484a';
+    if(knob) knob.style.left = on?'22px':'2px';
+    if(tb) tb.style.opacity = on?'1':'0.6';
+  }
+  window.toggleSunmode=function(){
+    apply(!document.body.classList.contains('sunmode'));
+    if(window.map&&map.invalidateSize){ setTimeout(function(){try{map.invalidateSize();}catch(e){}},60); }
+  };
+  try{ if(localStorage.getItem('lignum_sunmode')==='1') document.body.classList.add('sunmode'); }catch(e){}
+  document.addEventListener('DOMContentLoaded',function(){
+    var on=false; try{on=localStorage.getItem('lignum_sunmode')==='1';}catch(e){}
+    apply(on);
+  });
+})();
+</script>
 
 <div style="display:none;" id="__stubs__">
   <select id="area-select"><option value="">– Kein Gebiet –</option></select>
@@ -2388,6 +2417,9 @@ if ('serviceWorker' in navigator) {
   <!-- Modus wechseln Button -->
   <button id="btn-switch-mode" title="Modus wechseln" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;padding:6px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;" aria-label="Modus wechseln">⇄</button>
 
+  <!-- Sonnenmodus: heller Schnell-Umschalter (gut bei Sonne) -->
+  <button id="btn-sunmode" onclick="toggleSunmode()" title="Sonnenmodus (helle Ansicht für draußen)" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:17px;padding:6px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;opacity:.6;" aria-label="Sonnenmodus umschalten">☀️</button>
+
   <!-- Kritische Schnellbuttons (immer sichtbar) -->
   <div class="topbar-quick">
     <!-- Liste / Logs (immer sichtbar) -->
@@ -2470,6 +2502,12 @@ if ('serviceWorker' in navigator) {
       <div class="slide-btn-icon blue">🗺</div>
       <div class="slide-btn-info"><div class="slide-btn-label">Kartenansicht</div><div class="slide-btn-desc">Satellit / Straße wechseln</div></div>
     </button>
+    <div style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:#c8e6c0;">&#9728;&#65039; Sonnenmodus</div><div style="font-size:11px;color:#5a8a5a;margin-top:2px;">Helle Ansicht f&uuml;r drau&szlig;en bei Sonne</div></div>
+      <div id="sunmode-toggle-wrap" onclick="toggleSunmode()" style="width:51px;height:31px;border-radius:31px;background:#48484a;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+        <div id="sunmode-toggle-knob" style="width:27px;height:27px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .25s;box-shadow:0 2px 5px rgba(0,0,0,.4);"></div>
+      </div>
+    </div>
     <button class="slide-btn" id="smenu-grenzen" onclick="document.getElementById('btn-grenzen').click();closeSlideMenu()">
       <div class="slide-btn-icon green">📐</div>
       <div class="slide-btn-info"><div class="slide-btn-label">Grundstücksgrenzen</div><div class="slide-btn-desc">GeoJSON-Grenzen laden</div></div>
