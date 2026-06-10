@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.5">
+  <meta name="app-version" content="12.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.5'")) {
+        if (!txt.includes("APP_VERSION = '12.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -14487,7 +14487,7 @@ function _kalkParseSca(text){
   if(out.gran===null) tabMean(/S\u00e5gtimmer Gran[\s\S]*?Klass 1\s+([\d\s]+)/i,'Gran','gran');
   m=T.match(new RegExp('Barrmassaved\\s+'+kr,'i')); if(m) out.masB=num(m[1]);
   m=T.match(new RegExp('Bj\u00f6rkmassaved\\s+'+kr,'i')); if(m) out.masL=num(m[1]);
-  m=T.match(new RegExp('Br\u00e4nsleved[^0-9]{0,40}'+kr,'i')); if(m) out.bransle=num(m[1]);
+  m=T.match(new RegExp('Br\u00e4nsleved[^\\d]{0,90}(\\d{2,4})\\s*kr','i')); if(m) out.bransle=num(m[1]);
   if(/Gallring/i.test(T)) out.type='Gallring (Durchforstung)';
   else if(/F\u00f6ryngringsavverkning|Avverkningsuppdrag/i.test(T)) out.type='Avverkning (Schirmschlag/Endhieb)';
   else if(/Leveransvirke/i.test(T)) out.type='Leveransvirke';
