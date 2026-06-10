@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.4">
+  <meta name="app-version" content="12.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.4'")) {
+        if (!txt.includes("APP_VERSION = '12.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2731,6 +2731,16 @@ body.sunmode img[src*="icon-192"]{filter:invert(1) hue-rotate(180deg);}
         <option value="leveransvirke">Leveransvirke (selbst liefern)</option>
         <option value="avverkningsuppdrag">Avverkningsuppdrag (Auftrag)</option>
       </select></div>
+  </div>
+  <div style="margin-top:12px;padding:11px;border:1px dashed rgba(45,90,39,.45);border-radius:10px;background:rgba(45,90,39,.06);">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button type="button" id="kalk-pdf-btn" onclick="kalkPickPdf()" style="flex:1;min-width:175px;padding:11px;border:none;border-radius:9px;background:#2d6a27;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">&#128196; SCA-Preisliste (PDF) laden</button>
+      <select id="kalk-pricelist-select" onchange="kalkApplySavedList(this.value)" style="flex:1;min-width:155px;font-size:13px;padding:10px;border-radius:9px;">
+        <option value="">&ndash; gespeicherte Listen &ndash;</option>
+      </select>
+    </div>
+    <input id="kalk-pdf-input" type="file" accept="application/pdf,.pdf" style="display:none">
+    <div id="kalk-pdf-status" style="font-size:12px;color:#4a6044;margin-top:8px;display:none;line-height:1.45;"></div>
   </div>
   <div class="grid3" style="margin-top:10px;">
     <div><label>Kiefer-Sägeholz</label><input id="p_tall" type="number" value="765"></div>
@@ -14440,6 +14450,85 @@ $('dbh').addEventListener('input',()=>{$('timmer').value=Math.round(timmerFromDb
 ['flaeche','vorrat','faktor','sp_k','sp_f','sp_l','timmer','energie','p_tall','p_gran','p_masB','p_masL','p_bransle','kultur_ha','kultur_schirm']
   .forEach(id=>{const el=$(id);if(el)el.addEventListener('input',compute);});
 compute();
+// ===== SCA-Preisliste (PDF) laden -> Preise in den Rechner =====
+function _kalkEnsurePdfjs(){
+  return new Promise(function(res,rej){
+    if(window.pdfjsLib){ res(); return; }
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=function(){ try{ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }catch(e){} res(); };
+    s.onerror=function(){ rej(new Error('PDF-Bibliothek konnte nicht geladen werden (Internet beim 1. Mal nötig)')); };
+    document.head.appendChild(s);
+  });
+}
+async function _kalkPdfToText(buf){
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise; let out=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p); const tc=await page.getTextContent(); const lines={};
+    tc.items.forEach(function(it){ const y=Math.round(it.transform[5]), x=it.transform[4]; (lines[y]=lines[y]||[]).push({x:x,s:it.str}); });
+    Object.keys(lines).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){
+      const row=lines[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim(); if(row) out.push(row);
+    });
+  }
+  return out.join('\n');
+}
+function _kalkParseSca(text){
+  const T=text.replace(/\u00a0/g,' '); const num=function(s){return parseInt(s,10);};
+  const kr='(\\d{2,4})\\s*kr\\s*/?\\s*m[\u00b33]?\\s*fub';
+  const out={tall:null,gran:null,masB:null,masL:null,bransle:null,type:null,notes:[]};
+  let m;
+  m=T.match(new RegExp('Tall\\s+'+kr,'i')); if(m) out.tall=num(m[1]);
+  m=T.match(new RegExp('Gran\\s+'+kr,'i')); if(m) out.gran=num(m[1]);
+  const tabMean=function(re,label,key){ const mm=T.match(re); if(!mm) return;
+    const vals=mm[1].trim().split(/\s+/).map(Number).filter(function(n){return n>50&&n<2000;});
+    if(vals.length){ out[key]=Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length);
+      out.notes.push(label+': Mittel Klass 1 ('+vals.length+' Dim., '+Math.min.apply(null,vals)+'\u2013'+Math.max.apply(null,vals)+' kr) \u2013 bitte pr\u00fcfen'); } };
+  if(out.tall===null) tabMean(/S\u00e5gtimmer Tall[\s\S]*?Klass 1\s+([\d\s]+)/i,'Tall','tall');
+  if(out.gran===null) tabMean(/S\u00e5gtimmer Gran[\s\S]*?Klass 1\s+([\d\s]+)/i,'Gran','gran');
+  m=T.match(new RegExp('Barrmassaved\\s+'+kr,'i')); if(m) out.masB=num(m[1]);
+  m=T.match(new RegExp('Bj\u00f6rkmassaved\\s+'+kr,'i')); if(m) out.masL=num(m[1]);
+  m=T.match(new RegExp('Br\u00e4nsleved[^0-9]{0,40}'+kr,'i')); if(m) out.bransle=num(m[1]);
+  if(/Gallring/i.test(T)) out.type='Gallring (Durchforstung)';
+  else if(/F\u00f6ryngringsavverkning|Avverkningsuppdrag/i.test(T)) out.type='Avverkning (Schirmschlag/Endhieb)';
+  else if(/Leveransvirke/i.test(T)) out.type='Leveransvirke';
+  return out;
+}
+function _kalkStatus(h,c){ const el=$('kalk-pdf-status'); if(!el)return; el.style.display='block'; el.style.color=c||'#4a6044'; el.innerHTML=h; }
+function _kalkApplyPriceObj(p){
+  if(p.tall!=null)$('p_tall').value=p.tall; if(p.gran!=null)$('p_gran').value=p.gran;
+  if(p.masB!=null)$('p_masB').value=p.masB; if(p.masL!=null)$('p_masL').value=p.masL;
+  if(p.bransle!=null)$('p_bransle').value=p.bransle; compute();
+}
+function _kalkLists(){ try{ return JSON.parse(localStorage.getItem('lignum_kalk_pricelists')||'[]'); }catch(e){ return []; } }
+function _kalkSaveLists(a){ try{ localStorage.setItem('lignum_kalk_pricelists',JSON.stringify(a)); }catch(e){} }
+function _kalkRefreshSelect(sel){
+  const s=$('kalk-pricelist-select'); if(!s)return; const lists=_kalkLists();
+  s.innerHTML='<option value="">\u2013 gespeicherte Listen \u2013</option>'+lists.map(function(l){return '<option value="'+l.id+'"'+(l.id===sel?' selected':'')+'>'+l.name+'</option>';}).join('');
+}
+window.kalkPickPdf=function(){ const i=$('kalk-pdf-input'); if(i) i.click(); };
+async function _kalkLoadPdf(file){
+  if(!file)return;
+  _kalkStatus('\u23f3 '+file.name+' wird gelesen\u2026');
+  try{ await _kalkEnsurePdfjs(); }catch(e){ _kalkStatus('\u26a0 '+e.message,'#a32020'); return; }
+  try{
+    const buf=await file.arrayBuffer(); const text=await _kalkPdfToText(buf); const r=_kalkParseSca(text);
+    _kalkApplyPriceObj(r);
+    const found=['tall','gran','masB','masL','bransle'].filter(function(k){return r[k]!=null;}).length;
+    const name=file.name.replace(/\.pdf$/i,'');
+    const lists=_kalkLists().filter(function(l){return l.name!==name;});
+    lists.unshift({id:'pl_'+Date.now(),name:name,type:r.type||'',prices:{tall:r.tall,gran:r.gran,masB:r.masB,masL:r.masL,bransle:r.bransle}});
+    _kalkSaveLists(lists.slice(0,20)); _kalkRefreshSelect(lists[0].id);
+    const sv=function(v){return v==null?'?':v;};
+    let h='\u2713 <b>'+name+'</b>'+(r.type?' \u00b7 '+r.type:'')+'<br>Tall '+sv(r.tall)+' \u00b7 Gran '+sv(r.gran)+' \u00b7 Nadel '+sv(r.masB)+' \u00b7 Laub '+sv(r.masL)+' \u00b7 Energie '+sv(r.bransle)+' kr';
+    if(found<5) h+='<br><span style="color:#b07010;">\u26a0 Nicht alle Werte erkannt \u2013 bitte pr\u00fcfen.</span>';
+    r.notes.forEach(function(n){ h+='<br><span style="color:#b07010;">\u26a0 '+n+'</span>'; });
+    _kalkStatus(h);
+  }catch(e){ _kalkStatus('\u26a0 Fehler beim Lesen: '+e.message,'#a32020'); }
+}
+window.kalkApplySavedList=function(id){ if(!id)return; const l=_kalkLists().find(function(x){return x.id===id;}); if(!l)return;
+  _kalkApplyPriceObj(l.prices); _kalkStatus('\u2713 <b>'+l.name+'</b>'+(l.type?' \u00b7 '+l.type:'')+' angewendet.'); };
+(function(){ const i=$('kalk-pdf-input'); if(i) i.addEventListener('change',function(e){ _kalkLoadPdf(e.target.files[0]); }); _kalkRefreshSelect(); })();
+
 window.openKalk = function(){ document.getElementById('kalk-panel').classList.remove('hidden'); compute(); };
 window.closeKalk = function(){ document.getElementById('kalk-panel').classList.add('hidden'); };
 })();
