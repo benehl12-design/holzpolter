@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.3">
+  <meta name="app-version" content="13.5">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.3'")) {
+        if (!txt.includes("APP_VERSION = '13.5'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2066,7 +2066,8 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
 /* Harvester ist ein PNG: dunkler Chip, damit die Kanten auf hellem Grund nicht ausgewaschen wirken (wie Normalmodus) */
 body.sunmode .adash-main-icon.has-harvester{background:rgba(255,255,255,.82);border-radius:16px;padding:6px 10px;}
 /* Weißer Karten-Saum (iOS-Filter-Kante): dünner, nicht klickbarer Rahmen, invertiert -> dunkel, deckt den Saum links/rechts ab */
-body.sunmode::after{content:'';position:fixed;top:0;bottom:0;left:0;right:0;pointer-events:none;z-index:3000;border-left:4px solid #fff;border-right:4px solid #fff;}
+/* Große Vollbild-Karte: im Sonnenmodus 4px über die Seiten laufen lassen -> Filter-Saum wird vom body-overflow:hidden abgeschnitten (kein Skalieren -> Tap bleibt exakt) */
+body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 </style>
 </head>
 <body>
@@ -14604,6 +14605,22 @@ async function kalkLoadGebiete(){
     if(cur) sel.value=cur;
   }catch(e){ /* offline o.ä. – still */ }
 }
+function _wgs84ToSweref99tm(lat,lon){
+  const axis=6378137.0, flat=1/298.257222101, k0=0.9996, lon0=15.0, FN=0.0, FE=500000.0;
+  const e2=flat*(2-flat), n=flat/(2-flat);
+  const aRoof=axis/(1+n)*(1 + n*n/4 + n*n*n*n/64);
+  const A=e2, B=(5*e2*e2-e2*e2*e2)/6, C=(104*e2*e2*e2-45*e2*e2*e2*e2)/120, D=(1237*e2*e2*e2*e2)/1260;
+  const b1=n/2-2*n*n/3+5*n*n*n/16+41*n*n*n*n/180, b2=13*n*n/48-3*n*n*n/5+557*n*n*n*n/1440, b3=61*n*n*n/240-103*n*n*n*n/140, b4=49561*n*n*n*n/161280;
+  const d2r=Math.PI/180, phi=lat*d2r, lambda=lon*d2r, lambda0=lon0*d2r;
+  const sp=Math.sin(phi), cp=Math.cos(phi);
+  const phiStar=phi - sp*cp*(A+B*Math.pow(sp,2)+C*Math.pow(sp,4)+D*Math.pow(sp,6));
+  const dl=lambda-lambda0;
+  const xi=Math.atan(Math.tan(phiStar)/Math.cos(dl));
+  const eta=Math.atanh(Math.cos(phiStar)*Math.sin(dl));
+  const N=k0*aRoof*(xi+b1*Math.sin(2*xi)*Math.cosh(2*eta)+b2*Math.sin(4*xi)*Math.cosh(4*eta)+b3*Math.sin(6*xi)*Math.cosh(6*eta)+b4*Math.sin(8*xi)*Math.cosh(8*eta))+FN;
+  const E=k0*aRoof*(eta+b1*Math.cos(2*xi)*Math.sinh(2*eta)+b2*Math.cos(4*xi)*Math.sinh(4*eta)+b3*Math.cos(6*xi)*Math.sinh(6*eta)+b4*Math.cos(8*xi)*Math.sinh(8*eta))+FE;
+  return [E,N];
+}
 window.kalkFetchSkogsdata=async function(){
   const sel=$('kalk-gebiet'), btn=$('kalk-skogs-btn'), status=$('kalk-skogs-status');
   const id=sel&&sel.value;
@@ -14613,22 +14630,34 @@ window.kalkFetchSkogsdata=async function(){
   status.style.color='#6a9a6a'; status.textContent='📡 Frage Skogsstyrelsen ab …';
   if(btn) btn.disabled=true;
   try{
-    const resp=await fetch(SUPABASE_URL+'/functions/v1/skogsdata',{
-      method:'POST',
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+((typeof accessToken!=='undefined'&&accessToken)?accessToken:SUPABASE_KEY),'Content-Type':'application/json'},
-      body:JSON.stringify({boundary:area.boundary})
-    });
+    const ring=area.boundary.map(([la,lo])=>{ const r=_wgs84ToSweref99tm(la,lo); return [Math.round(r[0]*100)/100, Math.round(r[1]*100)/100]; });
+    const f0=ring[0], lN=ring[ring.length-1]; if(f0[0]!==lN[0]||f0[1]!==lN[1]) ring.push([f0[0],f0[1]]);
+    let sh=0; for(let i=0;i<ring.length-1;i++) sh+=ring[i][0]*ring[i+1][1]-ring[i+1][0]*ring[i][1];
+    const polyHa=Math.abs(sh/2)/10000;
+    const px=polyHa<5?2:polyHa<50?5:10, pxAreaHa=(px*px)/10000;
+    const geometry=JSON.stringify({rings:[ring],spatialReference:{wkid:3006}});
+    const rr=JSON.stringify({rasterFunction:'Urval',rasterFunctionArguments:{BandIds:[0,9],IncludedRanges:[0,5000,1,1]}});
+    const url='https://geodata.skogsstyrelsen.se/arcgis/rest/services/Publikt/SkogligaGrunddata_3_1/ImageServer/computeStatisticsHistograms'
+      +'?geometryType=esriGeometryPolygon&geometry='+encodeURIComponent(geometry)
+      +'&renderingRule='+encodeURIComponent(rr)
+      +'&pixelSize='+px+'%2C'+px+'&processAsMultidimensional=false&f=json';
+    const resp=await fetch(url);
     const d=await resp.json();
-    if(!d||d.ok!==true){ status.style.color='#b07010'; status.textContent='\u26a0 '+((d&&d.error)||('HTTP '+resp.status)); return; }
-    $('flaeche').value=d.produktiv_ha;
-    $('vorrat').value=d.vorrat_m3sk;
+    if(d&&d.error){ status.style.color='#b07010'; status.textContent='⚠ Skogsstyrelsen: '+(d.error.message||('Code '+d.error.code)); return; }
+    const st=d&&d.statistics&&d.statistics[0];
+    if(!st||typeof st.mean!=='number'||!st.count){ status.style.color='#b07010'; status.textContent='⚠ Keine Walddaten für dieses Gebiet (außerhalb Schwedens?).'; return; }
+    const produktivHa=Math.round(st.count*pxAreaHa*100)/100;
+    const vorrat=Math.round(st.mean*st.count*pxAreaHa);
+    $('flaeche').value=produktivHa;
+    $('vorrat').value=vorrat;
     compute();
     const nm=String(area.name||'Gebiet').replace(/[<>&]/g,'');
     status.style.color='#5a8a5a';
-    status.innerHTML='\u2713 <b>'+nm+'</b>: '+fmt(d.produktiv_ha)+' ha produktiv \u00b7 '+fmt(d.volym_m3sk_ha)+' m\u00b3sk/ha \u00b7 Vorrat '+fmt(d.vorrat_m3sk)+' m\u00b3sk'
-      +'<br><span style="color:#b07010;">\u26a0 Sch\u00e4tzung aus Skogliga grunddata (Laser) \u2013 bitte pr\u00fcfen. Baumarten-Anteile (Kiefer/Fichte/Laub) manuell setzen.</span>';
+    status.innerHTML='✓ <b>'+nm+'</b>: '+fmt(produktivHa)+' ha produktiv · '+fmt(Math.round(st.mean*10)/10)+' m³sk/ha · Vorrat '+fmt(vorrat)+' m³sk'
+      +'<br><span style="color:#b07010;">⚠ Schätzung aus Skogliga grunddata (Laser) – bitte prüfen. Baumarten-Anteile (Kiefer/Fichte/Laub) manuell setzen.</span>';
   }catch(e){
-    status.style.color='#b07010'; status.textContent='\u26a0 Fehler: '+(e.message||e);
+    status.style.color='#b07010';
+    status.innerHTML='⚠ Direktabruf nicht möglich ('+String((e&&e.message)||e).slice(0,50)+').<br>Skogsstyrelsen blockt die Anfrage evtl. – dann oben „Laserdaten einfügen" nutzen.';
   }finally{ if(btn) btn.disabled=false; }
 };
 window.openKalk = function(){ document.getElementById('kalk-panel').classList.remove('hidden'); compute(); kalkLoadGebiete(); };
