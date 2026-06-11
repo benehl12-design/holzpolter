@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.8">
+  <meta name="app-version" content="12.9">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.8'")) {
+        if (!txt.includes("APP_VERSION = '12.9'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2051,6 +2051,16 @@ body.sunmode .leaflet-container{filter:invert(1) hue-rotate(180deg);}
 body.sunmode img[src*="icon-192"],
 body.sunmode .slide-btn-icon,
 body.sunmode .adash-main-icon,
+body.sunmode .adash-driver-icon,
+body.sunmode .dov-driver-icon,
+body.sunmode .settings-icon,
+body.sunmode .hicon,
+body.sunmode .dmgmt-btn-icon,
+body.sunmode .mc-icon,
+body.sunmode .ds-quick-icon,
+body.sunmode .ds-machine-icon,
+body.sunmode .ds-icon-btn,
+body.sunmode .ic-emoji,
 body.sunmode .topbar-quick,
 body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
 </style>
@@ -2238,7 +2248,7 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
       cursor:pointer;font-family:inherit;text-align:left;
       touch-action:manipulation;transition:all .15s;width:100%;
     ">
-      <span style="font-size:24px;">📅</span>
+      <span class="ic-emoji" style="font-size:24px;">📅</span>
       <div>
         <div style="font-size:14px;font-weight:600;color:#a0d89a;">Zeiterfassung</div>
         <div style="font-size:11px;color:#6a9a6a;margin-top:2px;">Monatsübersicht aller Fahrer</div>
@@ -2255,7 +2265,7 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
       cursor:pointer;font-family:inherit;text-align:left;
       touch-action:manipulation;transition:all .15s;width:100%;
     ">
-      <span style="font-size:24px;">🗑</span>
+      <span class="ic-emoji" style="font-size:24px;">🗑</span>
       <div>
         <div style="font-size:14px;font-weight:600;color:#f5a0a0;">Daten verwalten</div>
         <div style="font-size:11px;color:#8a5a5a;margin-top:2px;">Polter, Strecken, Gebiete & Zeiteinträge löschen</div>
