@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.5">
+  <meta name="app-version" content="13.6">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.5'")) {
+        if (!txt.includes("APP_VERSION = '13.6'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2722,7 +2722,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
       <label>Gebiet (Skogsstyrelsen)</label>
       <select id="kalk-gebiet" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.2);color:#d8e8d0;font-family:inherit;font-size:14px;"><option value="">– Gebiet wählen –</option></select>
     </div>
-    <button type="button" id="kalk-skogs-btn" onclick="kalkFetchSkogsdata()" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(74,170,74,.4);background:rgba(45,90,39,.25);color:#a0d89a;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">📡 Walddaten holen</button>
+    <button type="button" id="kalk-skogs-btn" onclick="kalkFetchSkogsdata()" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(74,170,74,.4);background:rgba(45,90,39,.25);color:#a0d89a;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">🗺 Bei Skogsstyrelsen öffnen</button>
   </div>
   <div id="kalk-skogs-status" style="font-size:12px;color:#6a9a6a;margin-bottom:10px;line-height:1.45;"></div>
   <div class="grid">
@@ -14621,44 +14621,26 @@ function _wgs84ToSweref99tm(lat,lon){
   const E=k0*aRoof*(eta+b1*Math.cos(2*xi)*Math.sinh(2*eta)+b2*Math.cos(4*xi)*Math.sinh(4*eta)+b3*Math.cos(6*xi)*Math.sinh(6*eta)+b4*Math.cos(8*xi)*Math.sinh(8*eta))+FE;
   return [E,N];
 }
-window.kalkFetchSkogsdata=async function(){
-  const sel=$('kalk-gebiet'), btn=$('kalk-skogs-btn'), status=$('kalk-skogs-status');
+window.kalkFetchSkogsdata=function(){
+  const sel=$('kalk-gebiet'), status=$('kalk-skogs-status');
   const id=sel&&sel.value;
   if(!id){ status.style.color='#b07010'; status.textContent='Bitte zuerst ein Gebiet wählen.'; return; }
   const area=_kalkGebiete.find(a=>a.id===id);
   if(!area||!Array.isArray(area.boundary)||area.boundary.length<3){ status.style.color='#b07010'; status.textContent='Dieses Gebiet hat keine erfasste Fläche.'; return; }
-  status.style.color='#6a9a6a'; status.textContent='📡 Frage Skogsstyrelsen ab …';
-  if(btn) btn.disabled=true;
-  try{
-    const ring=area.boundary.map(([la,lo])=>{ const r=_wgs84ToSweref99tm(la,lo); return [Math.round(r[0]*100)/100, Math.round(r[1]*100)/100]; });
-    const f0=ring[0], lN=ring[ring.length-1]; if(f0[0]!==lN[0]||f0[1]!==lN[1]) ring.push([f0[0],f0[1]]);
-    let sh=0; for(let i=0;i<ring.length-1;i++) sh+=ring[i][0]*ring[i+1][1]-ring[i+1][0]*ring[i][1];
-    const polyHa=Math.abs(sh/2)/10000;
-    const px=polyHa<5?2:polyHa<50?5:10, pxAreaHa=(px*px)/10000;
-    const geometry=JSON.stringify({rings:[ring],spatialReference:{wkid:3006}});
-    const rr=JSON.stringify({rasterFunction:'Urval',rasterFunctionArguments:{BandIds:[0,9],IncludedRanges:[0,5000,1,1]}});
-    const url='https://geodata.skogsstyrelsen.se/arcgis/rest/services/Publikt/SkogligaGrunddata_3_1/ImageServer/computeStatisticsHistograms'
-      +'?geometryType=esriGeometryPolygon&geometry='+encodeURIComponent(geometry)
-      +'&renderingRule='+encodeURIComponent(rr)
-      +'&pixelSize='+px+'%2C'+px+'&processAsMultidimensional=false&f=json';
-    const resp=await fetch(url);
-    const d=await resp.json();
-    if(d&&d.error){ status.style.color='#b07010'; status.textContent='⚠ Skogsstyrelsen: '+(d.error.message||('Code '+d.error.code)); return; }
-    const st=d&&d.statistics&&d.statistics[0];
-    if(!st||typeof st.mean!=='number'||!st.count){ status.style.color='#b07010'; status.textContent='⚠ Keine Walddaten für dieses Gebiet (außerhalb Schwedens?).'; return; }
-    const produktivHa=Math.round(st.count*pxAreaHa*100)/100;
-    const vorrat=Math.round(st.mean*st.count*pxAreaHa);
-    $('flaeche').value=produktivHa;
-    $('vorrat').value=vorrat;
-    compute();
-    const nm=String(area.name||'Gebiet').replace(/[<>&]/g,'');
-    status.style.color='#5a8a5a';
-    status.innerHTML='✓ <b>'+nm+'</b>: '+fmt(produktivHa)+' ha produktiv · '+fmt(Math.round(st.mean*10)/10)+' m³sk/ha · Vorrat '+fmt(vorrat)+' m³sk'
-      +'<br><span style="color:#b07010;">⚠ Schätzung aus Skogliga grunddata (Laser) – bitte prüfen. Baumarten-Anteile (Kiefer/Fichte/Laub) manuell setzen.</span>';
-  }catch(e){
-    status.style.color='#b07010';
-    status.innerHTML='⚠ Direktabruf nicht möglich ('+String((e&&e.message)||e).slice(0,50)+').<br>Skogsstyrelsen blockt die Anfrage evtl. – dann oben „Laserdaten einfügen" nutzen.';
-  }finally{ if(btn) btn.disabled=false; }
+  let lat=0,lng=0; area.boundary.forEach(p=>{lat+=p[0];lng+=p[1];}); lat/=area.boundary.length; lng/=area.boundary.length;
+  const coordWGS=lat.toFixed(5)+', '+lng.toFixed(5);
+  let swe=''; try{ const r=_wgs84ToSweref99tm(lat,lng); swe=Math.round(r[1])+' '+Math.round(r[0]); }catch(e){}
+  const url='https://kartor.skogsstyrelsen.se/kartor/?startapp=skogligagrunddata';
+  let win=null; try{ win=window.open(url,'_blank'); }catch(e){}
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(coordWGS); }catch(e){}
+  const nm=String(area.name||'Gebiet').replace(/[<>&]/g,'');
+  status.style.color='#5a8a5a';
+  status.innerHTML='🗺 Skogsstyrelsen-Karte geöffnet für <b>'+nm+'</b>.'
+    +'<br>1) Im Such-/Koordinatenfeld eingeben: <b>'+coordWGS+'</b> <span style="color:#6a9a6a;">(kopiert'+(swe?' · SWEREF99 TM: '+swe:'')+')</span>'
+    +'<br>2) Bei deinem Gebiet „Daten kopieren" antippen.'
+    +'<br>3) Oben in „Laserdaten einfügen" einfügen → „Daten übernehmen".'
+    +(win?'':'<br><a href="'+url+'" target="_blank" rel="noopener" style="color:#4aaa4a;">→ Karte manuell öffnen</a>')
+    +'<br><span style="color:#b07010;">Hinweis: Skogsstyrelsens Web-App hat auf iOS 18 teils Fehler – notfalls am Desktop kopieren.</span>';
 };
 window.openKalk = function(){ document.getElementById('kalk-panel').classList.remove('hidden'); compute(); kalkLoadGebiete(); };
 window.closeKalk = function(){ document.getElementById('kalk-panel').classList.add('hidden'); };
