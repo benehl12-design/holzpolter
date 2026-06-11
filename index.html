@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.2">
+  <meta name="app-version" content="13.3">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.2'")) {
+        if (!txt.includes("APP_VERSION = '13.3'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2716,6 +2716,14 @@ body.sunmode::after{content:'';position:fixed;top:0;bottom:0;left:0;right:0;poin
 
 <div class="card">
   <h2>Objektdaten</h2>
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
+    <div style="flex:1;min-width:150px;">
+      <label>Gebiet (Skogsstyrelsen)</label>
+      <select id="kalk-gebiet" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.2);color:#d8e8d0;font-family:inherit;font-size:14px;"><option value="">– Gebiet wählen –</option></select>
+    </div>
+    <button type="button" id="kalk-skogs-btn" onclick="kalkFetchSkogsdata()" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(74,170,74,.4);background:rgba(45,90,39,.25);color:#a0d89a;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">📡 Walddaten holen</button>
+  </div>
+  <div id="kalk-skogs-status" style="font-size:12px;color:#6a9a6a;margin-bottom:10px;line-height:1.45;"></div>
   <div class="grid">
     <div><label>Produktive Fläche <span class="unit">(ha)</span></label><input id="flaeche" type="number" step="0.1" value="10.0"></div>
     <div><label>Stehender Vorrat <span class="unit">(m³sk)</span></label><input id="vorrat" type="number" step="1" value="1311"></div>
@@ -14582,7 +14590,48 @@ window.kalkApplySavedList=function(id){ if(!id)return; const l=_kalkLists().find
   _kalkApplyPriceObj(l.prices); _kalkStatus('\u2713 <b>'+l.name+'</b>'+(l.type?' \u00b7 '+l.type:'')+' angewendet.'); };
 (function(){ const i=$('kalk-pdf-input'); if(i) i.addEventListener('change',function(e){ _kalkLoadPdf(e.target.files[0]); }); _kalkRefreshSelect(); })();
 
-window.openKalk = function(){ document.getElementById('kalk-panel').classList.remove('hidden'); compute(); };
+let _kalkGebiete=[];
+async function kalkLoadGebiete(){
+  const sel=$('kalk-gebiet'); if(!sel) return;
+  try{
+    const cid=(typeof currentProfile!=='undefined'&&currentProfile)?currentProfile.company_id:null;
+    if(!cid) return;
+    const rows=await dbFetch('areas?company_id=eq.'+cid+'&select=id,name,boundary&order=name');
+    _kalkGebiete=(rows||[]).filter(a=>Array.isArray(a.boundary)&&a.boundary.length>=3);
+    const cur=sel.value;
+    sel.innerHTML='<option value="">– Gebiet wählen –</option>'+
+      _kalkGebiete.map(a=>'<option value="'+a.id+'">'+String(a.name||'Gebiet').replace(/[<>&]/g,'')+'</option>').join('');
+    if(cur) sel.value=cur;
+  }catch(e){ /* offline o.ä. – still */ }
+}
+window.kalkFetchSkogsdata=async function(){
+  const sel=$('kalk-gebiet'), btn=$('kalk-skogs-btn'), status=$('kalk-skogs-status');
+  const id=sel&&sel.value;
+  if(!id){ status.style.color='#b07010'; status.textContent='Bitte zuerst ein Gebiet wählen.'; return; }
+  const area=_kalkGebiete.find(a=>a.id===id);
+  if(!area||!Array.isArray(area.boundary)||area.boundary.length<3){ status.style.color='#b07010'; status.textContent='Dieses Gebiet hat keine erfasste Fläche.'; return; }
+  status.style.color='#6a9a6a'; status.textContent='📡 Frage Skogsstyrelsen ab …';
+  if(btn) btn.disabled=true;
+  try{
+    const resp=await fetch(SUPABASE_URL+'/functions/v1/skogsdata',{
+      method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+((typeof accessToken!=='undefined'&&accessToken)?accessToken:SUPABASE_KEY),'Content-Type':'application/json'},
+      body:JSON.stringify({boundary:area.boundary})
+    });
+    const d=await resp.json();
+    if(!d||d.ok!==true){ status.style.color='#b07010'; status.textContent='\u26a0 '+((d&&d.error)||('HTTP '+resp.status)); return; }
+    $('flaeche').value=d.produktiv_ha;
+    $('vorrat').value=d.vorrat_m3sk;
+    compute();
+    const nm=String(area.name||'Gebiet').replace(/[<>&]/g,'');
+    status.style.color='#5a8a5a';
+    status.innerHTML='\u2713 <b>'+nm+'</b>: '+fmt(d.produktiv_ha)+' ha produktiv \u00b7 '+fmt(d.volym_m3sk_ha)+' m\u00b3sk/ha \u00b7 Vorrat '+fmt(d.vorrat_m3sk)+' m\u00b3sk'
+      +'<br><span style="color:#b07010;">\u26a0 Sch\u00e4tzung aus Skogliga grunddata (Laser) \u2013 bitte pr\u00fcfen. Baumarten-Anteile (Kiefer/Fichte/Laub) manuell setzen.</span>';
+  }catch(e){
+    status.style.color='#b07010'; status.textContent='\u26a0 Fehler: '+(e.message||e);
+  }finally{ if(btn) btn.disabled=false; }
+};
+window.openKalk = function(){ document.getElementById('kalk-panel').classList.remove('hidden'); compute(); kalkLoadGebiete(); };
 window.closeKalk = function(){ document.getElementById('kalk-panel').classList.add('hidden'); };
 })();
 </script>
