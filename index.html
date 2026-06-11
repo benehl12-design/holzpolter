@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.9">
+  <meta name="app-version" content="13.2">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.9'")) {
+        if (!txt.includes("APP_VERSION = '13.2'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2063,6 +2063,10 @@ body.sunmode .ds-icon-btn,
 body.sunmode .ic-emoji,
 body.sunmode .topbar-quick,
 body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
+/* Harvester ist ein PNG: dunkler Chip, damit die Kanten auf hellem Grund nicht ausgewaschen wirken (wie Normalmodus) */
+body.sunmode .adash-main-icon.has-harvester{background:rgba(255,255,255,.82);border-radius:16px;padding:6px 10px;}
+/* Weißer Karten-Saum (iOS-Filter-Kante): dünner, nicht klickbarer Rahmen, invertiert -> dunkel, deckt den Saum links/rechts ab */
+body.sunmode::after{content:'';position:fixed;top:0;bottom:0;left:0;right:0;pointer-events:none;z-index:3000;border-left:4px solid #fff;border-right:4px solid #fff;}
 </style>
 </head>
 <body>
@@ -2214,13 +2218,13 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
         <span class="adash-main-label">Gebiete</span>
         <span class="adash-main-desc">Einschlag & Karte</span>
       </button>
-      <button class="adash-main-btn" onclick="openStammdaten()">
-        <span class="adash-main-icon">🏢</span>
-        <span class="adash-main-label">Stammdaten</span>
-        <span class="adash-main-desc">Firma & Partner</span>
+      <button class="adash-main-btn" onclick="openAdminWorktime()">
+        <span class="adash-main-icon">📅</span>
+        <span class="adash-main-label">Zeiterfassung</span>
+        <span class="adash-main-desc">Monatsübersicht aller Fahrer</span>
       </button>
       <button class="adash-main-btn" onclick="showDashWork()">
-        <span class="adash-main-icon"><span class="ico-harvester lg"></span></span>
+        <span class="adash-main-icon has-harvester"><span class="ico-harvester lg"></span></span>
         <span class="adash-main-label">Als Fahrer</span>
         <span class="adash-main-desc">Maschine auswählen</span>
       </button>
@@ -2239,8 +2243,8 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
       </div>
     </div>
 
-    <!-- Zeiterfassung Übersicht -->
-    <button onclick="openAdminWorktime()" style="
+    <!-- Stammdaten -->
+    <button onclick="openStammdaten()" style="
       display:flex;align-items:center;gap:14px;
       padding:16px;border-radius:14px;
       border:1px solid rgba(74,170,74,.25);
@@ -2248,10 +2252,10 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
       cursor:pointer;font-family:inherit;text-align:left;
       touch-action:manipulation;transition:all .15s;width:100%;
     ">
-      <span class="ic-emoji" style="font-size:24px;">📅</span>
+      <span class="ic-emoji" style="font-size:24px;">🏢</span>
       <div>
-        <div style="font-size:14px;font-weight:600;color:#a0d89a;">Zeiterfassung</div>
-        <div style="font-size:11px;color:#6a9a6a;margin-top:2px;">Monatsübersicht aller Fahrer</div>
+        <div style="font-size:14px;font-weight:600;color:#a0d89a;">Stammdaten</div>
+        <div style="font-size:11px;color:#6a9a6a;margin-top:2px;">Firma &amp; Partner</div>
       </div>
       <span style="margin-left:auto;color:#6a9a6a;font-size:18px;">›</span>
     </button>
@@ -3508,15 +3512,15 @@ body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
 <!-- ANLEITUNG -->
 <div id="help-modal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div id="help-sheet">
-    <div id="help-header"><h2>📖 Anleitung — Lignum</h2><button id="help-close" onclick="document.getElementById('help-modal').style.display='none'">×</button></div>
+    <div id="help-header"><h2><span class="ic-emoji">📖</span> Anleitung — Lignum</h2><button id="help-close" onclick="document.getElementById('help-modal').style.display='none'">×</button></div>
     <div id="help-tabs" style="overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-      <button class="htab on" data-tab="start" onclick="helpTab(this)">🚀 Start</button>
-      <button class="htab" data-tab="harvester" onclick="helpTab(this)"><span class="ico-harvester"></span> Harvester</button>
-      <button class="htab" data-tab="forwarder" onclick="helpTab(this)">🚜 Forwarder</button>
-      <button class="htab" data-tab="zeit" onclick="helpTab(this)">⏱ Zeiten</button>
-      <button class="htab" data-tab="karte" onclick="helpTab(this)">🗺 Karte</button>
-      <button class="htab" data-tab="fahrgassen" onclick="helpTab(this)">🚜 Fahrgassen</button>
-      <button class="htab" data-tab="admin" onclick="helpTab(this)">👨‍💼 Admin</button>
+      <button class="htab on" data-tab="start" onclick="helpTab(this)"><span class="ic-emoji">🚀</span> Start</button>
+      <button class="htab" data-tab="harvester" onclick="helpTab(this)"><span class="ico-harvester ic-emoji"></span> Harvester</button>
+      <button class="htab" data-tab="forwarder" onclick="helpTab(this)"><span class="ic-emoji">🚜</span> Forwarder</button>
+      <button class="htab" data-tab="zeit" onclick="helpTab(this)"><span class="ic-emoji">⏱</span> Zeiten</button>
+      <button class="htab" data-tab="karte" onclick="helpTab(this)"><span class="ic-emoji">🗺</span> Karte</button>
+      <button class="htab" data-tab="fahrgassen" onclick="helpTab(this)"><span class="ic-emoji">🚜</span> Fahrgassen</button>
+      <button class="htab" data-tab="admin" onclick="helpTab(this)"><span class="ic-emoji">👨‍💼</span> Admin</button>
     </div>
     <div id="help-body">
 
@@ -9513,14 +9517,25 @@ async function jumpToTrailPlan(planId) {
     if (data && data[0]) _renderSavedTrailPlan(data[0]);
   } catch {}
   const entry = _trailPlanLayers[planId];
-  if (!entry || !entry.polygon) { showToast('Plan nicht gefunden'); return; }
+  // Bounds aus polygon ODER aus allen Linien-Layern – neue Abteil-Pläne haben kein einzelnes polygon
+  let bounds = null;
+  try {
+    if (entry && entry.polygon) {
+      bounds = entry.polygon.getBounds();
+    } else if (entry && Array.isArray(entry.lines) && entry.lines.length) {
+      const b = L.latLngBounds([]);
+      entry.lines.forEach(l => { try { if (l.getBounds) b.extend(l.getBounds()); else if (l.getLatLng) b.extend(l.getLatLng()); } catch {} });
+      if (b.isValid()) bounds = b;
+    }
+  } catch {}
+  if (!bounds) { showToast('Plan nicht gefunden'); return; }
   closeTrailPlansList();
   // Suppression-Flag wie bei Driver-Jump
   window._pendingDriverJump = true;
   if (typeof showDashMap === 'function') showDashMap();
   const doJump = () => {
-    try { map.fitBounds(entry.polygon.getBounds(), { padding: [50, 50], maxZoom: 17 }); } catch {}
-    try { entry.polygon.openPopup(); } catch {}
+    try { map.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 }); } catch {}
+    try { if (entry && entry.polygon) entry.polygon.openPopup(); } catch {}
   };
   setTimeout(doJump, 200);
   setTimeout(doJump, 800);
