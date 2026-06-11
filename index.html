@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="12.6">
+  <meta name="app-version" content="12.8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2019,7 +2019,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '12.6'")) {
+        if (!txt.includes("APP_VERSION = '12.8'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2045,8 +2045,14 @@ if ('serviceWorker' in navigator) {
 
 /* ── SONNENMODUS (helle, kontrastreiche Ansicht für draußen bei Sonne) ── */
 body.sunmode{filter:invert(1) hue-rotate(180deg);}
-body.sunmode .leaflet-container{filter:invert(1) hue-rotate(180deg) brightness(1.12) contrast(1.04);}
-body.sunmode img[src*="icon-192"]{filter:invert(1) hue-rotate(180deg);}
+/* Karte exakt zurückdrehen -> 1:1 normal, KEIN heller Rand */
+body.sunmode .leaflet-container{filter:invert(1) hue-rotate(180deg);}
+/* Logo + Piktogramme/Icons sollen ihre Originalfarben behalten (zurückdrehen) */
+body.sunmode img[src*="icon-192"],
+body.sunmode .slide-btn-icon,
+body.sunmode .adash-main-icon,
+body.sunmode .topbar-quick,
+body.sunmode #btn-sunmode{filter:invert(1) hue-rotate(180deg);}
 </style>
 </head>
 <body>
@@ -14464,30 +14470,51 @@ function _kalkEnsurePdfjs(){
 async function _kalkPdfToText(buf){
   const pdf=await pdfjsLib.getDocument({data:buf}).promise; let out=[];
   for(let p=1;p<=pdf.numPages;p++){
-    const page=await pdf.getPage(p); const tc=await page.getTextContent(); const lines={};
-    tc.items.forEach(function(it){ const y=Math.round(it.transform[5]), x=it.transform[4]; (lines[y]=lines[y]||[]).push({x:x,s:it.str}); });
-    Object.keys(lines).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){
-      const row=lines[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim(); if(row) out.push(row);
+    const page=await pdf.getPage(p); const tc=await page.getTextContent();
+    const items=tc.items.map(function(it){ return {x:it.transform[4], y:it.transform[5], s:it.str}; });
+    items.sort(function(a,b){ return (b.y-a.y) || (a.x-b.x); });
+    const lines=[]; const TOL=4;   // y-Toleranz: Hochstellungen (³/fub) in dieselbe Zeile holen
+    items.forEach(function(o){
+      let L=null;
+      for(let i=0;i<lines.length;i++){ if(Math.abs(lines[i].y-o.y)<=TOL){ L=lines[i]; break; } }
+      if(!L){ L={y:o.y, items:[]}; lines.push(L); }
+      L.items.push(o);
+    });
+    lines.sort(function(a,b){ return b.y-a.y; });
+    lines.forEach(function(L){
+      const row=L.items.sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();
+      if(row) out.push(row);
     });
   }
   return out.join('\n');
 }
 function _kalkParseSca(text){
   const T=text.replace(/\u00a0/g,' '); const num=function(s){return parseInt(s,10);};
-  const kr='(\\d{2,4})\\s*kr\\s*/?\\s*m[\u00b33]?\\s*fub';
   const out={tall:null,gran:null,masB:null,masL:null,bransle:null,type:null,notes:[]};
-  let m;
-  m=T.match(new RegExp('Tall\\s+'+kr,'i')); if(m) out.tall=num(m[1]);
-  m=T.match(new RegExp('Gran\\s+'+kr,'i')); if(m) out.gran=num(m[1]);
-  const tabMean=function(re,label,key){ const mm=T.match(re); if(!mm) return;
+  // Zahl nach Label, gefolgt von 'kr' (m³fub optional, weil pdf.js Hochstellungen zerlegen kann)
+  const after=function(label,win){ const m=T.match(new RegExp(label+'[^\\d]{0,'+(win||25)+'}(\\d{2,4})\\s*kr','i')); return m?num(m[1]):null; };
+  out.tall=after('\\bTall\\b',22);
+  out.gran=after('\\bGran\\b',22);
+  // Tabellen-Format (Leveransvirke): Mittel Klass 1
+  const tabMean=function(re,label){ const mm=T.match(re); if(!mm)return null;
     const vals=mm[1].trim().split(/\s+/).map(Number).filter(function(n){return n>50&&n<2000;});
-    if(vals.length){ out[key]=Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length);
-      out.notes.push(label+': Mittel Klass 1 ('+vals.length+' Dim., '+Math.min.apply(null,vals)+'\u2013'+Math.max.apply(null,vals)+' kr) \u2013 bitte pr\u00fcfen'); } };
-  if(out.tall===null) tabMean(/S\u00e5gtimmer Tall[\s\S]*?Klass 1\s+([\d\s]+)/i,'Tall','tall');
-  if(out.gran===null) tabMean(/S\u00e5gtimmer Gran[\s\S]*?Klass 1\s+([\d\s]+)/i,'Gran','gran');
-  m=T.match(new RegExp('Barrmassaved\\s+'+kr,'i')); if(m) out.masB=num(m[1]);
-  m=T.match(new RegExp('Bj\u00f6rkmassaved\\s+'+kr,'i')); if(m) out.masL=num(m[1]);
-  m=T.match(new RegExp('Br\u00e4nsleved[^\\d]{0,90}(\\d{2,4})\\s*kr','i')); if(m) out.bransle=num(m[1]);
+    if(!vals.length) return null;
+    out.notes.push(label+': Mittel Klass 1 ('+vals.length+' Dim., '+Math.min.apply(null,vals)+'\u2013'+Math.max.apply(null,vals)+' kr) \u2013 bitte pr\u00fcfen');
+    return Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length); };
+  const tT=tabMean(/S\u00e5gtimmer Tall[\s\S]*?Klass 1\s+([\d\s]+)/i,'Tall');
+  const tG=tabMean(/S\u00e5gtimmer Gran[\s\S]*?Klass 1\s+([\d\s]+)/i,'Gran');
+  if(tT!=null) out.tall=tT; if(tG!=null) out.gran=tG;
+  // Fallback flache Liste (getrennte Labels / Kollision): erste zwei '…/m³fub'-Preise nach 'bruttovolym'
+  if(tT==null && tG==null && (out.tall==null||out.gran==null||out.tall===out.gran)){
+    const seg=(T.split(/bruttovolym/i)[1]||T);
+    const re=/(\d{2,4})\s*kr\s*\/?\s*m\s*[\u00b33]?\s*fub/ig; const vals=[]; let mm;
+    while((mm=re.exec(seg))!==null && vals.length<2){ vals.push(num(mm[1])); }
+    if(vals[0]!=null) out.tall=vals[0];
+    if(vals[1]!=null) out.gran=vals[1];
+  }
+  out.masB=after('\\bBarrmassaved\\b',30);
+  out.masL=after('\\bBj\u00f6rkmassaved\\b',30);
+  out.bransle=after('\\bBr\u00e4nsleved\\b',90);
   if(/Gallring/i.test(T)) out.type='Gallring (Durchforstung)';
   else if(/F\u00f6ryngringsavverkning|Avverkningsuppdrag/i.test(T)) out.type='Avverkning (Schirmschlag/Endhieb)';
   else if(/Leveransvirke/i.test(T)) out.type='Leveransvirke';
@@ -14522,6 +14549,7 @@ async function _kalkLoadPdf(file){
     let h='\u2713 <b>'+name+'</b>'+(r.type?' \u00b7 '+r.type:'')+'<br>Tall '+sv(r.tall)+' \u00b7 Gran '+sv(r.gran)+' \u00b7 Nadel '+sv(r.masB)+' \u00b7 Laub '+sv(r.masL)+' \u00b7 Energie '+sv(r.bransle)+' kr';
     if(found<5) h+='<br><span style="color:#b07010;">\u26a0 Nicht alle Werte erkannt \u2013 bitte pr\u00fcfen.</span>';
     r.notes.forEach(function(n){ h+='<br><span style="color:#b07010;">\u26a0 '+n+'</span>'; });
+    h+='<br><span style="opacity:.5;font-size:11px;">App-Version '+((document.querySelector('meta[name=app-version]')||{}).content||'?')+'</span>';
     _kalkStatus(h);
   }catch(e){ _kalkStatus('\u26a0 Fehler beim Lesen: '+e.message,'#a32020'); }
 }
