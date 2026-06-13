@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.6">
+  <meta name="app-version" content="13.7">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1009,6 +1009,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   display:none;flex-direction:column;overflow:hidden;
 }
 #admin-dashboard.active{display:flex;}
+#worker-dashboard{position:fixed;inset:0;z-index:9000;background:#0f1f10;display:none;flex-direction:column;overflow:hidden;}
+#worker-dashboard.active{display:flex;}
 
 /* Header */
 .adash-header{
@@ -2019,7 +2021,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.6'")) {
+        if (!txt.includes("APP_VERSION = '13.7'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2285,12 +2287,76 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
   </div>
 </div>
 
+<!-- ── MITARBEITER DASHBOARD ── -->
+<div id="worker-dashboard">
+  <div class="adash-header">
+    <img src="icon-192.png" style="width:34px;height:34px;border-radius:9px;" alt="Lignum"/>
+    <div style="flex:1;min-width:0;">
+      <div class="adash-title">Lignum</div>
+      <div class="adash-company" id="wdash-company">Mitarbeiter</div>
+    </div>
+    <button class="adash-user-btn" onclick="openSettings()" title="Einstellungen">👤</button>
+    <button class="adash-logout-btn" onclick="doLogout()" style="margin-left:8px;">Abmelden</button>
+  </div>
+  <div class="adash-map-preview" onclick="showWorkerMap()">
+    <div id="worker-map-preview">
+      <div id="worker-map-bg" style="position:absolute;inset:0;background:#2a4a2a;overflow:hidden;z-index:0;"></div>
+    </div>
+    <div class="adash-map-overlay">
+      <div class="adash-map-stats">
+        <div class="adash-map-stat">
+          <div class="adash-map-stat-val" id="wstat-auftraege">–</div>
+          <div class="adash-map-stat-lbl">Aufträge</div>
+        </div>
+        <div class="adash-map-stat">
+          <div class="adash-map-stat-val" id="wstat-offen">–</div>
+          <div class="adash-map-stat-lbl">Offen</div>
+        </div>
+      </div>
+      <div class="adash-map-btn">🗺 Karte öffnen</div>
+    </div>
+  </div>
+  <div class="adash-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="adash-main-btn" onclick="openMeineAuftraege()">
+        <span class="adash-main-icon">📋</span>
+        <span class="adash-main-label">Aufträge</span>
+        <span class="adash-main-desc">Meine Zuweisungen</span>
+      </button>
+      <button class="adash-main-btn" onclick="openWorktime()">
+        <span class="adash-main-icon">📅</span>
+        <span class="adash-main-label">Zeiterfassung</span>
+        <span class="adash-main-desc">Stunden erfassen</span>
+      </button>
+      <button class="adash-main-btn" onclick="workerFieldNote()">
+        <span class="adash-main-icon">📷</span>
+        <span class="adash-main-label">Feld-Markierung</span>
+        <span class="adash-main-desc">Notiz an Position</span>
+      </button>
+      <button class="adash-main-btn" onclick="showDashWork()">
+        <span class="adash-main-icon has-harvester"><span class="ico-harvester lg"></span></span>
+        <span class="adash-main-label">Als Fahrer</span>
+        <span class="adash-main-desc">Maschine auswählen</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MEINE AUFTRÄGE ── -->
+<div id="meine-auftraege-screen" style="display:none;position:fixed;inset:0;z-index:9100;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+  <div class="adash-header">
+    <button class="adash-user-btn" onclick="closeMeineAuftraege()" title="Zurück">‹</button>
+    <div style="flex:1;min-width:0;"><div class="adash-title">📋 Meine Aufträge</div></div>
+  </div>
+  <div id="meine-auftraege-list" style="flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;"></div>
+</div>
+
 <!-- ── FAHRER SCREEN ── -->
 <div id="driver-mgmt-screen" style="display:none;position:fixed;inset:0;z-index:9100;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
   <div class="adash-header">
     <button onclick="hideDashSub()" style="background:none;border:none;color:#8ab882;font-size:22px;cursor:pointer;padding:0;margin-right:6px;">←</button>
     <div style="flex:1;">
-      <div class="adash-title">👷 Fahrer verwalten</div>
+      <div class="adash-title">👥 Team verwalten</div>
     </div>
   </div>
   <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;display:flex;flex-direction:column;gap:10px;padding-bottom:max(12px,env(safe-area-inset-bottom));">
@@ -2304,6 +2370,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
           <select id="new-role" style="font-size:13px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(20,36,20,.95);color:#c8e6c0;font-family:inherit;">
             <option value="harvester">🪵 Harvester</option>
             <option value="forwarder">🚜 Forwarder</option>
+            <option value="worker">🌱 Mitarbeiter</option>
           </select>
         </div>
         <input type="email" inputmode="email" id="new-email" placeholder="E-Mail" style="font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
@@ -3878,6 +3945,11 @@ function isAdminUser(profile) {
   return p.is_admin === true || p.role === 'admin';
 }
 window.isAdminUser = isAdminUser;
+function isWorkerUser(profile) {
+  const p = profile || currentProfile || {};
+  return p.role === 'worker';
+}
+window.isWorkerUser = isWorkerUser;
 let realtimeChannel = null;
 let accessToken  = null;
 let refreshToken = null;
@@ -5276,6 +5348,8 @@ async function loadDashTimeInline() {
 // ── SCREEN ROUTING ───────────────────────────────────────────────
 function hideAllScreens() {
   document.getElementById('admin-dashboard').classList.remove('active');
+  const wd=document.getElementById('worker-dashboard'); if(wd) wd.classList.remove('active');
+  const ma=document.getElementById('meine-auftraege-screen'); if(ma) ma.style.display='none';
   document.getElementById('driver-start').classList.remove('active');
   ['driver-mgmt-screen','areas-overview-screen','work-select-screen'].forEach(id => {
     const el = document.getElementById(id);
@@ -5288,6 +5362,8 @@ async function showModeScreen() {
   hideAllScreens();
   if (isAdminUser()) {
     await showAdminDashboard();
+  } else if (isWorkerUser()) {
+    await showWorkerDashboard();
   } else {
     showDriverStart();
   }
@@ -5546,6 +5622,99 @@ function showDashMap() {
   hideAllScreens();
   startMode('admin');
 }
+
+function showWorkerMap(){ hideAllScreens(); startMode('worker'); }
+window.showWorkerMap = showWorkerMap;
+
+async function showWorkerDashboard(){
+  hideAllScreens();
+  document.getElementById('worker-dashboard').classList.add('active');
+  const c=document.getElementById('wdash-company');
+  if(c) c.textContent=((currentProfile&&currentProfile.name)?currentProfile.name:'')+' · Mitarbeiter';
+  try{ await loadCompanyLocation(); }catch(e){}
+  try{ const cont=document.getElementById('worker-map-preview'); if(cont) showStaticSatellite(cont, null, null, 'worker-map-bg'); }catch(e){}
+  try{ await loadWorkerAuftragStats(); }catch(e){}
+}
+window.showWorkerDashboard = showWorkerDashboard;
+
+async function loadWorkerAuftragStats(){
+  if(!currentProfile) return;
+  try{
+    const rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&select=status');
+    const a=document.getElementById('wstat-auftraege'), o=document.getElementById('wstat-offen');
+    if(a) a.textContent=(rows||[]).length;
+    if(o) o.textContent=(rows||[]).filter(r=>r.status!=='erledigt').length;
+  }catch(e){}
+}
+
+async function openMeineAuftraege(){
+  const scr=document.getElementById('meine-auftraege-screen'), list=document.getElementById('meine-auftraege-list');
+  if(!scr||!list) return;
+  scr.style.display='flex';
+  list.innerHTML='<div style="padding:20px;color:#6a9a6a;font-size:13px;">Lade …</div>';
+  try{
+    const rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&select=id,status,aufgabe,auftraege(id,titel,beschreibung,status,prioritaet,faellig_am,area_id)&order=created_at.desc');
+    renderMeineAuftraege(rows||[]);
+  }catch(e){ list.innerHTML='<div style="padding:20px;color:#e05555;font-size:13px;">Fehler: '+(e.message||e)+'</div>'; }
+}
+window.openMeineAuftraege = openMeineAuftraege;
+function closeMeineAuftraege(){ const s=document.getElementById('meine-auftraege-screen'); if(s) s.style.display='none'; }
+window.closeMeineAuftraege = closeMeineAuftraege;
+
+function renderMeineAuftraege(rows){
+  const list=document.getElementById('meine-auftraege-list');
+  if(!rows.length){ list.innerHTML='<div style="padding:24px 16px;color:#6a9a6a;font-size:13px;text-align:center;">Noch keine Aufträge zugewiesen.</div>'; return; }
+  const esc=s=>String(s==null?'':s).replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+  const lbl={offen:'Offen',angenommen:'Angenommen',in_arbeit:'In Arbeit',erledigt:'Erledigt'};
+  const col={offen:'#b07010',angenommen:'#4a8ad0',in_arbeit:'#d0a020',erledigt:'#4aaa4a'};
+  list.innerHTML=rows.map(r=>{
+    const a=r.auftraege||{}, st=r.status||'offen';
+    const next=st==='offen'?['angenommen','Annehmen']:st==='angenommen'?['in_arbeit','Starten']:st==='in_arbeit'?['erledigt','Abschließen']:null;
+    const prio=a.prioritaet==='hoch'?'<span style="color:#e05555;font-weight:700;">● Hoch</span> · ':'';
+    const faellig=a.faellig_am?'· fällig '+esc(a.faellig_am):'';
+    return '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:10px;">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><div style="flex:1;font-size:15px;font-weight:600;color:#d8e8d0;">'+esc(a.titel||'Auftrag')+'</div>'
+      +'<span style="font-size:11px;font-weight:700;color:'+(col[st]||'#888')+';">'+(lbl[st]||st)+'</span></div>'
+      +(r.aufgabe?'<div style="font-size:12px;color:#8ab882;margin-bottom:4px;">'+esc(r.aufgabe)+'</div>':'')
+      +(a.beschreibung?'<div style="font-size:13px;color:#a8c8a0;margin-bottom:6px;white-space:pre-wrap;">'+esc(a.beschreibung)+'</div>':'')
+      +'<div style="font-size:11px;color:#6a9a6a;margin-bottom:10px;">'+prio+'Auftrag: '+(lbl[a.status]||a.status||'–')+' '+faellig+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +(next?'<button onclick="setMeinAuftragStatus(\''+r.id+'\',\''+next[0]+'\')" style="flex:1;min-width:120px;padding:10px;border-radius:8px;border:none;background:#2d6a27;color:#e8f5e4;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">'+next[1]+'</button>':'<div style="flex:1;text-align:center;padding:10px;color:#4aaa4a;font-size:13px;">✓ Erledigt</div>')
+      +(a.area_id?'<button onclick="workerShowAuftragArea(\''+a.area_id+'\')" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#a0d89a;font-family:inherit;font-size:13px;cursor:pointer;">🗺 Karte</button>':'')
+      +'</div></div>';
+  }).join('');
+}
+
+async function setMeinAuftragStatus(zid,status){
+  try{
+    await dbFetch('auftrag_zuweisungen?id=eq.'+zid, {method:'PATCH', body:{status:status}, prefer:'return=minimal'});
+    openMeineAuftraege(); loadWorkerAuftragStats();
+  }catch(e){ alert('Fehler: '+(e.message||e)); }
+}
+window.setMeinAuftragStatus = setMeinAuftragStatus;
+
+function workerShowAuftragArea(areaId){
+  closeMeineAuftraege(); hideAllScreens(); startMode('worker');
+  setTimeout(()=>{ try{ if(typeof adminJumpToAreaBoundary==='function') adminJumpToAreaBoundary(areaId); }catch(e){} }, 600);
+}
+window.workerShowAuftragArea = workerShowAuftragArea;
+
+async function workerFieldNote(){
+  if(!navigator.geolocation){ alert('Kein GPS verfügbar.'); return; }
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const note=prompt('Notiz für diese Position (z. B. Pflanzfläche, Hindernis, Fläche fertig):');
+    if(note===null) return;
+    try{
+      await dbFetch('markers', {method:'POST', body:{
+        company_id: currentProfile.company_id, created_by: currentProfile.id,
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        typ:'worker', art:'notiz', notiz: note
+      }, prefer:'return=minimal'});
+      alert('✓ Feld-Markierung gespeichert.'); loadWorkerAuftragStats();
+    }catch(e){ alert('Fehler beim Speichern: '+(e.message||e)); }
+  }, err=>{ alert('GPS-Fehler: '+err.message); }, {enableHighAccuracy:true, timeout:12000, maximumAge:5000});
+}
+window.workerFieldNote = workerFieldNote;
 
 async function openDriversScreen() {
   document.getElementById('driver-mgmt-screen').style.display = 'flex';
@@ -6726,6 +6895,7 @@ function startMode(mode) {
   const isH       = mode === 'harvester';
   const isAdmin   = mode === 'admin';
   const isForward = mode === 'ruecke';
+  const isWorker  = mode === 'worker';
 
   // GPS Toggle nur für Fahrer zeigen
   const gpsSection = document.getElementById('smenu-sec-gps');
