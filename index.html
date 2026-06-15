@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.13">
+  <meta name="app-version" content="13.15">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2027,7 +2027,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.13'")) {
+        if (!txt.includes("APP_VERSION = '13.15'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2408,11 +2408,27 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
       <input type="text" id="apl-f-kunde" class="apl-inp" placeholder="z. B. SCA">
       <label class="apl-lbl">Gebiet</label>
       <select id="apl-f-gebiet" class="apl-inp"><option value="">– kein Gebiet –</option></select>
+      <label class="apl-lbl">Standort (auf Karte tippen)</label>
+      <div id="apl-f-map" style="height:200px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:#0d1a0d;"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <button type="button" onclick="aplFormLocateMe()" class="apl-btn-sec">📍 Mein Standort</button>
+        <button type="button" onclick="aplFormClearLoc()" class="apl-btn-sec">✕ Punkt entfernen</button>
+        <span id="apl-f-coords" style="font-size:11px;color:#6a9a6a;margin-left:auto;text-align:right;">Kein Punkt</span>
+      </div>
       <div style="display:flex;gap:8px;">
         <div style="flex:1;"><label class="apl-lbl">Priorität</label>
           <select id="apl-f-prio" class="apl-inp"><option value="normal">Normal</option><option value="hoch">Hoch</option></select></div>
         <div style="flex:1;"><label class="apl-lbl">Fällig am</label>
           <input type="date" id="apl-f-faellig" class="apl-inp"></div>
+      </div>
+      <div id="apl-f-assign-block" style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);">
+        <label class="apl-lbl" style="margin-top:0;">Mitarbeiter direkt einplanen (optional)</label>
+        <select id="apl-f-person" class="apl-inp"><option value="">– niemand –</option></select>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input type="date" id="apl-f-pdatum" class="apl-inp" style="flex:1;">
+          <select id="apl-f-pschicht" class="apl-inp" style="flex:1;"><option value="ganztag">Ganztag</option><option value="vormittag">Vormittag</option><option value="nachmittag">Nachmittag</option></select>
+        </div>
+        <input type="text" id="apl-f-paufgabe" class="apl-inp" placeholder="Aufgabe (optional)" style="margin-top:8px;">
       </div>
       <div id="apl-form-err" style="display:none;color:#f5a0a0;font-size:13px;margin-top:10px;"></div>
       <button onclick="saveAuftrag()" class="apl-btn-primary" style="width:100%;margin-top:16px;">Speichern</button>
@@ -5875,6 +5891,7 @@ async function openAuftragForm(id){
   var ov=document.getElementById('auftrag-form-overlay'); if(!ov) return;
   document.getElementById('apl-form-title').textContent = id ? 'Auftrag bearbeiten' : 'Neuer Auftrag';
   document.getElementById('apl-f-id').value = id||'';
+  _aplPendingLoc=null;
   await _aplLoadAreas();
   var sel=document.getElementById('apl-f-gebiet');
   if(sel) sel.innerHTML='<option value="">– kein Gebiet –</option>'+_aplAreas.map(function(a){return '<option value="'+a.id+'">'+_aplEscAttr(a.name)+'</option>';}).join('');
@@ -5887,6 +5904,7 @@ async function openAuftragForm(id){
       document.getElementById('apl-f-gebiet').value=r.area_id||'';
       document.getElementById('apl-f-prio').value=r.prioritaet||'normal';
       document.getElementById('apl-f-faellig').value=r.faellig_am||'';
+      if(r.lat!=null && r.lng!=null){ _aplPendingLoc=[r.lat,r.lng]; }
     }catch(e){}
   } else {
     document.getElementById('apl-f-titel').value='';
@@ -5896,8 +5914,26 @@ async function openAuftragForm(id){
     document.getElementById('apl-f-prio').value='normal';
     document.getElementById('apl-f-faellig').value='';
   }
+  var ab=document.getElementById('apl-f-assign-block');
+  if(id){ if(ab) ab.style.display='none'; }
+  else {
+    if(ab) ab.style.display='block';
+    if(!_aplTeam.length){ await _aplLoadTeam(); }
+    var ps=document.getElementById('apl-f-person');
+    if(ps) ps.innerHTML='<option value="">– niemand –</option>'+_aplTeam.map(function(p){return '<option value="'+p.id+'">'+_aplEscAttr(p.name)+' ('+_aplRolle(p.role)+')</option>';}).join('');
+    var pd=document.getElementById('apl-f-pdatum'); if(pd) pd.value=new Date().toISOString().slice(0,10);
+    var psh=document.getElementById('apl-f-pschicht'); if(psh) psh.value='ganztag';
+    var pa=document.getElementById('apl-f-paufgabe'); if(pa) pa.value='';
+  }
   document.getElementById('apl-form-err').style.display='none';
   ov.style.display='flex';
+  aplFormClearLoc();
+  if(_aplPendingLoc){ aplInitFormMap(_aplPendingLoc,16); aplFormSetLoc(_aplPendingLoc[0],_aplPendingLoc[1]); }
+  else {
+    var _ctr=(companyLocation && companyLocation.lat)?[companyLocation.lat,companyLocation.lng]:[66.748,21.47];
+    var _czoom=(companyLocation && companyLocation.zoom)?companyLocation.zoom:13;
+    aplInitFormMap(_ctr,_czoom);
+  }
 }
 window.openAuftragForm = openAuftragForm;
 function closeAuftragForm(){ var o=document.getElementById('auftrag-form-overlay'); if(o) o.style.display='none'; }
@@ -5914,7 +5950,9 @@ async function saveAuftrag(){
     kunde:document.getElementById('apl-f-kunde').value.trim()||null,
     area_id:document.getElementById('apl-f-gebiet').value||null,
     prioritaet:document.getElementById('apl-f-prio').value,
-    faellig_am:document.getElementById('apl-f-faellig').value||null
+    faellig_am:document.getElementById('apl-f-faellig').value||null,
+    lat:_aplFormLat,
+    lng:_aplFormLng
   };
   try{
     if(id){
@@ -5923,7 +5961,18 @@ async function saveAuftrag(){
       body.company_id=currentProfile.company_id;
       body.erstellt_von=currentProfile.id;
       body.status='offen';
-      await dbFetch('auftraege', {method:'POST', body:body, prefer:'return=minimal'});
+      var created=await dbFetch('auftraege', {method:'POST', body:body, prefer:'return=representation'});
+      var newId=(created&&created[0])?created[0].id:null;
+      var pid=(document.getElementById('apl-f-person')||{}).value||'';
+      if(newId && pid){
+        await dbFetch('auftrag_zuweisungen', {method:'POST', body:{
+          auftrag_id:newId, profile_id:pid, company_id:currentProfile.company_id,
+          datum:(document.getElementById('apl-f-pdatum')||{}).value||null,
+          schicht:(document.getElementById('apl-f-pschicht')||{}).value||'ganztag',
+          aufgabe:(document.getElementById('apl-f-paufgabe')||{}).value.trim()||null,
+          status:'offen'
+        }, prefer:'return=minimal'});
+      }
     }
     closeAuftragForm();
     var det=document.getElementById('auftrag-detail-screen');
@@ -5968,6 +6017,7 @@ function renderAuftragDetail(a, zuw){
   var gn=_aplAreaName(a.area_id); if(gn) meta.push('📍 '+_aplEsc(gn));
   if(a.prioritaet==='hoch') meta.push('● Hoch');
   if(a.faellig_am) meta.push('fällig '+_aplEsc(a.faellig_am));
+  if(a.lat!=null && a.lng!=null) meta.push('📍 '+Number(a.lat).toFixed(5)+', '+Number(a.lng).toFixed(5));
   if(meta.length) html+='<div style="font-size:12px;color:#8ab882;margin-bottom:10px;">'+meta.join(' · ')+'</div>';
   html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
     +'<span style="font-size:12px;color:#7a9a7a;">Status:</span>'
@@ -6041,6 +6091,52 @@ async function deleteAuftrag(id){
   catch(e){ alert('Fehler: '+(e.message||e)); }
 }
 window.deleteAuftrag = deleteAuftrag;
+
+// ──── Auftrag-Formular: Standort-Karte ────
+var _aplFormMap=null, _aplFormMarker=null, _aplFormLat=null, _aplFormLng=null, _aplPendingLoc=null;
+function _aplFormUpdateCoords(){
+  var el=document.getElementById('apl-f-coords'); if(!el) return;
+  if(_aplFormLat!=null && _aplFormLng!=null){ el.textContent='📍 '+_aplFormLat.toFixed(5)+', '+_aplFormLng.toFixed(5); el.style.color='#a0d89a'; }
+  else { el.textContent='Kein Punkt'; el.style.color='#6a9a6a'; }
+}
+function aplFormSetLoc(lat,lng){
+  _aplFormLat=lat; _aplFormLng=lng;
+  if(_aplFormMap){
+    if(_aplFormMarker){ _aplFormMarker.setLatLng([lat,lng]); }
+    else { _aplFormMarker=L.marker([lat,lng]).addTo(_aplFormMap); }
+  }
+  _aplFormUpdateCoords();
+}
+window.aplFormSetLoc=aplFormSetLoc;
+function aplFormClearLoc(){
+  _aplFormLat=null; _aplFormLng=null;
+  if(_aplFormMarker && _aplFormMap){ try{ _aplFormMap.removeLayer(_aplFormMarker); }catch(e){} }
+  _aplFormMarker=null; _aplFormUpdateCoords();
+}
+window.aplFormClearLoc=aplFormClearLoc;
+function aplFormLocateMe(){
+  if(!navigator.geolocation){ alert('GPS nicht verfügbar.'); return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var la=pos.coords.latitude, ln=pos.coords.longitude;
+    if(_aplFormMap) _aplFormMap.setView([la,ln],16);
+    aplFormSetLoc(la,ln);
+  }, function(){ alert('Standort konnte nicht ermittelt werden.'); }, {enableHighAccuracy:true, timeout:8000});
+}
+window.aplFormLocateMe=aplFormLocateMe;
+function aplInitFormMap(center, zoom){
+  var el=document.getElementById('apl-f-map'); if(!el || typeof L==='undefined') return;
+  if(!_aplFormMap){
+    _aplFormMap=L.map(el,{zoomControl:true, attributionControl:false}).setView(center, zoom||13);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18}).addTo(_aplFormMap);
+    _aplFormMap.on('click', function(e){ aplFormSetLoc(e.latlng.lat, e.latlng.lng); });
+  } else {
+    _aplFormMap.setView(center, zoom||13);
+  }
+  requestAnimationFrame(function(){ try{ _aplFormMap.invalidateSize(); }catch(e){} });
+  setTimeout(function(){ try{ _aplFormMap.invalidateSize(); }catch(e){} }, 150);
+  setTimeout(function(){ try{ _aplFormMap.invalidateSize(); }catch(e){} }, 450);
+}
+window.aplInitFormMap=aplInitFormMap;
 
 
 async function openDriversScreen() {
