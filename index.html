@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.11">
+  <meta name="app-version" content="13.13">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1011,6 +1011,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #admin-dashboard.active{display:flex;}
 #worker-dashboard{position:fixed;inset:0;z-index:9000;background:#0f1f10;display:none;flex-direction:column;overflow:hidden;}
 #worker-dashboard.active{display:flex;}
+.apl-inp{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:11px 13px;color:#e8f0e4;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;}
+.apl-inp:focus{border-color:#3a7a3a;}
+.apl-lbl{font-size:11px;font-weight:700;letter-spacing:.4px;color:#7a9a7a;margin:12px 2px 5px;display:block;}
+.apl-btn-primary{background:#2d6a27;border:none;border-radius:10px;padding:12px;color:#e8f5e4;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;}
+.apl-btn-sec{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:7px 11px;color:#c8d8c0;font-family:inherit;font-size:12px;cursor:pointer;}
+.apl-btn-danger{background:rgba(163,32,32,.18);border:1px solid rgba(163,32,32,.32);border-radius:8px;padding:7px 11px;color:#f5a0a0;font-family:inherit;font-size:12px;cursor:pointer;}
 
 /* Header */
 .adash-header{
@@ -1467,8 +1473,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .adash-active-drivers{cursor:pointer;transition:background .15s;}
 .adash-active-drivers:active{background:rgba(255,255,255,.08);}
 /* ── SETTINGS MODAL ── */
-#settings-overlay{position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;}
-#settings-sheet{background:linear-gradient(175deg,#1e3520,#121f12);border-radius:24px 24px 0 0;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:max(10px,env(safe-area-inset-bottom));}
+#settings-overlay{position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;}
+#settings-sheet{background:linear-gradient(175deg,#1e3520,#121f12);border-radius:20px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:14px;}
 .settings-header{padding:20px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.07);}
 .settings-header h2{font-size:17px;font-weight:500;color:#c8e6c0;flex:1;}
 .settings-close{background:none;border:none;color:#5a8a5a;font-size:26px;cursor:pointer;padding:0;line-height:1;}
@@ -2021,7 +2027,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.11'")) {
+        if (!txt.includes("APP_VERSION = '13.13'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2209,6 +2215,12 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
   <!-- Scrollbarer Inhalt -->
   <div class="adash-body">
 
+    <!-- Aufträge & Planung -->
+    <button class="adash-main-btn" onclick="openAuftraegeAdmin()" style="margin-bottom:8px;">
+      <span class="adash-main-icon">📋</span>
+      <span class="adash-main-label">Aufträge & Planung</span>
+      <span class="adash-main-desc">Anlegen · zuweisen · Wochenplan</span>
+    </button>
     <!-- 4 Haupt-Buttons im 2x2-Grid -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <button class="adash-main-btn" onclick="openDriversScreen()">
@@ -2350,6 +2362,62 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     <div style="flex:1;min-width:0;"><div class="adash-title">📋 Meine Aufträge</div></div>
   </div>
   <div id="meine-auftraege-list" style="flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;"></div>
+</div>
+
+<!-- ── ADMIN: AUFTRÄGE & PLANUNG ── -->
+<div id="auftraege-admin-screen" style="display:none;position:fixed;inset:0;z-index:9000;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+  <div class="adash-header">
+    <button class="adash-user-btn" onclick="closeAuftraegeAdmin()" title="Zurück">‹</button>
+    <div style="flex:1;min-width:0;"><div class="adash-title">📋 Aufträge & Planung</div></div>
+    <button onclick="openAuftragForm('')" style="background:#2d6a27;border:none;border-radius:9px;padding:9px 14px;color:#e8f5e4;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">+ Neuer Auftrag</button>
+  </div>
+  <div style="padding:10px 12px 0;display:flex;gap:8px;flex-shrink:0;">
+    <select id="apl-filter-status" onchange="loadAuftraegeAdmin()" class="apl-inp" style="width:auto;padding:8px 11px;">
+      <option value="">Alle Status</option>
+      <option value="offen">Offen</option>
+      <option value="in_arbeit">In Arbeit</option>
+      <option value="erledigt">Erledigt</option>
+    </select>
+  </div>
+  <div id="apl-list" style="flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch;"></div>
+</div>
+
+<!-- ── AUFTRAG DETAIL ── -->
+<div id="auftrag-detail-screen" style="display:none;position:fixed;inset:0;z-index:9050;background:linear-gradient(175deg,#162818,#0f1f10);flex-direction:column;overflow:hidden;">
+  <div class="adash-header">
+    <button class="adash-user-btn" onclick="closeAuftragDetail()" title="Zurück">‹</button>
+    <div style="flex:1;min-width:0;"><div class="adash-title" id="apl-detail-title">Auftrag</div></div>
+  </div>
+  <div id="apl-detail-body" style="flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch;"></div>
+</div>
+
+<!-- ── AUFTRAG FORMULAR (Modal) ── -->
+<div id="auftrag-form-overlay" style="display:none;position:fixed;inset:0;z-index:9300;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeAuftragForm()">
+  <div style="background:linear-gradient(175deg,#1e3520,#121f12);border-radius:20px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:18px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.07);">
+      <div style="flex:1;font-size:17px;font-weight:500;color:#c8e6c0;" id="apl-form-title">Neuer Auftrag</div>
+      <button onclick="closeAuftragForm()" style="background:none;border:none;color:#5a8a5a;font-size:26px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="overflow-y:auto;padding:14px 20px 18px;">
+      <input type="hidden" id="apl-f-id">
+      <label class="apl-lbl">Titel *</label>
+      <input type="text" id="apl-f-titel" class="apl-inp" placeholder="z. B. Durchforstung Nordfläche">
+      <label class="apl-lbl">Beschreibung</label>
+      <textarea id="apl-f-beschreibung" class="apl-inp" rows="3" style="resize:vertical;" placeholder="Details zum Auftrag …"></textarea>
+      <label class="apl-lbl">Kunde</label>
+      <input type="text" id="apl-f-kunde" class="apl-inp" placeholder="z. B. SCA">
+      <label class="apl-lbl">Gebiet</label>
+      <select id="apl-f-gebiet" class="apl-inp"><option value="">– kein Gebiet –</option></select>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;"><label class="apl-lbl">Priorität</label>
+          <select id="apl-f-prio" class="apl-inp"><option value="normal">Normal</option><option value="hoch">Hoch</option></select></div>
+        <div style="flex:1;"><label class="apl-lbl">Fällig am</label>
+          <input type="date" id="apl-f-faellig" class="apl-inp"></div>
+      </div>
+      <div id="apl-form-err" style="display:none;color:#f5a0a0;font-size:13px;margin-top:10px;"></div>
+      <button onclick="saveAuftrag()" class="apl-btn-primary" style="width:100%;margin-top:16px;">Speichern</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── FAHRER SCREEN ── -->
@@ -5745,6 +5813,235 @@ async function workerFieldNote(){
   }, err=>{ alert('GPS-Fehler: '+err.message); }, {enableHighAccuracy:true, timeout:12000, maximumAge:5000});
 }
 window.workerFieldNote = workerFieldNote;
+
+// ════════ ADMIN: AUFTRÄGE & PLANUNG ════════
+let _aplTeam = [];
+let _aplAreas = [];
+let _aplCurrentAuftrag = null;
+
+function _aplEsc(s){ return String(s==null?'':s).replace(/[<>&]/g,function(m){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[m];}); }
+function _aplEscAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/[<>&]/g,function(m){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[m];}); }
+function _aplRolle(r){ return r==='admin'?'Admin':r==='harvester'?'Harvester':r==='forwarder'?'Forwarder':r==='worker'?'Mitarbeiter':(r||''); }
+async function _aplLoadAreas(){ try{ _aplAreas=await dbFetch('areas?company_id=eq.'+currentProfile.company_id+'&select=id,name&order=name')||[]; }catch(e){ _aplAreas=[]; } }
+function _aplAreaName(id){ var a=_aplAreas.find(function(x){return x.id===id;}); return a?a.name:''; }
+async function _aplLoadTeam(){ try{ _aplTeam=await dbFetch('profiles?company_id=eq.'+currentProfile.company_id+'&deleted_at=is.null&select=id,name,role&order=name')||[]; }catch(e){ _aplTeam=[]; } }
+function _aplHideScreens(){ ['auftraege-admin-screen','auftrag-detail-screen'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }); var f=document.getElementById('auftrag-form-overlay'); if(f) f.style.display='none'; }
+
+async function openAuftraegeAdmin(){
+  if(typeof hideAllScreens==='function') hideAllScreens();
+  _aplHideScreens();
+  document.getElementById('auftraege-admin-screen').style.display='flex';
+  if(!_aplAreas.length){ await _aplLoadAreas(); }
+  await loadAuftraegeAdmin();
+}
+window.openAuftraegeAdmin = openAuftraegeAdmin;
+
+function closeAuftraegeAdmin(){ _aplHideScreens(); if(typeof showAdminDashboard==='function') showAdminDashboard(); }
+window.closeAuftraegeAdmin = closeAuftraegeAdmin;
+
+async function loadAuftraegeAdmin(){
+  var list=document.getElementById('apl-list'); if(!list) return;
+  list.innerHTML='<div style="padding:20px;color:#6a9a6a;font-size:13px;">Lade …</div>';
+  var fStatus=(document.getElementById('apl-filter-status')||{}).value||'';
+  try{
+    var q='auftraege?company_id=eq.'+currentProfile.company_id+'&select=*,auftrag_zuweisungen(id,profile_id,status,datum,schicht)&order=created_at.desc';
+    if(fStatus) q+='&status=eq.'+fStatus;
+    var rows=await dbFetch(q)||[];
+    renderAuftraegeList(rows);
+  }catch(e){ list.innerHTML='<div style="padding:20px;color:#e05555;font-size:13px;">Fehler: '+(e.message||e)+'</div>'; }
+}
+window.loadAuftraegeAdmin = loadAuftraegeAdmin;
+
+function renderAuftraegeList(rows){
+  var list=document.getElementById('apl-list');
+  if(!rows.length){ list.innerHTML='<div style="padding:30px 16px;color:#6a9a6a;font-size:14px;text-align:center;">Noch keine Aufträge. Tippe oben auf „+ Neuer Auftrag".</div>'; return; }
+  var sl={offen:'Offen',in_arbeit:'In Arbeit',erledigt:'Erledigt'};
+  var sc={offen:'#b07010',in_arbeit:'#d0a020',erledigt:'#4aaa4a'};
+  list.innerHTML=rows.map(function(a){
+    var n=(a.auftrag_zuweisungen||[]).length;
+    var prio=a.prioritaet==='hoch'?'<span style="color:#e05555;font-weight:700;">● Hoch</span> · ':'';
+    var gname=_aplAreaName(a.area_id);
+    var geb=gname?'📍 '+_aplEsc(gname)+' · ':'';
+    var kunde=a.kunde?_aplEsc(a.kunde)+' · ':'';
+    var faellig=a.faellig_am?'fällig '+_aplEsc(a.faellig_am)+' · ':'';
+    return '<div onclick="openAuftragDetail(\''+a.id+'\')" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:15px 16px;margin-bottom:10px;cursor:pointer;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;"><div style="flex:1;font-size:16px;font-weight:600;color:#d8e8d0;">'+_aplEsc(a.titel||'Auftrag')+'</div>'
+      +'<span style="font-size:11px;font-weight:700;color:'+(sc[a.status]||'#888')+';white-space:nowrap;">'+(sl[a.status]||a.status)+'</span></div>'
+      +'<div style="font-size:12px;color:#8ab882;">'+prio+kunde+geb+faellig+'👥 '+n+' geplant</div></div>';
+  }).join('');
+}
+
+async function openAuftragForm(id){
+  var ov=document.getElementById('auftrag-form-overlay'); if(!ov) return;
+  document.getElementById('apl-form-title').textContent = id ? 'Auftrag bearbeiten' : 'Neuer Auftrag';
+  document.getElementById('apl-f-id').value = id||'';
+  await _aplLoadAreas();
+  var sel=document.getElementById('apl-f-gebiet');
+  if(sel) sel.innerHTML='<option value="">– kein Gebiet –</option>'+_aplAreas.map(function(a){return '<option value="'+a.id+'">'+_aplEscAttr(a.name)+'</option>';}).join('');
+  if(id){
+    try{
+      var r=(await dbFetch('auftraege?id=eq.'+id+'&select=*'))[0];
+      document.getElementById('apl-f-titel').value=r.titel||'';
+      document.getElementById('apl-f-beschreibung').value=r.beschreibung||'';
+      document.getElementById('apl-f-kunde').value=r.kunde||'';
+      document.getElementById('apl-f-gebiet').value=r.area_id||'';
+      document.getElementById('apl-f-prio').value=r.prioritaet||'normal';
+      document.getElementById('apl-f-faellig').value=r.faellig_am||'';
+    }catch(e){}
+  } else {
+    document.getElementById('apl-f-titel').value='';
+    document.getElementById('apl-f-beschreibung').value='';
+    document.getElementById('apl-f-kunde').value='';
+    document.getElementById('apl-f-gebiet').value='';
+    document.getElementById('apl-f-prio').value='normal';
+    document.getElementById('apl-f-faellig').value='';
+  }
+  document.getElementById('apl-form-err').style.display='none';
+  ov.style.display='flex';
+}
+window.openAuftragForm = openAuftragForm;
+function closeAuftragForm(){ var o=document.getElementById('auftrag-form-overlay'); if(o) o.style.display='none'; }
+window.closeAuftragForm = closeAuftragForm;
+
+async function saveAuftrag(){
+  var id=document.getElementById('apl-f-id').value;
+  var titel=document.getElementById('apl-f-titel').value.trim();
+  var err=document.getElementById('apl-form-err');
+  if(!titel){ err.textContent='Titel ist erforderlich.'; err.style.display='block'; return; }
+  var body={
+    titel:titel,
+    beschreibung:document.getElementById('apl-f-beschreibung').value.trim()||null,
+    kunde:document.getElementById('apl-f-kunde').value.trim()||null,
+    area_id:document.getElementById('apl-f-gebiet').value||null,
+    prioritaet:document.getElementById('apl-f-prio').value,
+    faellig_am:document.getElementById('apl-f-faellig').value||null
+  };
+  try{
+    if(id){
+      await dbFetch('auftraege?id=eq.'+id, {method:'PATCH', body:body, prefer:'return=minimal'});
+    } else {
+      body.company_id=currentProfile.company_id;
+      body.erstellt_von=currentProfile.id;
+      body.status='offen';
+      await dbFetch('auftraege', {method:'POST', body:body, prefer:'return=minimal'});
+    }
+    closeAuftragForm();
+    var det=document.getElementById('auftrag-detail-screen');
+    if(det && det.style.display!=='none' && _aplCurrentAuftrag){ loadAuftragDetail(_aplCurrentAuftrag); }
+    else { loadAuftraegeAdmin(); }
+  }catch(e){ err.textContent='Fehler: '+(e.message||e); err.style.display='block'; }
+}
+window.saveAuftrag = saveAuftrag;
+
+async function openAuftragDetail(id){
+  _aplCurrentAuftrag=id;
+  _aplHideScreens();
+  document.getElementById('auftrag-detail-screen').style.display='flex';
+  await _aplLoadTeam();
+  await _aplLoadAreas();
+  await loadAuftragDetail(id);
+}
+window.openAuftragDetail = openAuftragDetail;
+function closeAuftragDetail(){ _aplHideScreens(); document.getElementById('auftraege-admin-screen').style.display='flex'; loadAuftraegeAdmin(); }
+window.closeAuftragDetail = closeAuftragDetail;
+
+async function loadAuftragDetail(id){
+  var box=document.getElementById('apl-detail-body');
+  box.innerHTML='<div style="padding:20px;color:#6a9a6a;">Lade …</div>';
+  try{
+    var a=(await dbFetch('auftraege?id=eq.'+id+'&select=*'))[0];
+    var zuw=await dbFetch('auftrag_zuweisungen?auftrag_id=eq.'+id+'&select=id,profile_id,aufgabe,datum,schicht,status,profiles(name,role)&order=datum.asc.nullsfirst')||[];
+    document.getElementById('apl-detail-title').textContent=a.titel||'Auftrag';
+    renderAuftragDetail(a, zuw);
+  }catch(e){ box.innerHTML='<div style="padding:20px;color:#e05555;">Fehler: '+(e.message||e)+'</div>'; }
+}
+
+function renderAuftragDetail(a, zuw){
+  var box=document.getElementById('apl-detail-body');
+  var sl={offen:'Offen',in_arbeit:'In Arbeit',erledigt:'Erledigt'};
+  var zl={offen:'Offen',angenommen:'Angenommen',in_arbeit:'In Arbeit',erledigt:'Erledigt'};
+  var schl={ganztag:'Ganztag',vormittag:'Vormittag',nachmittag:'Nachmittag'};
+  var html='<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:14px;">';
+  if(a.beschreibung) html+='<div style="font-size:14px;color:#c8d8c0;white-space:pre-wrap;margin-bottom:8px;">'+_aplEsc(a.beschreibung)+'</div>';
+  var meta=[];
+  if(a.kunde) meta.push('Kunde: '+_aplEsc(a.kunde));
+  var gn=_aplAreaName(a.area_id); if(gn) meta.push('📍 '+_aplEsc(gn));
+  if(a.prioritaet==='hoch') meta.push('● Hoch');
+  if(a.faellig_am) meta.push('fällig '+_aplEsc(a.faellig_am));
+  if(meta.length) html+='<div style="font-size:12px;color:#8ab882;margin-bottom:10px;">'+meta.join(' · ')+'</div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+    +'<span style="font-size:12px;color:#7a9a7a;">Status:</span>'
+    +'<select onchange="setAuftragStatus(\''+a.id+'\',this.value)" class="apl-inp" style="width:auto;padding:7px 10px;">'
+    +['offen','in_arbeit','erledigt'].map(function(s){return '<option value="'+s+'"'+(a.status===s?' selected':'')+'>'+sl[s]+'</option>';}).join('')
+    +'</select>'
+    +'<button onclick="openAuftragForm(\''+a.id+'\')" class="apl-btn-sec">✎ Bearbeiten</button>'
+    +'<button onclick="deleteAuftrag(\''+a.id+'\')" class="apl-btn-danger">🗑 Löschen</button>'
+    +'</div></div>';
+  html+='<div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#6a9a6a;margin:0 2px 8px;">GEPLANTE PERSONEN ('+zuw.length+')</div>';
+  if(!zuw.length){
+    html+='<div style="padding:12px;border:1px dashed rgba(255,255,255,.12);border-radius:10px;color:#6a9a6a;font-size:13px;text-align:center;margin-bottom:12px;">Noch niemand geplant.</div>';
+  } else {
+    html+=zuw.map(function(z){
+      var p=z.profiles||{};
+      var datum=z.datum?_aplEsc(z.datum):'kein Datum';
+      return '<div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:11px 13px;margin-bottom:7px;">'
+        +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:#d8e8d0;">'+_aplEsc(p.name||'?')+' <span style="font-size:11px;color:#6a9a6a;font-weight:400;">'+_aplRolle(p.role)+'</span></div>'
+        +'<div style="font-size:12px;color:#8ab882;margin-top:2px;">📅 '+datum+' · '+(schl[z.schicht]||z.schicht)+(z.aufgabe?' · '+_aplEsc(z.aufgabe):'')+' · '+(zl[z.status]||z.status)+'</div></div>'
+        +'<button onclick="removeAuftragZuweisung(\''+z.id+'\')" style="background:rgba(163,32,32,.2);border:1px solid rgba(163,32,32,.3);border-radius:6px;padding:5px 9px;color:#f5a0a0;font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0;">✕</button>'
+        +'</div>';
+    }).join('');
+  }
+  var today=new Date().toISOString().slice(0,10);
+  html+='<div style="background:rgba(45,90,39,.12);border:1px solid rgba(45,90,39,.3);border-radius:12px;padding:14px;margin-top:6px;">'
+    +'<div style="font-size:13px;font-weight:600;color:#a0d89a;margin-bottom:10px;">+ Person einplanen</div>'
+    +'<select id="apl-z-person" class="apl-inp" style="margin-bottom:8px;"><option value="">Person wählen …</option>'
+    + _aplTeam.map(function(p){return '<option value="'+p.id+'">'+_aplEscAttr(p.name)+' ('+_aplRolle(p.role)+')</option>';}).join('')
+    +'</select>'
+    +'<div style="display:flex;gap:8px;margin-bottom:8px;">'
+    +'<input type="date" id="apl-z-datum" class="apl-inp" value="'+today+'" style="flex:1;">'
+    +'<select id="apl-z-schicht" class="apl-inp" style="flex:1;"><option value="ganztag">Ganztag</option><option value="vormittag">Vormittag</option><option value="nachmittag">Nachmittag</option></select>'
+    +'</div>'
+    +'<input type="text" id="apl-z-aufgabe" class="apl-inp" placeholder="Aufgabe (optional)" style="margin-bottom:10px;">'
+    +'<button onclick="addAuftragZuweisung()" class="apl-btn-primary" style="width:100%;">Einplanen</button>'
+    +'</div>';
+  box.innerHTML=html;
+}
+
+async function addAuftragZuweisung(){
+  var pid=document.getElementById('apl-z-person').value;
+  if(!pid){ alert('Bitte eine Person wählen.'); return; }
+  var datum=document.getElementById('apl-z-datum').value||null;
+  var schicht=document.getElementById('apl-z-schicht').value||'ganztag';
+  var aufgabe=document.getElementById('apl-z-aufgabe').value.trim()||null;
+  try{
+    await dbFetch('auftrag_zuweisungen', {method:'POST', body:{
+      auftrag_id:_aplCurrentAuftrag, profile_id:pid, company_id:currentProfile.company_id,
+      datum:datum, schicht:schicht, aufgabe:aufgabe, status:'offen'
+    }, prefer:'return=minimal'});
+    loadAuftragDetail(_aplCurrentAuftrag);
+  }catch(e){ alert('Fehler: '+(e.message||e)); }
+}
+window.addAuftragZuweisung = addAuftragZuweisung;
+
+async function removeAuftragZuweisung(zid){
+  try{ await dbFetch('auftrag_zuweisungen?id=eq.'+zid, {method:'DELETE', prefer:'return=minimal'}); loadAuftragDetail(_aplCurrentAuftrag); }
+  catch(e){ alert('Fehler: '+(e.message||e)); }
+}
+window.removeAuftragZuweisung = removeAuftragZuweisung;
+
+async function setAuftragStatus(id,status){
+  try{ await dbFetch('auftraege?id=eq.'+id, {method:'PATCH', body:{status:status}, prefer:'return=minimal'}); loadAuftraegeAdmin(); }
+  catch(e){ alert('Fehler: '+(e.message||e)); }
+}
+window.setAuftragStatus = setAuftragStatus;
+
+async function deleteAuftrag(id){
+  if(!confirm('Diesen Auftrag wirklich löschen? Alle Zuweisungen werden mit entfernt.')) return;
+  try{ await dbFetch('auftraege?id=eq.'+id, {method:'DELETE', prefer:'return=minimal'}); closeAuftragDetail(); }
+  catch(e){ alert('Fehler: '+(e.message||e)); }
+}
+window.deleteAuftrag = deleteAuftrag;
+
 
 async function openDriversScreen() {
   document.getElementById('driver-mgmt-screen').style.display = 'flex';
