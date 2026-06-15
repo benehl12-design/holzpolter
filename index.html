@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.15">
+  <meta name="app-version" content="13.17">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2027,7 +2027,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.15'")) {
+        if (!txt.includes("APP_VERSION = '13.17'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2393,45 +2393,55 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
 <!-- ── AUFTRAG FORMULAR (Modal) ── -->
 <div id="auftrag-form-overlay" style="display:none;position:fixed;inset:0;z-index:9300;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeAuftragForm()">
-  <div style="background:linear-gradient(175deg,#1e3520,#121f12);border-radius:20px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
-    <div style="padding:18px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.07);">
-      <div style="flex:1;font-size:17px;font-weight:500;color:#c8e6c0;" id="apl-form-title">Neuer Auftrag</div>
+  <div style="background:linear-gradient(175deg,#1e3520,#121f12);border-radius:20px;width:100%;max-width:780px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:18px 22px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;">
+      <div style="flex:1;font-size:18px;font-weight:500;color:#c8e6c0;" id="apl-form-title">Neuer Auftrag</div>
       <button onclick="closeAuftragForm()" style="background:none;border:none;color:#5a8a5a;font-size:26px;cursor:pointer;line-height:1;">×</button>
     </div>
-    <div style="overflow-y:auto;padding:14px 20px 18px;">
+    <div style="overflow-y:auto;padding:16px 22px 20px;">
       <input type="hidden" id="apl-f-id">
-      <label class="apl-lbl">Titel *</label>
-      <input type="text" id="apl-f-titel" class="apl-inp" placeholder="z. B. Durchforstung Nordfläche">
-      <label class="apl-lbl">Beschreibung</label>
-      <textarea id="apl-f-beschreibung" class="apl-inp" rows="3" style="resize:vertical;" placeholder="Details zum Auftrag …"></textarea>
-      <label class="apl-lbl">Kunde</label>
-      <input type="text" id="apl-f-kunde" class="apl-inp" placeholder="z. B. SCA">
-      <label class="apl-lbl">Gebiet</label>
-      <select id="apl-f-gebiet" class="apl-inp"><option value="">– kein Gebiet –</option></select>
-      <label class="apl-lbl">Standort (auf Karte tippen)</label>
-      <div id="apl-f-map" style="height:200px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:#0d1a0d;"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <button type="button" onclick="aplFormLocateMe()" class="apl-btn-sec">📍 Mein Standort</button>
-        <button type="button" onclick="aplFormClearLoc()" class="apl-btn-sec">✕ Punkt entfernen</button>
-        <span id="apl-f-coords" style="font-size:11px;color:#6a9a6a;margin-left:auto;text-align:right;">Kein Punkt</span>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <div style="flex:1;"><label class="apl-lbl">Priorität</label>
-          <select id="apl-f-prio" class="apl-inp"><option value="normal">Normal</option><option value="hoch">Hoch</option></select></div>
-        <div style="flex:1;"><label class="apl-lbl">Fällig am</label>
-          <input type="date" id="apl-f-faellig" class="apl-inp"></div>
-      </div>
-      <div id="apl-f-assign-block" style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);">
-        <label class="apl-lbl" style="margin-top:0;">Mitarbeiter direkt einplanen (optional)</label>
-        <select id="apl-f-person" class="apl-inp"><option value="">– niemand –</option></select>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <input type="date" id="apl-f-pdatum" class="apl-inp" style="flex:1;">
-          <select id="apl-f-pschicht" class="apl-inp" style="flex:1;"><option value="ganztag">Ganztag</option><option value="vormittag">Vormittag</option><option value="nachmittag">Nachmittag</option></select>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <!-- LINKE SPALTE -->
+        <div style="flex:1;min-width:260px;">
+          <label class="apl-lbl" style="margin-top:0;">Titel *</label>
+          <input type="text" id="apl-f-titel" class="apl-inp" placeholder="z. B. Durchforstung Nordfläche">
+          <label class="apl-lbl">Beschreibung</label>
+          <textarea id="apl-f-beschreibung" class="apl-inp" rows="3" style="resize:vertical;" placeholder="Details zum Auftrag …"></textarea>
+          <label class="apl-lbl">Kunde</label>
+          <input type="text" id="apl-f-kunde" class="apl-inp" placeholder="z. B. SCA">
+          <label class="apl-lbl">Gebiet</label>
+          <select id="apl-f-gebiet" class="apl-inp"><option value="">– kein Gebiet –</option></select>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;"><label class="apl-lbl">Priorität</label>
+              <select id="apl-f-prio" class="apl-inp"><option value="normal">Normal</option><option value="hoch">Hoch</option></select></div>
+            <div style="flex:1;"><label class="apl-lbl">Fällig am</label>
+              <input type="date" id="apl-f-faellig" class="apl-inp"></div>
+          </div>
         </div>
-        <input type="text" id="apl-f-paufgabe" class="apl-inp" placeholder="Aufgabe (optional)" style="margin-top:8px;">
+        <!-- RECHTE SPALTE -->
+        <div style="flex:1;min-width:260px;">
+          <label class="apl-lbl" style="margin-top:0;">Standort (auf Karte tippen)</label>
+          <div id="apl-f-map" style="height:240px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:#0d1a0d;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <button type="button" onclick="aplFormLocateMe()" class="apl-btn-sec">📍 Mein Standort</button>
+            <button type="button" onclick="aplFormClearLoc()" class="apl-btn-sec">✕ Punkt entfernen</button>
+            <span id="apl-f-coords" style="font-size:11px;color:#6a9a6a;margin-left:auto;text-align:right;">Kein Punkt</span>
+          </div>
+          <div id="apl-f-assign-block" style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);">
+            <label class="apl-lbl" style="margin-top:0;">Mitarbeiter einplanen (optional)</label>
+            <div id="apl-f-assignee-list" style="margin-bottom:8px;"></div>
+            <select id="apl-f-person" class="apl-inp"><option value="">Person wählen …</option></select>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <input type="date" id="apl-f-pdatum" class="apl-inp" style="flex:1;">
+              <select id="apl-f-pschicht" class="apl-inp" style="flex:1;"><option value="ganztag">Ganztag</option><option value="vormittag">Vormittag</option><option value="nachmittag">Nachmittag</option></select>
+            </div>
+            <input type="text" id="apl-f-paufgabe" class="apl-inp" placeholder="Aufgabe (optional)" style="margin-top:8px;">
+            <button type="button" onclick="aplAddAssignee()" class="apl-btn-sec" style="margin-top:8px;width:100%;">+ Mitarbeiter hinzufügen</button>
+          </div>
+        </div>
       </div>
-      <div id="apl-form-err" style="display:none;color:#f5a0a0;font-size:13px;margin-top:10px;"></div>
-      <button onclick="saveAuftrag()" class="apl-btn-primary" style="width:100%;margin-top:16px;">Speichern</button>
+      <div id="apl-form-err" style="display:none;color:#f5a0a0;font-size:13px;margin-top:12px;"></div>
+      <button onclick="saveAuftrag()" class="apl-btn-primary" style="width:100%;margin-top:16px;padding:14px;font-size:15px;">Speichern</button>
     </div>
   </div>
 </div>
@@ -5767,7 +5777,7 @@ async function openMeineAuftraege(){
   scr.style.display='flex';
   list.innerHTML='<div style="padding:20px;color:#6a9a6a;font-size:13px;">Lade …</div>';
   try{
-    const rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&select=id,status,aufgabe,auftraege(id,titel,beschreibung,status,prioritaet,faellig_am,area_id)&order=created_at.desc');
+    const rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&select=id,status,aufgabe,auftraege(id,titel,beschreibung,status,prioritaet,faellig_am,area_id,lat,lng)&order=created_at.desc');
     renderMeineAuftraege(rows||[]);
   }catch(e){ list.innerHTML='<div style="padding:20px;color:#e05555;font-size:13px;">Fehler: '+(e.message||e)+'</div>'; }
 }
@@ -5783,7 +5793,7 @@ function renderMeineAuftraege(rows){
   const col={offen:'#b07010',angenommen:'#4a8ad0',in_arbeit:'#d0a020',erledigt:'#4aaa4a'};
   list.innerHTML=rows.map(r=>{
     const a=r.auftraege||{}, st=r.status||'offen';
-    const next=st==='offen'?['angenommen','Annehmen']:st==='angenommen'?['in_arbeit','Starten']:st==='in_arbeit'?['erledigt','Abschließen']:null;
+    const next=(st==='offen'||st==='angenommen')?['in_arbeit','Starten']:st==='in_arbeit'?['erledigt','Abschließen']:null;
     const prio=a.prioritaet==='hoch'?'<span style="color:#e05555;font-weight:700;">● Hoch</span> · ':'';
     const faellig=a.faellig_am?'· fällig '+esc(a.faellig_am):'';
     return '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:10px;">'
@@ -5794,7 +5804,7 @@ function renderMeineAuftraege(rows){
       +'<div style="font-size:11px;color:#6a9a6a;margin-bottom:10px;">'+prio+'Auftrag: '+(lbl[a.status]||a.status||'–')+' '+faellig+'</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
       +(next?'<button onclick="setMeinAuftragStatus(\''+r.id+'\',\''+next[0]+'\')" style="flex:1;min-width:120px;padding:10px;border-radius:8px;border:none;background:#2d6a27;color:#e8f5e4;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">'+next[1]+'</button>':'<div style="flex:1;text-align:center;padding:10px;color:#4aaa4a;font-size:13px;">✓ Erledigt</div>')
-      +(a.area_id?'<button onclick="workerShowAuftragArea(\''+a.area_id+'\')" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#a0d89a;font-family:inherit;font-size:13px;cursor:pointer;">🗺 Karte</button>':'')
+      +((a.lat!=null&&a.lng!=null)?'<button onclick="workerShowAuftragPoint('+a.lat+','+a.lng+')" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#a0d89a;font-family:inherit;font-size:13px;cursor:pointer;">🗺 Karte</button>':(a.area_id?'<button onclick="workerShowAuftragArea(\''+a.area_id+'\')" style="padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#a0d89a;font-family:inherit;font-size:13px;cursor:pointer;">🗺 Karte</button>':''))
       +'</div></div>';
   }).join('');
 }
@@ -5809,9 +5819,26 @@ window.setMeinAuftragStatus = setMeinAuftragStatus;
 
 function workerShowAuftragArea(areaId){
   closeMeineAuftraege(); hideAllScreens(); startMode('worker');
-  setTimeout(()=>{ try{ if(typeof adminJumpToAreaBoundary==='function') adminJumpToAreaBoundary(areaId); }catch(e){} }, 600);
+  setTimeout(()=>{ try{ if(window.map&&map.invalidateSize) map.invalidateSize(); if(typeof adminJumpToAreaBoundary==='function') adminJumpToAreaBoundary(areaId); }catch(e){} }, 600);
 }
 window.workerShowAuftragArea = workerShowAuftragArea;
+
+var _workerAuftragMarker=null;
+function workerShowAuftragPoint(lat,lng){
+  closeMeineAuftraege(); hideAllScreens(); startMode('worker');
+  setTimeout(function(){
+    try{
+      if(window.map){
+        if(map.invalidateSize) map.invalidateSize();
+        map.setView([lat,lng],16);
+        if(_workerAuftragMarker){ try{ map.removeLayer(_workerAuftragMarker); }catch(e){} }
+        _workerAuftragMarker=L.marker([lat,lng]).addTo(map);
+        _workerAuftragMarker.bindPopup('📋 Auftrags-Standort').openPopup();
+      }
+    }catch(e){}
+  }, 600);
+}
+window.workerShowAuftragPoint = workerShowAuftragPoint;
 
 async function workerFieldNote(){
   if(!navigator.geolocation){ alert('Kein GPS verfügbar.'); return; }
@@ -5920,10 +5947,11 @@ async function openAuftragForm(id){
     if(ab) ab.style.display='block';
     if(!_aplTeam.length){ await _aplLoadTeam(); }
     var ps=document.getElementById('apl-f-person');
-    if(ps) ps.innerHTML='<option value="">– niemand –</option>'+_aplTeam.map(function(p){return '<option value="'+p.id+'">'+_aplEscAttr(p.name)+' ('+_aplRolle(p.role)+')</option>';}).join('');
+    if(ps) ps.innerHTML='<option value="">Person wählen …</option>'+_aplTeam.map(function(p){return '<option value="'+p.id+'">'+_aplEscAttr(p.name)+' ('+_aplRolle(p.role)+')</option>';}).join('');
     var pd=document.getElementById('apl-f-pdatum'); if(pd) pd.value=new Date().toISOString().slice(0,10);
     var psh=document.getElementById('apl-f-pschicht'); if(psh) psh.value='ganztag';
     var pa=document.getElementById('apl-f-paufgabe'); if(pa) pa.value='';
+    _aplNewAssignees=[]; aplRenderAssignees();
   }
   document.getElementById('apl-form-err').style.display='none';
   ov.style.display='flex';
@@ -5963,15 +5991,15 @@ async function saveAuftrag(){
       body.status='offen';
       var created=await dbFetch('auftraege', {method:'POST', body:body, prefer:'return=representation'});
       var newId=(created&&created[0])?created[0].id:null;
-      var pid=(document.getElementById('apl-f-person')||{}).value||'';
-      if(newId && pid){
-        await dbFetch('auftrag_zuweisungen', {method:'POST', body:{
-          auftrag_id:newId, profile_id:pid, company_id:currentProfile.company_id,
-          datum:(document.getElementById('apl-f-pdatum')||{}).value||null,
-          schicht:(document.getElementById('apl-f-pschicht')||{}).value||'ganztag',
-          aufgabe:(document.getElementById('apl-f-paufgabe')||{}).value.trim()||null,
-          status:'offen'
-        }, prefer:'return=minimal'});
+      var assignees=_aplGatherAssignees();
+      if(newId && assignees.length){
+        for(var _i=0;_i<assignees.length;_i++){
+          var _z=assignees[_i];
+          await dbFetch('auftrag_zuweisungen', {method:'POST', body:{
+            auftrag_id:newId, profile_id:_z.profile_id, company_id:currentProfile.company_id,
+            datum:_z.datum, schicht:_z.schicht, aufgabe:_z.aufgabe, status:'offen'
+          }, prefer:'return=minimal'});
+        }
       }
     }
     closeAuftragForm();
@@ -6137,6 +6165,50 @@ function aplInitFormMap(center, zoom){
   setTimeout(function(){ try{ _aplFormMap.invalidateSize(); }catch(e){} }, 450);
 }
 window.aplInitFormMap=aplInitFormMap;
+
+// ──── Auftrag-Formular: mehrere Mitarbeiter sammeln ────
+var _aplNewAssignees=[];
+function aplRenderAssignees(){
+  var box=document.getElementById('apl-f-assignee-list'); if(!box) return;
+  var schl={ganztag:'Ganztag',vormittag:'Vormittag',nachmittag:'Nachmittag'};
+  if(!_aplNewAssignees.length){ box.innerHTML=''; return; }
+  box.innerHTML=_aplNewAssignees.map(function(p,i){
+    return '<div style="display:flex;align-items:center;gap:8px;background:rgba(45,90,39,.15);border:1px solid rgba(45,90,39,.3);border-radius:8px;padding:8px 10px;margin-bottom:6px;">'
+      +'<div style="flex:1;min-width:0;font-size:13px;color:#d8e8d0;">'+_aplEsc(p.name)+' <span style="color:#7a9a7a;font-size:11px;">· '+(p.datum||'kein Datum')+' · '+(schl[p.schicht]||p.schicht)+(p.aufgabe?' · '+_aplEsc(p.aufgabe):'')+'</span></div>'
+      +'<button type="button" onclick="aplRemoveAssignee('+i+')" style="background:rgba(163,32,32,.2);border:1px solid rgba(163,32,32,.3);border-radius:6px;padding:3px 8px;color:#f5a0a0;font-size:11px;cursor:pointer;font-family:inherit;flex-shrink:0;">✕</button>'
+      +'</div>';
+  }).join('');
+}
+function aplAddAssignee(){
+  var sel=document.getElementById('apl-f-person'); if(!sel) return;
+  var pid=sel.value; if(!pid){ alert('Bitte eine Person wählen.'); return; }
+  var found=_aplTeam.find(function(x){return x.id===pid;});
+  _aplNewAssignees.push({
+    profile_id:pid, name:found?found.name:'?',
+    datum:(document.getElementById('apl-f-pdatum')||{}).value||null,
+    schicht:(document.getElementById('apl-f-pschicht')||{}).value||'ganztag',
+    aufgabe:(document.getElementById('apl-f-paufgabe')||{}).value.trim()||null
+  });
+  aplRenderAssignees();
+  sel.value=''; var pa=document.getElementById('apl-f-paufgabe'); if(pa) pa.value='';
+}
+window.aplAddAssignee=aplAddAssignee;
+function aplRemoveAssignee(i){ _aplNewAssignees.splice(i,1); aplRenderAssignees(); }
+window.aplRemoveAssignee=aplRemoveAssignee;
+function _aplGatherAssignees(){
+  var arr=_aplNewAssignees.slice();
+  var sel=document.getElementById('apl-f-person');
+  if(sel && sel.value){
+    var found=_aplTeam.find(function(x){return x.id===sel.value;});
+    arr.push({
+      profile_id:sel.value, name:found?found.name:'?',
+      datum:(document.getElementById('apl-f-pdatum')||{}).value||null,
+      schicht:(document.getElementById('apl-f-pschicht')||{}).value||'ganztag',
+      aufgabe:(document.getElementById('apl-f-paufgabe')||{}).value.trim()||null
+    });
+  }
+  return arr;
+}
 
 
 async function openDriversScreen() {
