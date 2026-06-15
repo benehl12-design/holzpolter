@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.7">
+  <meta name="app-version" content="13.9">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1011,6 +1011,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #admin-dashboard.active{display:flex;}
 #worker-dashboard{position:fixed;inset:0;z-index:9000;background:#0f1f10;display:none;flex-direction:column;overflow:hidden;}
 #worker-dashboard.active{display:flex;}
+#worker-dashboard > .adash-map-preview,
+#worker-dashboard > .adash-body{width:100%;max-width:640px;margin-left:auto;margin-right:auto;}
+#worker-dashboard > .adash-body > *{width:100%;}
 
 /* Header */
 .adash-header{
@@ -2021,7 +2024,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.7'")) {
+        if (!txt.includes("APP_VERSION = '13.9'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -6959,6 +6962,14 @@ function startMode(mode) {
     document.getElementById('mode-badge').className = 'mode-badge';
     document.getElementById('mode-badge').style.background = '#ba7517';
     document.getElementById('mode-badge').style.color = '#faeeda';
+  } else if (isWorker) {
+    topbar.className = 'mode-ruecke'; statusbar.className = 'mode-ruecke';
+    topbar.style.background = '#1c3a1c';
+    document.getElementById('topbar-title').innerHTML = '🌱 Mitarbeiter';
+    document.getElementById('mode-badge').textContent = 'Mitarbeiter';
+    document.getElementById('mode-badge').className = 'mode-badge';
+    document.getElementById('mode-badge').style.background = '#3a7a3a';
+    document.getElementById('mode-badge').style.color = '#e8f5e4';
   } else {
     topbar.className = 'mode-ruecke'; statusbar.className = 'mode-ruecke';
     document.getElementById('topbar-title').textContent = '🚜 Forwarder-Modus';
@@ -6967,17 +6978,17 @@ function startMode(mode) {
   }
 
   // Admin: GPS ja, Strecke/Polter/Export nein (nur lesen)
-  const _bt=document.getElementById('btn-track');if(_bt)_bt.classList.toggle('hidden',isAdmin);
-  const _ba=document.getElementById('btn-add');if(_ba)_ba.classList.toggle('hidden',isAdmin);
-  const _be=document.getElementById('btn-export');if(_be)_be.classList.toggle('hidden',isAdmin);
+  const _bt=document.getElementById('btn-track');if(_bt)_bt.classList.toggle('hidden',isAdmin||isWorker);
+  const _ba=document.getElementById('btn-add');if(_ba)_ba.classList.toggle('hidden',isAdmin||isWorker);
+  const _be=document.getElementById('btn-export');if(_be)_be.classList.toggle('hidden',isAdmin||isWorker);
 
   // Log-Ansicht
   document.getElementById('log-harvester').style.display = (isH || isAdmin) ? 'block' : 'none';
   document.getElementById('log-forwarder').style.display = isForward ? 'block' : 'none';
 
   // Sidebar-Buttons: nur Forwarder und Admin (Admin kann LKW-Liste sehen)
-  const _baw=document.getElementById('btn-arbeit-wrap');if(_baw)_baw.classList.toggle('hidden',isH);
-  const _blw=document.getElementById('btn-lkw-wrap');if(_blw)_blw.classList.toggle('hidden',isH);
+  const _baw=document.getElementById('btn-arbeit-wrap');if(_baw)_baw.classList.toggle('hidden',isH||isWorker);
+  const _blw=document.getElementById('btn-lkw-wrap');if(_blw)_blw.classList.toggle('hidden',isH||isWorker);
 
   if (isH) {
     if(typeof closeSidebar==='function') closeSidebar();
@@ -7127,6 +7138,7 @@ document.getElementById('btn-switch-mode').addEventListener('click', () => {
   if(typeof closeLkwSidebar==='function') closeLkwSidebar();
   hideMainApp();
   if (isAdminUser()) showAdminDashboard();
+  else if (isWorkerUser()) showWorkerDashboard();
   else showDriverStart();
 });
 
