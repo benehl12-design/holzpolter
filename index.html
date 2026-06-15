@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.10">
+  <meta name="app-version" content="13.11">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2021,7 +2021,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.10'")) {
+        if (!txt.includes("APP_VERSION = '13.11'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2317,7 +2317,8 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     </div>
   </div>
   <div class="adash-body">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <div id="wdash-auftraege-section"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">
       <button class="adash-main-btn" onclick="openMeineAuftraege()">
         <span class="adash-main-icon">📋</span>
         <span class="adash-main-label">Aufträge</span>
@@ -5639,13 +5640,42 @@ window.showWorkerDashboard = showWorkerDashboard;
 
 async function loadWorkerAuftragStats(){
   if(!currentProfile) return;
+  let rows=[];
   try{
-    const rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&select=status');
-    const a=document.getElementById('wstat-auftraege'), o=document.getElementById('wstat-offen');
-    if(a) a.textContent=(rows||[]).length;
-    if(o) o.textContent=(rows||[]).filter(r=>r.status!=='erledigt').length;
-  }catch(e){}
+    rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&select=id,status,aufgabe,auftraege(id,titel,status,prioritaet,faellig_am)&order=created_at.desc')||[];
+  }catch(e){ rows=[]; }
+  const a=document.getElementById('wstat-auftraege'), o=document.getElementById('wstat-offen');
+  if(a) a.textContent=rows.length;
+  if(o) o.textContent=rows.filter(r=>r.status!=='erledigt').length;
+  renderWorkerDashAuftraege(rows);
 }
+
+function renderWorkerDashAuftraege(rows){
+  const box=document.getElementById('wdash-auftraege-section');
+  if(!box) return;
+  const lbl={offen:'Offen',angenommen:'Angenommen',in_arbeit:'In Arbeit',erledigt:'Erledigt'};
+  const col={offen:'#b07010',angenommen:'#4a8ad0',in_arbeit:'#d0a020',erledigt:'#4aaa4a'};
+  const esc=s=>String(s==null?'':s).replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+  let out='<div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#6a9a6a;margin:0 2px 8px;">AKTUELLE AUFTRÄGE</div>';
+  if(!rows.length){
+    out+='<div style="padding:14px;border:1px dashed rgba(255,255,255,.12);border-radius:12px;color:#6a9a6a;font-size:13px;text-align:center;">Dir ist aktuell kein Auftrag zugewiesen.</div>';
+  } else {
+    out+=rows.map(function(r){
+      var x=r.auftraege||{}, st=r.status||'offen';
+      var prio=x.prioritaet==='hoch'?'<span style="color:#e05555;font-weight:700;">● Hoch</span> · ':'';
+      var faellig=x.faellig_am?'fällig '+esc(x.faellig_am):'';
+      var sub=(r.aufgabe?esc(r.aufgabe)+' · ':'')+prio+faellig;
+      return '<div onclick="openMeineAuftraege()" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;">'
+        +'<span style="width:10px;height:10px;border-radius:50%;background:'+(col[st]||'#888')+';flex-shrink:0;"></span>'
+        +'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:600;color:#d8e8d0;">'+esc(x.titel||'Auftrag')+'</div>'
+        +(sub?'<div style="font-size:12px;color:#8ab882;margin-top:2px;">'+sub+'</div>':'')+'</div>'
+        +'<span style="font-size:11px;font-weight:700;color:'+(col[st]||'#888')+';white-space:nowrap;">'+(lbl[st]||st)+'</span>'
+        +'<span style="color:#5a7a5a;font-size:18px;">›</span></div>';
+    }).join('');
+  }
+  box.innerHTML=out;
+}
+window.renderWorkerDashAuftraege = renderWorkerDashAuftraege;
 
 async function openMeineAuftraege(){
   const scr=document.getElementById('meine-auftraege-screen'), list=document.getElementById('meine-auftraege-list');
