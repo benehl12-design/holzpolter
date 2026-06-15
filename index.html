@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.9">
+  <meta name="app-version" content="13.10">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1011,9 +1011,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #admin-dashboard.active{display:flex;}
 #worker-dashboard{position:fixed;inset:0;z-index:9000;background:#0f1f10;display:none;flex-direction:column;overflow:hidden;}
 #worker-dashboard.active{display:flex;}
-#worker-dashboard > .adash-map-preview,
-#worker-dashboard > .adash-body{width:100%;max-width:640px;margin-left:auto;margin-right:auto;}
-#worker-dashboard > .adash-body > *{width:100%;}
 
 /* Header */
 .adash-header{
@@ -2024,7 +2021,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.9'")) {
+        if (!txt.includes("APP_VERSION = '13.10'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
