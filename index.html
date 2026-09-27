@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.20">
+  <meta name="app-version" content="13.21">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -774,6 +774,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .hbadge.h{background:#ddeeff;color:#1a5fa8;}.hbadge.f{background:#d4edcc;color:#2d6a27;}
 .hidden{display:none!important;}
 
+/* Android/PWA: Navigation darf in der Kartenansicht nie verloren gehen */
+#topbar{position:relative;z-index:2100;min-height:calc(48px + var(--safe-top));}
+#map-menu-rescue{
+  position:fixed;top:max(10px,calc(var(--safe-top) + 8px));left:10px;z-index:3990;
+  width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.22);
+  background:rgba(15,31,16,.92);color:#c8e6c0;font-size:21px;
+  display:none;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:0 3px 14px rgba(0,0,0,.35);touch-action:manipulation;
+}
+body.map-nav-rescue #map-menu-rescue{display:flex;}
+@media(max-width:767px){#map-menu-rescue{display:flex;}}
 /* ── KOMPAKTE TOPBAR + SLIDE-MENU ── */
 #topbar{
   display:flex;align-items:center;gap:8px;
@@ -2027,7 +2038,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.20'")) {
+        if (!txt.includes("APP_VERSION = '13.21'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2599,6 +2610,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 </div>
 
 <!-- ── HAUPTAPP ── -->
+<button id="map-menu-rescue" class="hidden" onclick="openSlideMenu()" aria-label="Menü öffnen" title="Menü">☰</button>
 <div id="topbar" class="hidden mode-harvester">
 
   <!-- Hamburger -->
@@ -5310,8 +5322,31 @@ async function addFuhre() {
   if (btn) { btn.textContent = '+ 1 Fuhre hinzufügen'; btn.disabled = false; }
 }
 
+function ensureMapNavigation(){
+  const topbar=document.getElementById('topbar');
+  const rescue=document.getElementById('map-menu-rescue');
+  const mapEl=document.getElementById('map');
+  const mapVisible=mapEl && !mapEl.classList.contains('hidden');
+  if(!mapVisible) {
+    if(rescue) rescue.classList.add('hidden');
+    document.body.classList.remove('map-nav-rescue');
+    return;
+  }
+  // Hauptnavigation in der Kartenansicht immer wiederherstellen.
+  if(topbar){
+    topbar.classList.remove('hidden');
+    topbar.style.display='flex';
+    topbar.style.visibility='visible';
+    topbar.style.opacity='1';
+  }
+  if(rescue) rescue.classList.remove('hidden');
+  document.body.classList.add('map-nav-rescue');
+}
+window.ensureMapNavigation=ensureMapNavigation;
+
 // ── SLIDE-MENU ──────────────────────────────────────────────────
 function openSlideMenu() {
+  ensureMapNavigation();
   updateGpsToggleUI();
   document.getElementById('slide-menu').classList.add('open');
   document.getElementById('slide-overlay').classList.add('open');
@@ -6756,7 +6791,7 @@ async function deleteDriver(id) {
 
 // ── HAUPTAPP ──────────────────────────────────────────────────────
 function hideMainApp() {
-  ['topbar','statusbar','map','bottombar','pwa-bar'].forEach(id =>
+  ['topbar','statusbar','map','bottombar','pwa-bar','map-menu-rescue'].forEach(id =>
     document.getElementById(id).classList.add('hidden'));
 }
 
@@ -7151,6 +7186,7 @@ document.querySelectorAll('[data-sf]').forEach(chip=>{chip.addEventListener('cli
 function openPanel(ll,auto=false){pendingLL=ll;document.getElementById('f-menge').value='';document.getElementById('f-notiz').value='';document.getElementById('f-art').style.display='none';document.getElementById('f-art').value='';document.querySelectorAll('.art-chip').forEach(c=>c.classList.remove('sel'));selArt='';const tr=document.getElementById('typ-row'),tf=document.getElementById('typ-fixed'),ts=document.getElementById('f-typ');if(currentMode==='harvester'){tr.style.display='none';ts.value='harvester';}else{tr.style.display='block';ts.style.display='none';tf.style.display='block';ts.value='ruecke';}document.getElementById('auto-chip').classList.toggle('hidden',!auto);document.getElementById('panel').classList.remove('hidden');}
 document.getElementById('btn-add').addEventListener('click',()=>{const p=document.getElementById('panel');p.classList.contains('hidden')?openPanel(map.getCenter(),false):p.classList.add('hidden');});
 map.on('click',e=>{
+  ensureMapNavigation();
   // Skip wenn gerade ein Polygon gezeichnet wird (EUDR oder Fahrgassen oder Wegezug)
   if (typeof isAreaDrawing !== 'undefined' && isAreaDrawing) return;
   if (typeof _trailDrawing !== 'undefined' && _trailDrawing) return;
@@ -7576,6 +7612,7 @@ function startMode(mode) {
 
   ['topbar','statusbar','map','pwa-bar'].forEach(id =>
     document.getElementById(id).classList.remove('hidden'));
+  ensureMapNavigation();
   // bottombar bleibt versteckt — wird über den 'Liste'-Topbar-Button geöffnet
 
   // area-bar und timer-bar sind jetzt im Slide-Menu — nicht mehr in der Hauptansicht
