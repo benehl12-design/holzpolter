@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.24">
+  <meta name="app-version" content="13.25">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.24'")) {
+        if (!txt.includes("APP_VERSION = '13.25'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -6820,7 +6820,7 @@ const BingLayer = L.TileLayer.extend({
     return 'https://ecn.t'+(Math.abs(c.x+c.y)%4)+'.tiles.virtualearth.net/tiles/a'+q+'.jpeg?g=1&n=z';
   }
 });
-const bingLayer = new BingLayer('', { ...BASE, maxZoom:MAX_SAT, maxNativeZoom:20, attribution:'© Microsoft Bing' });
+const bingLayer = new BingLayer('', { ...BASE, maxZoom:MAX_SAT, maxNativeZoom:19, attribution:'© Microsoft Bing' });
 let currentBasemap = 'sat', bingActive = false;
 
 function switchToSatellite() {
