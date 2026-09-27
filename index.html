@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.17">
+  <meta name="app-version" content="13.20">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2027,7 +2027,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.17'")) {
+        if (!txt.includes("APP_VERSION = '13.20'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2564,6 +2564,18 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     </div>
     <button class="ds-start-btn" onclick="startDriverMode()">▶ Starten</button>
   </div>
+
+  <!-- Fahrer: Aufträge & Planung -->
+  <button class="ds-machine-card" id="driver-orders-btn" onclick="openMeineAuftraege()" style="width:calc(100% - 32px);text-align:left;cursor:pointer;font-family:inherit;color:inherit;">
+    <div class="ds-machine-row">
+      <span class="ds-machine-icon" style="font-size:32px;">📋</span>
+      <div class="ds-machine-info">
+        <div class="ds-machine-title">Aufträge &amp; Planung</div>
+        <div class="ds-machine-desc" id="driver-orders-sub">Meine Einsätze · Wochenplan</div>
+      </div>
+      <span style="font-size:24px;color:#6a9a6a;margin-left:auto;">›</span>
+    </div>
+  </button>
 
   <!-- Quick Actions -->
   <div class="ds-quick-grid">
@@ -4071,16 +4083,46 @@ async function refreshAccessToken() {
 }
 
 // Alle Supabase REST-Calls mit auto Token-Erneuerung
+// Persistenter Read-Cache für Offline-Betrieb
+const OfflineReadCache = (() => {
+  const DB_NAME = 'lignum-read-cache', STORE = 'responses', VERSION = 1;
+  function openDB(){
+    return new Promise((resolve,reject)=>{
+      const req=indexedDB.open(DB_NAME,VERSION);
+      req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE); };
+      req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+    });
+  }
+  async function put(key,data){
+    try{ const db=await openDB(); await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put({data,ts:Date.now()},key); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); db.close(); }catch(e){ console.warn('OfflineReadCache put:',e); }
+  }
+  async function get(key){
+    try{ const db=await openDB(); const value=await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(key); req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); db.close(); return value ? value.data : null; }catch(e){ return null; }
+  }
+  async function clear(){
+    try{ const db=await openDB(); await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); db.close(); }catch(e){}
+  }
+  return {put,get,clear};
+})();
+window.OfflineReadCache = OfflineReadCache;
+
+// Alle Supabase REST-Calls mit auto Token-Erneuerung + Offline-Lesecache
 async function dbFetch(path, options = {}) {
-  const method = options.method || 'GET';
+  const method = String(options.method || 'GET').toUpperCase();
   const body   = options.body;
   const prefer = options.prefer || '';
+  const isGet  = method === 'GET';
 
-  // Sofort in Queue wenn offline (nur Schreib-Operationen)
-  if (!navigator.onLine && window.OfflineQueue) {
-    const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-    if (result !== null) return result;
-    // result === null → GET o.ä., das nicht gequeued wird
+  if (!navigator.onLine) {
+    if (isGet) {
+      const cached = await OfflineReadCache.get(path);
+      if (cached !== null) return cached;
+      throw new Error('Offline – diese Daten wurden noch nicht auf diesem Gerät gespeichert');
+    }
+    if (window.OfflineQueue) {
+      const result = await window.OfflineQueue.handle(path, { method, body, prefer });
+      if (result !== null) return result;
+    }
     throw new Error('Offline und kein Netz verfügbar');
   }
 
@@ -4092,8 +4134,7 @@ async function dbFetch(path, options = {}) {
       ...(prefer ? { 'Prefer': prefer } : {})
     };
     return fetch(SUPABASE_URL + '/rest/v1/' + path, {
-      method, headers,
-      body: body ? JSON.stringify(body) : undefined
+      method, headers, body: body ? JSON.stringify(body) : undefined
     });
   };
 
@@ -4101,27 +4142,31 @@ async function dbFetch(path, options = {}) {
   try {
     resp = await doFetch();
   } catch (networkErr) {
-    // Netz weg trotz navigator.onLine=true (gerade zusammengebrochen) → Queue
-    if (window.OfflineQueue) {
+    if (isGet) {
+      const cached = await OfflineReadCache.get(path);
+      if (cached !== null) return cached;
+    } else if (window.OfflineQueue) {
       const result = await window.OfflineQueue.handle(path, { method, body, prefer });
       if (result !== null) return result;
     }
     throw networkErr;
   }
 
-  // JWT abgelaufen → Token erneuern und nochmal versuchen
   if (resp.status === 401) {
     const ok = await refreshAccessToken();
     if (ok) {
-      try { resp = await doFetch(); } catch (networkErr) {
-        if (window.OfflineQueue) {
+      try { resp = await doFetch(); }
+      catch (networkErr) {
+        if (isGet) {
+          const cached = await OfflineReadCache.get(path);
+          if (cached !== null) return cached;
+        } else if (window.OfflineQueue) {
           const result = await window.OfflineQueue.handle(path, { method, body, prefer });
           if (result !== null) return result;
         }
         throw networkErr;
       }
     } else {
-      // Token nicht erneuerbar → neu einloggen
       showAuthErr('Sitzung abgelaufen — bitte neu anmelden.');
       hideAllScreens();
       document.getElementById('auth-screen').style.display = 'flex';
@@ -4130,18 +4175,23 @@ async function dbFetch(path, options = {}) {
   }
 
   if (!resp.ok) {
+    if (isGet && resp.status >= 500) {
+      const cached = await OfflineReadCache.get(path);
+      if (cached !== null) return cached;
+    }
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.message || err.hint || resp.status);
   }
 
-  // PATCH/DELETE geben 204 No Content zurück → kein JSON parsen
   if (resp.status === 204 || method === 'PATCH' || method === 'DELETE') {
     const text = await resp.text().catch(() => '');
     return text ? JSON.parse(text) : true;
   }
 
   const text = await resp.text();
-  return text ? JSON.parse(text) : [];
+  const data = text ? JSON.parse(text) : [];
+  if (isGet) OfflineReadCache.put(path,data);
+  return data;
 }
 
 // ── AUTH TABS ─────────────────────────────────────────────────────
@@ -5812,7 +5862,7 @@ function renderMeineAuftraege(rows){
 async function setMeinAuftragStatus(zid,status){
   try{
     await dbFetch('auftrag_zuweisungen?id=eq.'+zid, {method:'PATCH', body:{status:status}, prefer:'return=minimal'});
-    openMeineAuftraege(); loadWorkerAuftragStats();
+    openMeineAuftraege(); loadWorkerAuftragStats(); if(window.loadDriverOrderSummary) loadDriverOrderSummary();
   }catch(e){ alert('Fehler: '+(e.message||e)); }
 }
 window.setMeinAuftragStatus = setMeinAuftragStatus;
@@ -6501,7 +6551,24 @@ function showDriverStart() {
 
   // Stats laden (Worktime, aktive Kollegen, Polter)
   loadDriverStartStats().catch(e => console.warn('loadDriverStartStats:', e));
+  loadDriverOrderSummary().catch(e => console.warn('loadDriverOrderSummary:', e));
 }
+
+async function loadDriverOrderSummary() {
+  const el=document.getElementById('driver-orders-sub');
+  if(!el || !currentProfile) return;
+  try{
+    const rows=await dbFetch('auftrag_zuweisungen?profile_id=eq.'+currentProfile.id+'&status=neq.erledigt&select=id,status,auftraege(faellig_am)') || [];
+    const today=new Date().toISOString().slice(0,10);
+    const dueToday=rows.filter(r=>r.auftraege && r.auftraege.faellig_am && String(r.auftraege.faellig_am).slice(0,10)===today).length;
+    if(dueToday>0) el.textContent=dueToday+' '+(dueToday===1?'Einsatz':'Einsätze')+' heute · '+rows.length+' offen';
+    else if(rows.length>0) el.textContent=rows.length+' offene '+(rows.length===1?'Zuweisung':'Zuweisungen')+' · Wochenplan';
+    else el.textContent='Keine offenen Einsätze · Wochenplan';
+  }catch(e){
+    el.textContent='Meine Einsätze · Wochenplan';
+  }
+}
+window.loadDriverOrderSummary = loadDriverOrderSummary;
 
 function initDriverMapPreview() {
   const container = document.getElementById('driver-map-preview');
