@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.21">
+  <meta name="app-version" content="13.22">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -774,17 +774,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .hbadge.h{background:#ddeeff;color:#1a5fa8;}.hbadge.f{background:#d4edcc;color:#2d6a27;}
 .hidden{display:none!important;}
 
-/* Android/PWA: Navigation darf in der Kartenansicht nie verloren gehen */
-#topbar{position:relative;z-index:2100;min-height:calc(48px + var(--safe-top));}
-#map-menu-rescue{
-  position:fixed;top:max(10px,calc(var(--safe-top) + 8px));left:10px;z-index:3990;
-  width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.22);
-  background:rgba(15,31,16,.92);color:#c8e6c0;font-size:21px;
-  display:none;align-items:center;justify-content:center;cursor:pointer;
-  box-shadow:0 3px 14px rgba(0,0,0,.35);touch-action:manipulation;
+/* Kartenansicht: Haupt-Menüleiste dauerhaft sichtbar */
+#app:not(.hidden) #topbar:not(.hidden){
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
 }
-body.map-nav-rescue #map-menu-rescue{display:flex;}
-@media(max-width:767px){#map-menu-rescue{display:flex;}}
 /* ── KOMPAKTE TOPBAR + SLIDE-MENU ── */
 #topbar{
   display:flex;align-items:center;gap:8px;
@@ -2038,7 +2033,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.21'")) {
+        if (!txt.includes("APP_VERSION = '13.22'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2610,7 +2605,6 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 </div>
 
 <!-- ── HAUPTAPP ── -->
-<button id="map-menu-rescue" class="hidden" onclick="openSlideMenu()" aria-label="Menü öffnen" title="Menü">☰</button>
 <div id="topbar" class="hidden mode-harvester">
 
   <!-- Hamburger -->
@@ -5324,23 +5318,12 @@ async function addFuhre() {
 
 function ensureMapNavigation(){
   const topbar=document.getElementById('topbar');
-  const rescue=document.getElementById('map-menu-rescue');
-  const mapEl=document.getElementById('map');
-  const mapVisible=mapEl && !mapEl.classList.contains('hidden');
-  if(!mapVisible) {
-    if(rescue) rescue.classList.add('hidden');
-    document.body.classList.remove('map-nav-rescue');
-    return;
-  }
-  // Hauptnavigation in der Kartenansicht immer wiederherstellen.
-  if(topbar){
-    topbar.classList.remove('hidden');
-    topbar.style.display='flex';
-    topbar.style.visibility='visible';
-    topbar.style.opacity='1';
-  }
-  if(rescue) rescue.classList.remove('hidden');
-  document.body.classList.add('map-nav-rescue');
+  if(!topbar) return;
+  // Die Haupt-Menüleiste bleibt in der Kartenansicht permanent sichtbar.
+  topbar.classList.remove('hidden');
+  topbar.style.display='flex';
+  topbar.style.visibility='visible';
+  topbar.style.opacity='1';
 }
 window.ensureMapNavigation=ensureMapNavigation;
 
@@ -6791,7 +6774,7 @@ async function deleteDriver(id) {
 
 // ── HAUPTAPP ──────────────────────────────────────────────────────
 function hideMainApp() {
-  ['topbar','statusbar','map','bottombar','pwa-bar','map-menu-rescue'].forEach(id =>
+  ['topbar','statusbar','map','bottombar','pwa-bar'].forEach(id =>
     document.getElementById(id).classList.add('hidden'));
 }
 
