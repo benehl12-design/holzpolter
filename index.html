@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.22">
+  <meta name="app-version" content="13.23">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -779,6 +779,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   display:flex !important;
   visibility:visible !important;
   opacity:1 !important;
+}
+/* v13.23 – responsive Topbar nach verfügbarer Gerätebreite */
+#topbar{box-sizing:border-box;max-width:100vw;}
+#topbar .topbar-quick{min-width:0;}
+@media (max-width: 700px){
+  #topbar{gap:4px;padding-left:6px;padding-right:6px;}
+  #topbar h1{max-width:82px;}
+  #topbar .qbtn{min-width:34px;width:34px;padding:0;}
+  #topbar .btn-label{display:none!important;}
+  #btn-switch-mode,#btn-sunmode{padding-left:5px!important;padding-right:5px!important;}
+}
+@media (max-width: 520px){
+  #topbar{gap:3px;}
+  #topbar h1{max-width:72px;font-size:12px;}
+  #menu-toggle{width:34px;height:34px;}
+  #topbar .topbar-quick{gap:3px;}
+  /* Arbeitsliste bleibt vollständig im Seitenmenü erreichbar. */
+  #btn-arbeit-wrap{display:none!important;}
+}
+@media (max-width: 430px){
+  #topbar h1{max-width:64px;}
+  /* Markierungs-Liste bleibt im Seitenmenü erreichbar; Platz für LKW, Track und Polter. */
+  #btn-log-wrap{display:none!important;}
+  #btn-switch-mode,#btn-sunmode{padding-left:3px!important;padding-right:3px!important;}
 }
 /* ── KOMPAKTE TOPBAR + SLIDE-MENU ── */
 #topbar{
@@ -2033,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.22'")) {
+        if (!txt.includes("APP_VERSION = '13.23'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
