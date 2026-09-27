@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.9';
+const APP_VERSION  = '13.20';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -99,12 +99,14 @@ self.addEventListener('fetch', e => {
   const url = e.request.url;
   if (!url.startsWith('http')) return;
 
-  // ① Supabase: NIEMALS cachen
+  // ① Supabase: NIEMALS im Service Worker cachen.
+  // Bei Netzausfall echten Fehler zurückgeben; der Offline-Lesecache in index.html
+  // entscheidet dann gezielt, ob lokal gespeicherte Daten verwendet werden.
   if (url.includes('supabase.co')) {
     e.respondWith(
       fetch(e.request).catch(() =>
-        new Response(JSON.stringify([]), {
-          status: 200,
+        new Response(JSON.stringify({ error: 'offline' }), {
+          status: 503,
           headers: { 'Content-Type': 'application/json' }
         })
       )
