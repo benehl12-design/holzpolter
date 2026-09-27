@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.23">
+  <meta name="app-version" content="13.24">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.23'")) {
+        if (!txt.includes("APP_VERSION = '13.24'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -6821,7 +6821,7 @@ const BingLayer = L.TileLayer.extend({
   }
 });
 const bingLayer = new BingLayer('', { ...BASE, maxZoom:MAX_SAT, maxNativeZoom:20, attribution:'© Microsoft Bing' });
-let currentBasemap = 'osm', bingActive = false;
+let currentBasemap = 'sat', bingActive = false;
 
 function switchToSatellite() {
   if (currentBasemap === 'sat') return; // schon Satellit
@@ -6835,7 +6835,8 @@ function switchToSatellite() {
   updateSatLayer();
   setTimeout(prefetchTiles, 300);
 }
-LAYERS.osm.addTo(map);
+LAYERS.sat.addTo(map);
+LAYERS.satLabel.addTo(map);
 
 function updateSatLayer() {
   if (currentBasemap !== 'sat') return;
@@ -6888,15 +6889,22 @@ function prefetchZoomLevel(tz, bounds, buf) {
   }
 }
 function prefetchTiles() {
-  if(currentBasemap!=='sat')return;
+  if(currentBasemap!=='sat' || !navigator.onLine || document.hidden)return;
+  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType||''))) return;
   const z=Math.round(map.getZoom()),b=map.getBounds();
   prefetchQueue=[];
-  prefetchZoomLevel(z,b,3);prefetchZoomLevel(z+1,b,2);
-  prefetchZoomLevel(z+2,b,1);prefetchZoomLevel(z-1,b,2);
+  // v13.24: nur direkte Umgebung der aktuellen Ansicht vorladen.
+  // Sichtbare Leaflet-Tiles haben damit Vorrang vor Hintergrund-Prefetch.
+  prefetchZoomLevel(z,b,1);
+  prefetchZoomLevel(z+1,b,1);
   runPrefetchQueue();
 }
-map.on('zoomstart',()=>{if(currentBasemap!=='sat')return;const z=Math.round(map.getZoom())+1;prefetchZoomLevel(z,map.getBounds(),2);runPrefetchQueue();});
-map.on('moveend zoomend',()=>{clearTimeout(prefetchTimer);prefetchTimer=setTimeout(prefetchTiles,150);});
+function scheduleMapPrefetch(delay){
+  clearTimeout(prefetchTimer);
+  prefetchTimer=setTimeout(prefetchTiles, delay||1800);
+}
+map.on('moveend zoomend',()=>scheduleMapPrefetch(1800));
 
 // ZUSTAND
 let markers=[], tracks=[], grenzenLayers=[];
@@ -7626,26 +7634,31 @@ function startMode(mode) {
   showAuthErr('');
   updateSlideMenuMode();
 
-  setTimeout(() => { map.invalidateSize(); }, 100);
-  setTimeout(() => { map.invalidateSize(); }, 500);
-  loadAreas();
-  loadData();
-  loadGeoJSONLayers();
-  loadMaschineSettings();
-  if (typeof loadTrailPlans === 'function') loadTrailPlans();
+  // v13.24 Fast Map: Satellitenkarte zuerst bedienbar machen.
+  // Netzwerk-/Betriebsdaten laden danach unabhängig im Hintergrund.
+  requestAnimationFrame(() => { try { map.invalidateSize(); } catch(e){} });
+  setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 250);
+
+  // Realtime darf sofort verbinden, blockiert die Karte aber nicht.
   startRealtime();
   renderLog();
 
-  // Karte standardmäßig auf Satellit + Auto-Zoom nach 1s wenn Daten geladen
+  // Arbeitsdaten bewusst entkoppelt laden, damit langsame DB-Abfragen
+  // keine Kartenkacheln oder Eingaben ausbremsen.
   setTimeout(() => {
-    try {
-      // Auf Satellit schalten falls nicht schon aktiv
-      if (typeof switchToSatellite === 'function') switchToSatellite();
-      else if (typeof setBasemap === 'function') setBasemap('satellite');
-      // Auto-Zoom auf GPS oder Marker
-      autoZoomToWork();
-    } catch(e) {}
-  }, 1200);
+    try { loadAreas(); } catch(e) {}
+    try { loadData(); } catch(e) {}
+    try { loadGeoJSONLayers(); } catch(e) {}
+    try { loadMaschineSettings(); } catch(e) {}
+    try { if (typeof loadTrailPlans === 'function') loadTrailPlans(); } catch(e) {}
+  }, 150);
+
+  // GPS korrigiert den Ausschnitt nachträglich; Karte wartet nicht darauf.
+  setTimeout(() => { try { autoZoomToWork(); } catch(e) {} }, 350);
+
+  // Erst wenn die sichtbaren Satellitenkacheln Zeit zum Laden hatten,
+  // sparsam angrenzende Kacheln vorladen.
+  scheduleMapPrefetch(2200);
 }
 
 function autoZoomToWork() {
@@ -7666,7 +7679,7 @@ function autoZoomToWork() {
       if (window._pendingDriverJump) { window._pendingDriverJump = false; return; }
       // 2. Kein GPS → auf Marker zoomen
       zoomToMarkers();
-    }, { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 });
+    }, { timeout: 6000, enableHighAccuracy: true, maximumAge: 60000 });
   } else {
     zoomToMarkers();
   }
