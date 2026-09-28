@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.26">
+  <meta name="app-version" content="13.27">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.26'")) {
+        if (!txt.includes("APP_VERSION = '13.27'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3004,6 +3004,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
 <div id="pwa-bar" class="hidden">
   <div id="sw-dot"></div><span id="sw-txt">Wird geladen...</span>
+  <span id="map-offline-status" style="margin-left:auto;font-size:10px;white-space:nowrap;color:#8ab882;">🛰 Satellit</span>
   <div id="cache-wrap"><div id="cache-fill"></div></div>
 </div>
 <!-- ios-hint → jetzt in Anleitung integriert -->
@@ -3878,7 +3879,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
         <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Kartenansicht wechseln</b><span><span class="hicon">🗺 Karte</span> / <span class="hicon">🛰 Satellit</span> oben — wechselt zwischen OpenStreetMap (Straßenkarte) und Satellit (Esri/Bing). Markierungen bleiben gleich.</span></div></div>
 
-        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Offline cachen</b><span>Arbeitsgebiet zoomen → <span class="hicon amber">⬇ Offline</span> → Kartenkacheln werden gespeichert (bis zu 400 Stück). Im Wald ohne Netz: alles bleibt sichtbar. Funktioniert für OSM und Satellit getrennt.</span></div></div>
+        <div class="hstep"><div class="hnum">2</div><div class="hstep-txt"><b>Offline cachen</b><span>Einschlagsgebiet wählen (oder Kartenansicht einstellen) → <span class="hicon amber">⬇ Offline</span> → Detailstufe wählen. Lignum zeigt Kachelzahl und ungefähren Speicherbedarf und schützt manuell gespeicherte Offline-Gebiete vor der automatischen Cache-Bereinigung.</span></div></div>
 
         <div class="hstep"><div class="hnum">3</div><div class="hstep-txt"><b>Grundstücksgrenzen</b><span><span class="hicon">📐 Grenzen</span> → GeoJSON-Datei laden → Flurstücke erscheinen als gelbe Linien. Mehrere GeoJSON-Dateien gleichzeitig möglich (verschiedene Farben).</span></div></div>
 
@@ -4248,7 +4249,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.26: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.27: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6821,9 +6822,17 @@ function hideMainApp() {
 }
 
 // KARTE
+// v13.27: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+let _savedMapState = null;
+try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
+const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
+  ? [_savedMapState.lat, _savedMapState.lng] : [62.0, 15.0];
+const _initialZoom = (_savedMapState && Number.isFinite(_savedMapState.zoom))
+  ? Math.max(5, Math.min(20, _savedMapState.zoom)) : 5;
+
 const map = L.map('map', {
   zoomControl: true, tap: isIOS, tapTolerance: 20, bounceAtZoomLimits: false, maxZoom: 20
-}).setView([62.0, 15.0], 5);
+}).setView(_initialCenter, _initialZoom);
 
 const MAX_ESRI = 18, MAX_SAT = 20;
 const BASE = { crossOrigin:true, keepBuffer:8, updateWhenIdle:false, updateWhenZooming:true, tileSize:256 };
@@ -6839,7 +6848,7 @@ const BingLayer = L.TileLayer.extend({
   }
 });
 const bingLayer = new BingLayer('', { ...BASE, maxZoom:MAX_SAT, maxNativeZoom:19, attribution:'© Microsoft Bing' });
-let currentBasemap = 'sat', bingActive = false;
+let currentBasemap = (_savedMapState && _savedMapState.basemap === 'osm') ? 'osm' : 'sat', bingActive = false;
 
 function switchToSatellite() {
   if (currentBasemap === 'sat') return; // schon Satellit
@@ -6853,8 +6862,12 @@ function switchToSatellite() {
   updateSatLayer();
   setTimeout(prefetchTiles, 300);
 }
-LAYERS.sat.addTo(map);
-LAYERS.satLabel.addTo(map);
+if (currentBasemap === 'sat') {
+  LAYERS.sat.addTo(map);
+  LAYERS.satLabel.addTo(map);
+} else {
+  LAYERS.osm.addTo(map);
+}
 
 function updateSatLayer() {
   if (currentBasemap !== 'sat') return;
@@ -6922,7 +6935,17 @@ function scheduleMapPrefetch(delay){
   clearTimeout(prefetchTimer);
   prefetchTimer=setTimeout(prefetchTiles, delay||1800);
 }
-map.on('moveend zoomend',()=>scheduleMapPrefetch(1800));
+function saveMapState(){
+  try {
+    const cc=map.getCenter();
+    localStorage.setItem('lignum_map_state', JSON.stringify({
+      lat:+cc.lat.toFixed(7), lng:+cc.lng.toFixed(7), zoom:map.getZoom(),
+      basemap:currentBasemap, savedAt:Date.now()
+    }));
+  } catch {}
+  updateMapOfflineStatus();
+}
+map.on('moveend zoomend',()=>{ saveMapState(); scheduleMapPrefetch(1800); });
 
 // ZUSTAND
 let markers=[], tracks=[], grenzenLayers=[];
@@ -14258,123 +14281,96 @@ document.getElementById('btn-grenzen-clear').addEventListener('click',async func
 
 // ── OFFLINE ───────────────────────────────────────────────────────
 document.getElementById('btn-cache').addEventListener('click', async () => {
-  const wrap = document.getElementById('cache-wrap');
-  const fill = document.getElementById('cache-fill');
-  const txt  = document.getElementById('sw-txt');
-  wrap.style.display = 'block';
-  fill.style.width = '0%';
-  txt.textContent = (currentBasemap==='sat' ? 'Satellitenkacheln' : 'Kartenkacheln') + ' werden geladen...';
+  const wrap=document.getElementById('cache-wrap'), fill=document.getElementById('cache-fill'), txt=document.getElementById('sw-txt');
+  const selected=(typeof areas!=='undefined' && currentAreaId) ? areas.find(a=>a.id===currentAreaId) : null;
+  let bounds=map.getBounds(), sourceName='aktuelle Kartenansicht';
+  if(selected && Array.isArray(selected.boundary) && selected.boundary.length>=3){
+    try { bounds=L.latLngBounds(selected.boundary); sourceName='Gebiet „'+(selected.name||'Einschlagsgebiet')+'“'; } catch {}
+  }
 
-  // URLs aufbauen für aktuellen Viewport
-  const bounds = map.getBounds(), zoom = map.getZoom();
-  const minZ = Math.max(zoom-1, 10), maxZ = Math.min(zoom+2, 19);
-  const urls = [];
-  for (let z = minZ; z <= maxZ; z++) {
-    const x0 = lon2t(bounds.getWest(), z),  x1 = lon2t(bounds.getEast(), z);
-    const y0 = lat2t(bounds.getNorth(), z), y1 = lat2t(bounds.getSouth(), z);
-    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
-      if (currentBasemap === 'sat') urls.push(satUrl(z, x, y));
-      else urls.push('https://' + ('abc'[Math.floor(Math.random()*3)]) + '.tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png');
+  let maxZ=parseInt(prompt('Bis zu welcher Detailstufe offline speichern?\n16 = Übersicht · 17 = gut · 18 = sehr detailliert · 19 = maximal', '18'),10);
+  if(!Number.isFinite(maxZ)) return;
+  maxZ=Math.max(14,Math.min(19,maxZ));
+  const minZ=Math.max(12,maxZ-3);
+  const urls=[];
+  for(let z=minZ;z<=maxZ;z++){
+    const x0=lon2t(bounds.getWest(),z),x1=lon2t(bounds.getEast(),z);
+    const y0=lat2t(bounds.getNorth(),z),y1=lat2t(bounds.getSouth(),z);
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)urls.push(currentBasemap==='sat'?satUrl(z,x,y):'https://a.tile.openstreetmap.org/'+z+'/'+x+'/'+y+'.png');
+  }
+  const approxMb=Math.max(1,Math.round(urls.length*(currentBasemap==='sat'?55:25)/1024));
+  if(!urls.length)return;
+  if(urls.length>6000){ alert('Das Gebiet wäre mit '+urls.length.toLocaleString('de-DE')+' Kacheln zu groß. Bitte eine niedrigere Detailstufe wählen.'); return; }
+  if(!confirm(sourceName+' offline speichern?\nZoom '+minZ+'–'+maxZ+' · '+urls.length.toLocaleString('de-DE')+' Kacheln · ca. '+approxMb+' MB\n\nManuell gespeicherte Gebiete werden nicht vom automatischen Karten-Cache gelöscht.'))return;
+
+  wrap.style.display='block';fill.style.width='0%';txt.textContent='⬇ Offline-Karte wird gespeichert…';
+
+  const recordDone=(errors)=>{
+    if(errors===0){
+      try{
+        const all=JSON.parse(localStorage.getItem('lignum_offline_areas')||'{}');
+        const key=selected?String(selected.id):'viewport';
+        all[key]={name:sourceName,maxZoom:maxZ,minZoom:minZ,tiles:urls.length,savedAt:Date.now(),basemap:currentBasemap};
+        localStorage.setItem('lignum_offline_areas',JSON.stringify(all));
+      }catch{}
     }
-  }
-  const limited = urls.slice(0, 400);
-  if (limited.length === 0) {
-    txt.textContent = 'Keine Kacheln zu laden';
-    setTimeout(() => wrap.style.display = 'none', 2500);
-    return;
-  }
+    updateMapOfflineStatus();
+  };
 
-  // Direkter Download im Main-Thread (Fallback wenn SW nicht reagiert)
-  async function directDownload(urlList) {
-    txt.textContent = 'Direkter Download (' + urlList.length + ' Kacheln)...';
-    let cache = null;
-    try {
-      cache = await caches.open(currentBasemap === 'sat' ? 'lignum-sat-v5' : 'lignum-tiles-v5');
-    } catch (e) { console.warn('caches.open Fehler:', e); }
-    let done = 0;
-    for (let i = 0; i < urlList.length; i += 4) {
-      const batch = urlList.slice(i, i + 4);
-      await Promise.all(batch.map(async url => {
-        try {
-          if (cache) {
-            if (!(await cache.match(url))) {
-              const r = await fetch(url, { mode: 'cors' });
-              if (r && r.ok) await cache.put(url, r);
-            }
-          } else {
-            await fetch(url, { mode: 'cors' });
+  async function directDownload(list){
+    let cache=null,done=0,errors=0;
+    try{cache=await caches.open(currentBasemap==='sat'?'lignum-sat-offline-v1':'lignum-osm-offline-v1');}catch{}
+    for(let i=0;i<list.length;i+=4){
+      await Promise.all(list.slice(i,i+4).map(async url=>{
+        try{
+          if(cache && !(await cache.match(url))){
+            const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),10000);
+            const rr=await fetch(url,{mode:'cors',signal:ctl.signal});clearTimeout(tm);
+            if(rr&&rr.ok)await cache.put(url,rr);else errors++;
           }
-        } catch {}
-        done++;
-        fill.style.width = Math.round(done/urlList.length*100) + '%';
-        txt.textContent = done + ' / ' + urlList.length;
+        }catch{errors++;}
+        done++;fill.style.width=Math.round(done/list.length*100)+'%';txt.textContent=done+' / '+list.length;
       }));
-      // Kurzer Yield damit die UI nicht blockiert
-      if (isIOS) await new Promise(r => setTimeout(r, 20));
+      await new Promise(r=>setTimeout(r,isIOS?25:5));
     }
-    txt.textContent = '✓ ' + done + ' Kacheln gespeichert';
-    setTimeout(() => wrap.style.display = 'none', 3000);
+    recordDone(errors);
+    txt.textContent=errors?'⚠ '+done+' Kacheln · '+errors+' Fehler':'✓ '+done+' Kacheln · Offline verfügbar';
+    setTimeout(()=>wrap.style.display='none',3500);
   }
 
-  // Bevorzugt: SW-Weg (parallel, mit Background-Cache wenn App im Hintergrund)
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    let lastProgressAt = Date.now();
-    let watchdog = null;
-    let fellBack = false;
-    let finished = false;
-
-    const onSwMsg = e => {
-      if (!e.data) return;
-      if (e.data.type === 'CACHE_PROGRESS') {
-        lastProgressAt = Date.now();
-        fill.style.width = Math.round(e.data.done/e.data.total*100) + '%';
-        txt.textContent = e.data.done + ' / ' + e.data.total;
-      } else if (e.data.type === 'CACHE_DONE') {
-        finished = true;
-        navigator.serviceWorker.removeEventListener('message', onSwMsg);
-        if (watchdog) { clearInterval(watchdog); watchdog = null; }
-        const errPart = e.data.errors > 0 ? ' (' + e.data.errors + ' Fehler)' : '';
-        txt.textContent = '✓ ' + e.data.total + ' Kacheln gespeichert' + errPart;
-        setTimeout(() => wrap.style.display = 'none', 3000);
-      } else if (e.data.type === 'CACHE_ERROR') {
-        finished = true;
-        navigator.serviceWorker.removeEventListener('message', onSwMsg);
-        if (watchdog) { clearInterval(watchdog); watchdog = null; }
-        txt.textContent = '⚠️ Fehler im Cache: ' + e.data.error;
-        setTimeout(() => wrap.style.display = 'none', 5000);
+  if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+    let last=Date.now(),finished=false,fallback=false,watchdog=null;
+    const onMsg=e=>{
+      if(!e.data)return;
+      if(e.data.type==='CACHE_PROGRESS'){last=Date.now();fill.style.width=Math.round(e.data.done/e.data.total*100)+'%';txt.textContent=e.data.done+' / '+e.data.total;}
+      if(e.data.type==='CACHE_DONE'){
+        finished=true;navigator.serviceWorker.removeEventListener('message',onMsg);if(watchdog)clearInterval(watchdog);
+        recordDone(e.data.errors||0);
+        txt.textContent=e.data.errors?'⚠ '+e.data.total+' Kacheln · '+e.data.errors+' Fehler':'✓ '+e.data.total+' Kacheln · Offline verfügbar';
+        setTimeout(()=>wrap.style.display='none',3500);
       }
+      if(e.data.type==='CACHE_ERROR'){finished=true;navigator.serviceWorker.removeEventListener('message',onMsg);if(watchdog)clearInterval(watchdog);txt.textContent='⚠ Offline-Cache: '+e.data.error;}
     };
-
-    // Listener VOR postMessage registrieren um Race-Condition zu vermeiden
-    navigator.serviceWorker.addEventListener('message', onSwMsg);
-    try {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'CACHE_TILES', urls: limited, layer: currentBasemap
-      });
-    } catch (e) {
-      navigator.serviceWorker.removeEventListener('message', onSwMsg);
-      console.warn('postMessage Fehler, Fallback:', e);
-      await directDownload(limited);
-      return;
-    }
-
-    // Watchdog: falls 8s keine Progress-Updates → Fallback zu direktem Download
-    watchdog = setInterval(async () => {
-      if (finished || fellBack) return;
-      if (Date.now() - lastProgressAt > 8000) {
-        fellBack = true;
-        clearInterval(watchdog); watchdog = null;
-        navigator.serviceWorker.removeEventListener('message', onSwMsg);
-        console.warn('SW antwortet nicht — Fallback auf Direkt-Download');
-        txt.textContent = 'SW reagiert nicht — Fallback...';
-        await directDownload(limited);
-      }
-    }, 2000);
-  } else {
-    // Kein SW-Controller → direkter Download
-    await directDownload(limited);
-  }
+    navigator.serviceWorker.addEventListener('message',onMsg);
+    navigator.serviceWorker.controller.postMessage({type:'CACHE_TILES',urls,layer:currentBasemap,persistent:true});
+    watchdog=setInterval(async()=>{if(!finished&&!fallback&&Date.now()-last>10000){fallback=true;clearInterval(watchdog);navigator.serviceWorker.removeEventListener('message',onMsg);await directDownload(urls);}},2000);
+  }else await directDownload(urls);
 });
+
+function updateMapOfflineStatus(){
+  const el=document.getElementById('map-offline-status');if(!el)return;
+  let rec=null;try{const all=JSON.parse(localStorage.getItem('lignum_offline_areas')||'{}');rec=all[currentAreaId?String(currentAreaId):'viewport'];}catch{}
+  if(currentBasemap==='sat'){
+    el.textContent=rec&&rec.basemap==='sat'?'🛰 Satellit · Offline verfügbar':(navigator.onLine?'🛰 Satellit · Online':'🛰 Satellit · nicht gespeichert');
+    el.style.color=rec&&rec.basemap==='sat'?'#7fd67a':(navigator.onLine?'#8ab882':'#f5c870');
+  }else{
+    el.textContent=rec&&rec.basemap==='osm'?'🗺 Karte · Offline verfügbar':(navigator.onLine?'🗺 Karte · Online':'🗺 Karte · nicht gespeichert');
+    el.style.color=rec&&rec.basemap==='osm'?'#7fd67a':(navigator.onLine?'#8ab882':'#f5c870');
+  }
+}
+window.addEventListener('online',updateMapOfflineStatus);
+window.addEventListener('offline',updateMapOfflineStatus);
+setTimeout(updateMapOfflineStatus,500);
 
 // ── BASEMAP ───────────────────────────────────────────────────────
 document.getElementById('btn-basemap').addEventListener('click',()=>{
@@ -14382,6 +14378,7 @@ document.getElementById('btn-basemap').addEventListener('click',()=>{
   if(currentBasemap==='osm'){map.removeLayer(LAYERS.osm);bingActive=false;LAYERS.sat.addTo(map);LAYERS.satLabel.addTo(map);currentBasemap='sat';btn.textContent='🗺 Karte';btn.style.background='#5a3a1a';btn.style.borderColor='#8a6030';updateSatLayer();setTimeout(prefetchTiles,200);}
   else{[LAYERS.sat,LAYERS.satLabel,bingLayer].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});bingActive=false;LAYERS.osm.addTo(map);currentBasemap='osm';btn.textContent='🛰 Satellit';btn.style.background='rgba(255,255,255,0.1)';btn.style.borderColor='rgba(255,255,255,0.18)';}
   markers.forEach(m=>{try{m.layer.bringToFront();}catch{}});
+  saveMapState(); updateMapOfflineStatus();
 });
 
 // ── GPX EXPORT ────────────────────────────────────────────────────
