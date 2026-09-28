@@ -6,12 +6,14 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.26';
+const APP_VERSION  = '13.27';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
+const SAT_OFFLINE_CACHE = 'lignum-sat-offline-v1';
+const OSM_OFFLINE_CACHE = 'lignum-osm-offline-v1';
 const MAX_OSM      = 600;
-const MAX_SAT      = 1200;
+const MAX_SAT      = 1600;
 
 // ── APP-SHELL ────────────────────────────────────────────────────────
 // FEHLER 2 BEHOBEN: icon-192.png und icon-512.png brauchen führenden Slash
@@ -54,7 +56,7 @@ self.addEventListener('install', e => {
 
 // ── ACTIVATE: alte Caches aufräumen ─────────────────────────────────
 self.addEventListener('activate', e => {
-  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE]);
+  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE, SAT_OFFLINE_CACHE, OSM_OFFLINE_CACHE]);
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
@@ -76,17 +78,32 @@ async function limitCache(name, max) {
   }
 }
 
-async function tileRespond(req, cacheName, max) {
+async function fetchTileWithTimeout(req, ms=8000) {
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(req, { mode:'cors', signal:ctl.signal }); }
+  finally { clearTimeout(tm); }
+}
+
+async function tileRespond(req, cacheName, max, protectedName) {
+  // Manuell gespeicherte Arbeitsgebiete haben immer Vorrang und werden nie
+  // durch die automatische Größenbegrenzung entfernt.
+  if (protectedName) {
+    const protectedCache = await caches.open(protectedName);
+    const protectedHit = await protectedCache.match(req);
+    if (protectedHit) return protectedHit;
+  }
   const cache = await caches.open(cacheName);
   const hit = await cache.match(req);
   if (hit) {
-    fetch(req, { mode: 'cors' })
+    // Cache-first: Karte erscheint sofort; Aktualisierung nur im Hintergrund.
+    fetchTileWithTimeout(req, 6000)
       .then(r => { if (r && r.ok) cache.put(req, r); })
       .catch(() => {});
     return hit;
   }
   try {
-    const r = await fetch(req, { mode: 'cors' });
+    const r = await fetchTileWithTimeout(req, 8000);
     if (r && r.ok) cache.put(req, r.clone()).then(() => limitCache(cacheName, max));
     return r;
   } catch {
@@ -116,13 +133,13 @@ self.addEventListener('fetch', e => {
 
   // ② Satellit-Tiles (Esri + Bing)
   if (url.includes('arcgisonline.com') || url.includes('virtualearth.net')) {
-    e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT));
+    e.respondWith(tileRespond(e.request, SAT_CACHE, MAX_SAT, SAT_OFFLINE_CACHE));
     return;
   }
 
   // ③ OSM-Tiles
   if (url.includes('tile.openstreetmap.org')) {
-    e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM));
+    e.respondWith(tileRespond(e.request, TILE_CACHE, MAX_OSM, OSM_OFFLINE_CACHE));
     return;
   }
 
@@ -159,9 +176,11 @@ self.addEventListener('message', e => {
 
 // ── TILE-CACHING (Karten voraufladen) ────────────────────────────────
 async function handleCacheTiles(e) {
-  const { urls, layer } = e.data;
-  const cacheName = layer === 'sat' ? SAT_CACHE : TILE_CACHE;
-  const max       = layer === 'sat' ? MAX_SAT   : MAX_OSM;
+  const { urls, layer, persistent } = e.data;
+  const cacheName = persistent
+    ? (layer === 'sat' ? SAT_OFFLINE_CACHE : OSM_OFFLINE_CACHE)
+    : (layer === 'sat' ? SAT_CACHE : TILE_CACHE);
+  const max = persistent ? null : (layer === 'sat' ? MAX_SAT : MAX_OSM);
   const client    = e.source;
   function send(msg) { if (!client) return; try { client.postMessage(msg); } catch {} }
   try {
@@ -182,7 +201,7 @@ async function handleCacheTiles(e) {
         send({ type: 'CACHE_PROGRESS', done, total });
       }));
     }
-    await limitCache(cacheName, max);
+    if (max) await limitCache(cacheName, max);
     send({ type: 'CACHE_DONE', total: done, errors });
   } catch (err) {
     send({ type: 'CACHE_ERROR', error: String(err?.message ?? err) });
