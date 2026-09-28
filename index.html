@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.25">
+  <meta name="app-version" content="13.26">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.25'")) {
+        if (!txt.includes("APP_VERSION = '13.26'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4248,15 +4248,33 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  const { data, error } = await sb.auth.signUp({ email, password: pw });
+  // v13.26: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password: pw,
+    options: {
+      data: {
+        name,
+        company_name: company,
+        requested_role: 'admin'
+      },
+      emailRedirectTo: window.location.origin + window.location.pathname
+    }
+  });
   if (error) return showAuthErr(error.message);
+  if (!data || !data.user) return showAuthErr('Registrierung konnte nicht abgeschlossen werden.');
 
-  // Unternehmen anlegen
+  if (!data.session) {
+    showAuthErr('✓ Fast geschafft! Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte E-Mail bestätigen und danach anmelden.');
+    return;
+  }
+
+  // Fallback für Projekte ohne verpflichtende E-Mail-Bestätigung.
   const { data: comp, error: compErr } = await sb
     .from('companies').insert({ name: company }).select().single();
   if (compErr) return showAuthErr('Fehler beim Anlegen des Unternehmens.');
 
-  // Admin-Profil anlegen
   const profResp = await fetch(SUPABASE_URL+'/rest/v1/profiles', {
     method: 'POST',
     headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+data.session.access_token,
@@ -4265,7 +4283,7 @@ async function doRegister() {
   });
   if (!profResp.ok) return showAuthErr('Fehler beim Anlegen des Profils.');
 
-  showAuthErr('✓ Registrierung erfolgreich! Bitte E-Mail bestätigen dann anmelden.');
+  showAuthErr('✓ Registrierung erfolgreich! Du kannst dich jetzt anmelden.');
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────────
