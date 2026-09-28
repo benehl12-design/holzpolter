@@ -12600,6 +12600,7 @@ function renderAreaSelect(selectId) {
   }
   currentAreaId = sel.value || null;
   syncAreaSelectMenu();
+  if (typeof updateMapOfflineStatus === 'function') updateMapOfflineStatus();
 }
 
 document.getElementById('area-select').addEventListener('change', function() {
@@ -12607,6 +12608,7 @@ document.getElementById('area-select').addEventListener('change', function() {
   renderLkwSidebar();
   applyMarkerFilter();
   updateFuhrenSelect();
+  if (typeof updateMapOfflineStatus === 'function') updateMapOfflineStatus();
 });
 
 document.getElementById('btn-area-new').addEventListener('click', () => {
