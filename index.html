@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.30">
+  <meta name="app-version" content="13.31">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.30'")) {
+        if (!txt.includes("APP_VERSION = '13.31'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4306,7 +4306,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.30: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.31: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6879,7 +6879,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.30: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.31: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -7319,36 +7319,52 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   const menge = document.getElementById('f-menge').value;
   const notiz = document.getElementById('f-notiz').value;
 
-  // In Supabase speichern
   if (typ === 'ruecke' && !currentAreaId) {
     const ok = confirm('Kein Einschlagsgebiet gewählt. Ablageort wird ohne Gebietszuordnung gespeichert. Trotzdem speichern?');
     if (!ok) { document.getElementById('panel').classList.add('hidden'); return; }
   }
-  const saved = await dbFetch('markers?select=*', {
-    method: 'POST',
-    body: { company_id: currentProfile.company_id, created_by: currentUser.id,
-            lat: pendingLL.lat, lng: pendingLL.lng, typ, art, menge, notiz, auto,
-            done: false, area_id: currentAreaId || null },
-    prefer: 'return=representation'
-  }).catch(e => { alert('Speichern fehlgeschlagen: '+e.message); return null; });
 
-  if (saved && saved[0]) {
-    addMarkerToMap(saved[0]);
-    applyMarkerFilter();
-    renderSidebar(); renderLkwSidebar();
-    if (saved[0]._offline_pending) {
-      showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert', 3500);
-    } else {
-      showToast('✓ Polter gespeichert');
-    }
-  } else {
-    showToast('⚠️ Polter konnte nicht lokal gespeichert werden');
-  }
+  // v13.31: Optimistic local marker. Die UUID entsteht VOR dem Netzwerkversuch,
+  // damit der Fahrer den Polter sofort sieht – auch bei Flugmodus / Funkloch.
+  const localId = (crypto.randomUUID ? crypto.randomUUID() : ('local-'+Date.now()+'-'+Math.random().toString(16).slice(2)));
+  const markerBody = {
+    id: localId, company_id: currentProfile.company_id, created_by: currentUser.id,
+    lat: pendingLL.lat, lng: pendingLL.lng, typ, art, menge, notiz, auto,
+    done: false, area_id: currentAreaId || null
+  };
+  const optimistic = { ...markerBody, created_at:new Date().toISOString(), _offline_pending:true };
+  addMarkerToMap(optimistic);
+  applyMarkerFilter();
+  renderLog(); renderSidebar(); renderLkwSidebar();
+
+  // Eingabefenster sofort schließen: die Aktion fühlt sich auch offline abgeschlossen an.
   document.getElementById('panel').classList.add('hidden');
   pendingLL = null;
-  renderLog();
-});
 
+  try {
+    const saved = await dbFetch('markers?select=*', {
+      method: 'POST',
+      body: markerBody,
+      prefer: 'return=representation'
+    });
+
+    // Online liefert Supabase den Datensatz zurück. Da dieselbe UUID verwendet
+    // wird, ersetzen wir nur die lokalen Metadaten statt einen zweiten Marker anzulegen.
+    if (saved && saved[0] && !saved[0]._offline_pending) {
+      const idx=markers.findIndex(m=>m.id===localId);
+      if(idx>=0) Object.assign(markers[idx], saved[0], {_offline_pending:false});
+      showToast('✓ Polter gespeichert');
+    } else {
+      showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert', 3500);
+    }
+  } catch(e) {
+    // Nur ein echter Speicherfehler entfernt den optimistischen Marker wieder.
+    const idx=markers.findIndex(m=>m.id===localId);
+    if(idx>=0){try{map.removeLayer(markers[idx].layer);}catch{} markers.splice(idx,1);}
+    renderLog(); renderSidebar(); renderLkwSidebar();
+    alert('Speichern fehlgeschlagen: '+e.message);
+  }
+});
 document.getElementById('btn-cancel').addEventListener('click',()=>{document.getElementById('panel').classList.add('hidden');pendingLL=null;});
 
 // ── MARKER AUF KARTE HINZUFÜGEN ───────────────────────────────────
