@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.29">
+  <meta name="app-version" content="13.30">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.29'")) {
+        if (!txt.includes("APP_VERSION = '13.30'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4255,6 +4255,18 @@ async function dbFetch(path, options = {}) {
       const cached = await OfflineReadCache.get(path);
       if (cached !== null) return cached;
     }
+    // iOS meldet bei WLAN ohne Internet häufig navigator.onLine=true.
+    // 502/503/504 deshalb bei Schreibvorgängen wie einen Offline-Fall behandeln.
+    if (!isGet && [502,503,504].includes(resp.status) && window.OfflineQueue) {
+      const result = await window.OfflineQueue.handle(path, { method, body, prefer });
+      if (result !== null) {
+        if(method==='POST' && result[0]){
+          const table=path.split('?')[0];
+          OfflineReadCache.mutate(table+'?', 'POST', result[0]).catch(()=>{});
+        }
+        return result;
+      }
+    }
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.message || err.hint || resp.status);
   }
@@ -4294,7 +4306,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.29: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.30: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6867,7 +6879,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.29: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.30: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -7323,6 +7335,14 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   if (saved && saved[0]) {
     addMarkerToMap(saved[0]);
     applyMarkerFilter();
+    renderSidebar(); renderLkwSidebar();
+    if (saved[0]._offline_pending) {
+      showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert', 3500);
+    } else {
+      showToast('✓ Polter gespeichert');
+    }
+  } else {
+    showToast('⚠️ Polter konnte nicht lokal gespeichert werden');
   }
   document.getElementById('panel').classList.add('hidden');
   pendingLL = null;
