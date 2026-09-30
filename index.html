@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.28">
+  <meta name="app-version" content="13.29">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.28'")) {
+        if (!txt.includes("APP_VERSION = '13.29'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -2679,7 +2679,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
 </div>
 
-<div id="statusbar" class="hidden mode-harvester"><div id="gps-dot" class="off"></div><span id="gps-txt">GPS bereit</span><span id="km-txt" style="margin-left:auto;display:none;"></span></div>
+<div id="statusbar" class="hidden mode-harvester"><div id="gps-dot" class="off"></div><span id="gps-txt">GPS bereit</span><span id="sync-txt" style="font-size:10px;color:#8ab882;white-space:nowrap;"></span><span id="km-txt" style="margin-left:auto;display:none;"></span></div>
 
 <!-- ── SLIDE-OVERLAY ── -->
 <div id="toast"></div>
@@ -3742,7 +3742,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
       <div class="hpage on" id="hpage-start">
         <h3>Willkommen bei Lignum</h3>
         <p>Die App verbindet Harvester- und Forwarder-Fahrer eines Forstbetriebs in Echtzeit. Alle Markierungen, Strecken und Arbeitszeiten sind sofort für die Kollegen sichtbar — auch offline.</p>
-        <div class="htip">💡 Im Wald ohne Netz? Lade vorher die Kartenkacheln über <b>⬇ Offline</b> herunter. Neue Daten synchronisieren beim nächsten Netzkontakt automatisch.</div>
+        <div class="htip">💡 Im Wald ohne Netz? Lade vorher die Kartenkacheln über <b>⬇ Offline</b> herunter. Polter, Strecken, Arbeitszeiten und weitere Änderungen werden lokal gespeichert. Der Status zeigt ausstehende Änderungen; beim nächsten Netzkontakt synchronisiert Lignum automatisch.</div>
 
         <div class="hstep"><div class="hnum">1</div><div class="hstep-txt"><b>Anmelden</b><span>Mit E-Mail und Passwort anmelden. Neuer Betrieb? Auf <b>Registrieren</b> tippen — dabei legst du ein Admin-Konto an.</span></div></div>
 
@@ -3949,14 +3949,14 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
-//  LIGNUM — Offline Queue v1.0
+//  LIGNUM — Offline Queue v2.0
 //  © 2026 Benedikt Holz. Alle Rechte vorbehalten.
 //  Speichert fehlgeschlagene DB-Schreiboperationen in IndexedDB und
 //  synchronisiert sie sobald das Gerät wieder online ist.
 // ════════════════════════════════════════════════════════════════════
 (function () {
   'use strict';
-  const DB_NAME='lignum-offline', DB_VERSION=1, STORE='queue';
+  const DB_NAME='lignum-offline', DB_VERSION=2, STORE='queue';
   const WRITE_METHODS=new Set(['POST','PATCH','DELETE']);
   const SKIP_PATHS=['auth/','rpc/auto_set_drivers_offline','rpc/set_admin_status','rpc/delete_my_account'];
   let _db=null, _syncing=false, _queueSize=0;
@@ -3992,11 +3992,13 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).count();
     req.onsuccess=e=>{_queueSize=e.target.result;resolve(_queueSize);};req.onerror=()=>resolve(0);});}
 
-  function updateOnlineDot(){const dot=document.getElementById('online-dot');if(!dot)return;
-    if(!navigator.onLine){dot.className='off';dot.title='Offline — '+_queueSize+' Aktion(en) ausstehend';return;}
-    if(_syncing){dot.className='sync';dot.title='Synchronisiert '+_queueSize+' ausstehende Aktion(en)…';return;}
-    if(_queueSize>0){dot.className='sync';dot.title=_queueSize+' Aktion(en) warten auf Sync';return;}
-    dot.className='on';dot.title='Online — alle Daten synchronisiert';}
+  function updateOnlineDot(){
+    const dot=document.getElementById('online-dot'),txt=document.getElementById('sync-txt');
+    const set=(cls,title,label)=>{if(dot){dot.className=cls;dot.title=title;}if(txt){txt.textContent=label;txt.style.color=cls==='off'?'#f5a0a0':cls==='sync'?'#f5c870':'#8ab882';}};
+    if(!navigator.onLine){set('off','Offline — '+_queueSize+' Änderung(en) ausstehend',_queueSize?'📵 Offline · '+_queueSize+' wartet':'📵 Offline');return;}
+    if(_syncing){set('sync','Synchronisiert '+_queueSize+' Änderung(en)…','↻ Sync · '+_queueSize);return;}
+    if(_queueSize>0){set('sync',_queueSize+' Änderung(en) warten auf Sync','☁ '+_queueSize+' wartet');return;}
+    set('on','Online — alle Daten synchronisiert','✓ synchron');}
 
   function _toast(msg){if(typeof showToast==='function')showToast(msg);else console.info('[OfflineQueue]',msg);}
 
@@ -4008,7 +4010,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     _toast('🔄 '+entries.length+' offline gespeicherte Aktion(en) werden synchronisiert…');
     let succeeded=0,failed=0;
     for(const entry of entries){
-      if(entry.retries>=3){console.warn('[OfflineQueue] Aufgegeben:',entry);await removeEntry(entry.id).catch(()=>{});failed++;continue;}
+      if(entry.retries>=10){console.warn('[OfflineQueue] Wiederholter Sync-Fehler, Eintrag bleibt erhalten:',entry);failed++;continue;}
       try{
         const token=(typeof accessToken!=='undefined'&&accessToken)?accessToken:(typeof SUPABASE_KEY!=='undefined'?SUPABASE_KEY:'');
         const headers={'apikey':typeof SUPABASE_KEY!=='undefined'?SUPABASE_KEY:'','Authorization':'Bearer '+token,'Content-Type':'application/json'};
@@ -4021,7 +4023,8 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
             if(ok)await incrementRetry(entry.id,entry.retries);
             else{await removeEntry(entry.id).catch(()=>{});failed++;}}
           else await incrementRetry(entry.id,entry.retries);}
-        else if(resp.status===409){console.warn('[OfflineQueue] Konflikt(409) verworfen:',entry.path);await removeEntry(entry.id).catch(()=>{});succeeded++;}
+        else if(resp.status===409 && entry.method==='POST'){console.warn('[OfflineQueue] POST bereits vorhanden (409):',entry.path);await removeEntry(entry.id).catch(()=>{});succeeded++;}
+        else if(resp.status===409){console.warn('[OfflineQueue] Konflikt bleibt zur Prüfung in Queue:',entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
         else{console.warn('[OfflineQueue] Server-Fehler',resp.status,entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
       }catch(networkErr){console.warn('[OfflineQueue] Netzfehler während Sync:',networkErr);break;}
     }
@@ -4036,10 +4039,18 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
       const method=(options.method||'GET').toUpperCase();
       if(shouldSkip(path,method))return null;
       const token=(typeof accessToken!=='undefined'&&accessToken)?accessToken:'';
-      await enqueue({path,method,body:options.body||null,prefer:options.prefer||'',token});
-      _toast('📵 Offline — Aktion gespeichert, wird synchronisiert sobald Netz da ist');
+      let queuedBody=options.body||null, localRecord=null;
+      // POSTs bekommen bereits offline eine echte UUID. Dadurch können Polter,
+      // Tracks, Gebiete und Zeiteinträge sofort in der App weiterverwendet werden.
+      if(method==='POST' && queuedBody && typeof queuedBody==='object' && !Array.isArray(queuedBody)){
+        const localId=queuedBody.id || (crypto.randomUUID ? crypto.randomUUID() : ('offline-'+Date.now()+'-'+Math.random().toString(16).slice(2)));
+        queuedBody={...queuedBody,id:localId};
+        localRecord={...queuedBody,created_at:queuedBody.created_at||new Date().toISOString(),_offline_pending:true};
+      }
+      await enqueue({path,method,body:queuedBody,prefer:options.prefer||'',token});
+      _toast('📵 Offline — Änderung lokal gespeichert');
       updateOnlineDot();
-      if(method==='POST')return [];
+      if(method==='POST')return localRecord?[localRecord]:[];
       return true;},
     sync:syncQueue,
     size:()=>_queueSize,
@@ -4133,7 +4144,29 @@ const OfflineReadCache = (() => {
   async function clear(){
     try{ const db=await openDB(); await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); db.close(); }catch(e){}
   }
-  return {put,get,clear};
+  async function mutate(matchPrefix,method,body){
+    try{
+      const db=await openDB();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),req=store.openCursor();
+        req.onsuccess=()=>{
+          const cur=req.result;if(!cur)return;
+          if(String(cur.key).startsWith(matchPrefix)){
+            const rec=cur.value,arr=Array.isArray(rec.data)?rec.data:[];
+            if(method==='POST'&&body) arr.push(body);
+            if((method==='PATCH'||method==='DELETE')&&body&&body.id){
+              const i=arr.findIndex(x=>x&&x.id===body.id);
+              if(i>=0){if(method==='DELETE')arr.splice(i,1);else arr[i]={...arr[i],...body};}
+            }
+            rec.data=arr;cur.update(rec);
+          }
+          cur.continue();
+        };
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+      });db.close();
+    }catch(e){}
+  }
+  return {put,get,clear,mutate};
 })();
 window.OfflineReadCache = OfflineReadCache;
 
@@ -4152,7 +4185,13 @@ async function dbFetch(path, options = {}) {
     }
     if (window.OfflineQueue) {
       const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-      if (result !== null) return result;
+      if (result !== null) {
+        if(method==='POST' && result[0]){
+          const table=path.split('?')[0];
+          OfflineReadCache.mutate(table+'?', 'POST', result[0]).catch(()=>{});
+        }
+        return result;
+      }
     }
     throw new Error('Offline und kein Netz verfügbar');
   }
@@ -4178,7 +4217,13 @@ async function dbFetch(path, options = {}) {
       if (cached !== null) return cached;
     } else if (window.OfflineQueue) {
       const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-      if (result !== null) return result;
+      if (result !== null) {
+        if(method==='POST' && result[0]){
+          const table=path.split('?')[0];
+          OfflineReadCache.mutate(table+'?', 'POST', result[0]).catch(()=>{});
+        }
+        return result;
+      }
     }
     throw networkErr;
   }
@@ -4249,7 +4294,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.28: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.29: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6822,7 +6867,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.28: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.29: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
