@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.27">
+  <meta name="app-version" content="13.28">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.27'")) {
+        if (!txt.includes("APP_VERSION = '13.28'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4249,7 +4249,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.27: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.28: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6822,7 +6822,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.27: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.28: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -12274,9 +12274,21 @@ window.loadTrailPlans       = loadTrailPlans;
 async function delMarker(id) {
   const idx = markers.findIndex(m => m.id === id);
   if (idx < 0) return;
-  map.removeLayer(markers[idx].layer);
-  markers.splice(idx, 1);
-  await dbFetch('markers?id=eq.'+id, { method: 'DELETE' }).catch(()=>{});
+  const m = markers[idx];
+  // LKW-Polterplätze (vom Forwarder angelegt) sind Betriebsdaten:
+  // Löschen ausschließlich durch Firmen-Admins. Zusätzlich serverseitig per RLS geschützt.
+  if (m.typ === 'ruecke' && !isAdminUser()) {
+    showToast('🔒 LKW-Polterplätze können nur vom Firmen-Admin gelöscht werden.');
+    return;
+  }
+  try {
+    await dbFetch('markers?id=eq.'+id, { method: 'DELETE', prefer: 'return=minimal' });
+    map.removeLayer(m.layer);
+    markers.splice(idx, 1);
+  } catch(e) {
+    showToast('⚠️ Löschen nicht erlaubt oder fehlgeschlagen.');
+    return;
+  }
   renderLog(); renderSidebar(); renderLkwSidebar();
 }
 async function delTrack(id) {
@@ -12317,7 +12329,9 @@ function mkRow(m) {
   const artB=m.art?`<span style="font-size:9px;background:#eaefe8;color:#2d5a27;padding:1px 5px;border-radius:4px;margin-left:3px;">${m.art}</span>`:'';
   const autoB=m.auto?`<span style="font-size:9px;background:#d4edcc;color:#2d5a27;padding:1px 4px;border-radius:4px;margin-left:2px;">auto</span>`:'';
   const checkBtn=currentMode==='ruecke'&&m.typ==='harvester'?`<button class="lcheck" onclick="markDone('${m.id}')">${m.done?'↩':'✓ Weg'}</button>`:'';
-  return `<div class="lrow${m.done?' done':''}"><span class="tag ${tc}">${tl}</span><div class="linfo">${m.menge?m.menge+' Fm':''}${artB}${autoB}<div class="lcoord">${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>${m.notiz?'<div style="color:#666;font-size:10px;">'+m.notiz+'</div>':''}</div>${checkBtn}<button class="ldel" onclick="delMarker('${m.id}')">✕</button></div>`;
+  const canDelete = m.typ !== 'ruecke' || isAdminUser();
+  const deleteBtn = canDelete ? `<button class="ldel" onclick="delMarker('${m.id}')">✕</button>` : '';
+  return `<div class="lrow${m.done?' done':''}"><span class="tag ${tc}">${tl}</span><div class="linfo">${m.menge?m.menge+' Fm':''}${artB}${autoB}<div class="lcoord">${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>${m.notiz?'<div style="color:#666;font-size:10px;">'+m.notiz+'</div>':''}</div>${checkBtn}${deleteBtn}</div>`;
 }
 
 function renderLog() {
@@ -12375,6 +12389,8 @@ function renderLog() {
     document.getElementById('fwd-count-arbeit').textContent=arbeit.length+' Polter · '+done+' eingesammelt';
     document.getElementById('log-arbeit').innerHTML=arbeit.length?arbeit.map(m=>mkRow(m)).join(''):'<div class="lrow" style="color:#aaa;font-style:italic;">Keine Harvester-Polter.</div>';
     const polter=markers.filter(m=>m.typ==='ruecke');
+    const clearPolterBtn=document.getElementById('btn-clear-polter');
+    if(clearPolterBtn) clearPolterBtn.style.display=isAdminUser()?'':'none';
     document.getElementById('fwd-count-polter').textContent=polter.length+' Platz / Plätze';
     document.getElementById('log-polter').innerHTML=polter.length?polter.map(m=>mkRow(m)).join(''):'<div class="lrow" style="color:#aaa;font-style:italic;">Noch keine Polterplätze.</div>';
     if(typeof renderSidebar==='function')renderSidebar();
@@ -12440,10 +12456,11 @@ document.getElementById('btn-clear-arbeit').addEventListener('click', async () =
   markers=keep;renderLog();
 });
 document.getElementById('btn-clear-polter').addEventListener('click', async () => {
-  if(!confirm('Alle Polterplätze löschen?'))return;
-  const keep=[];
-  for(const m of markers){if(m.typ==='ruecke'){map.removeLayer(m.layer);await dbFetch('markers?id=eq.'+m.id,{method:'DELETE'}).catch(()=>{});}else keep.push(m);}
-  markers=keep;renderLog();
+  if(!isAdminUser()){ showToast('🔒 LKW-Polterplätze können nur vom Firmen-Admin gelöscht werden.'); return; }
+  if(!confirm('Alle LKW-Polterplätze löschen?'))return;
+  const ids=markers.filter(m=>m.typ==='ruecke').map(m=>m.id);
+  for(const id of ids) await delMarker(id);
+  renderLog();
 });
 
 // ── ARBEITSLISTE SIDEBAR ──────────────────────────────────────────
