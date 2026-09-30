@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.31">
+  <meta name="app-version" content="13.32">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.31'")) {
+        if (!txt.includes("APP_VERSION = '13.32'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4306,7 +4306,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.31: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.32: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6879,7 +6879,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.31: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.32: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -7324,7 +7324,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     if (!ok) { document.getElementById('panel').classList.add('hidden'); return; }
   }
 
-  // v13.31: Optimistic local marker. Die UUID entsteht VOR dem Netzwerkversuch,
+  // v13.32: Optimistic local marker. Die UUID entsteht VOR dem Netzwerkversuch,
   // damit der Fahrer den Polter sofort sieht – auch bei Flugmodus / Funkloch.
   const localId = (crypto.randomUUID ? crypto.randomUUID() : ('local-'+Date.now()+'-'+Math.random().toString(16).slice(2)));
   const markerBody = {
@@ -7340,6 +7340,10 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   // Eingabefenster sofort schließen: die Aktion fühlt sich auch offline abgeschlossen an.
   document.getElementById('panel').classList.add('hidden');
   pendingLL = null;
+  // Nach dem Panel-Reflow auf iOS nochmals explizit in den Marker-Pane zeichnen.
+  requestAnimationFrame(()=>ensureLocalMarkerVisible(localId));
+  setTimeout(()=>ensureLocalMarkerVisible(localId),120);
+  setTimeout(()=>ensureLocalMarkerVisible(localId),450);
 
   try {
     const saved = await dbFetch('markers?select=*', {
@@ -7358,11 +7362,19 @@ document.getElementById('btn-save').addEventListener('click', async () => {
       showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert', 3500);
     }
   } catch(e) {
-    // Nur ein echter Speicherfehler entfernt den optimistischen Marker wieder.
-    const idx=markers.findIndex(m=>m.id===localId);
-    if(idx>=0){try{map.removeLayer(markers[idx].layer);}catch{} markers.splice(idx,1);}
+    // Der lokal sichtbare Polter bleibt erhalten. Bei unerwartetem Netzfehler
+    // versuchen wir zusätzlich, ihn in die Offline-Queue zu legen.
+    let queued=false;
+    try {
+      if(window.OfflineQueue){
+        const q=await window.OfflineQueue.handle('markers?select=*',{method:'POST',body:markerBody,prefer:'return=representation'});
+        queued=q!==null;
+      }
+    } catch {}
+    ensureLocalMarkerVisible(localId);
     renderLog(); renderSidebar(); renderLkwSidebar();
-    alert('Speichern fehlgeschlagen: '+e.message);
+    if(queued) showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert',3500);
+    else showToast('⚠️ Polter ist lokal sichtbar · Synchronisierung noch offen',3500);
   }
 });
 document.getElementById('btn-cancel').addEventListener('click',()=>{document.getElementById('panel').classList.add('hidden');pendingLL=null;});
@@ -7371,11 +7383,31 @@ document.getElementById('btn-cancel').addEventListener('click',()=>{document.get
 function addMarkerToMap(data, skipIfExists = true) {
   if (skipIfExists && markers.find(m => m.id === data.id)) return;
   const ll = L.latLng(data.lat, data.lng);
-  const layer = L.marker(ll, { icon: data.done ? mkIconDone() : getMarkerIcon(data.typ, data.art) }).addTo(map);
+  const layer = L.marker(ll, {
+    icon: data.done ? mkIconDone() : getMarkerIcon(data.typ, data.art),
+    zIndexOffset: data._offline_pending ? 5000 : 0
+  }).addTo(map);
   const label = data.typ==='harvester'?'<span class=\"ico-harvester\"></span> Harvester':data.typ==='ruecke'?'🚜 Polterplatz':'📋 Notiz';
   const areaName = data.area_id ? (areas.find(a=>a.id===data.area_id)?.name||'') : '';
   layer.bindPopup(`<b>${label}</b>${data.auto?' <em style="font-size:10px">(auto)</em>':''}<br>${data.art||''} ${data.menge?data.menge+' Fm':''}<br>${data.notiz||''}${areaName?'<br><span style="font-size:10px;background:#d4edcc;color:#2d5a27;padding:1px 5px;border-radius:4px;">📍 '+areaName+'</span>':''}<br><span style="font-size:10px;color:#aaa;">${data.lat.toFixed(6)}, ${data.lng.toFixed(6)}</span>`);
   markers.push({ ...data, layer, visible: true });
+}
+
+// Erzwingt die sichtbare Darstellung eines gerade lokal angelegten Polters.
+// Wichtig auf iOS/PWA: nach dem Schließen des Panels kann Leaflet sonst einen
+// bereits hinzugefügten Marker erst beim nächsten Render/Online-Reload zeichnen.
+function ensureLocalMarkerVisible(id) {
+  const m=markers.find(x=>x.id===id);
+  if(!m||!m.layer)return;
+  try {
+    if(!map.hasLayer(m.layer)) m.layer.addTo(map);
+    m.layer.setZIndexOffset(5000);
+    m.visible=true;
+    const el=m.layer.getElement();
+    if(el){el.style.display='block';el.style.visibility='visible';el.style.opacity='1';el.style.zIndex='5000';}
+    m.layer.update();
+    map.invalidateSize(false);
+  } catch(e){ console.warn('Lokaler Marker Render:',e); }
 }
 
 // ── DATEN LADEN ───────────────────────────────────────────────────
