@@ -4067,6 +4067,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
       return true;},
     sync:syncQueue,
     size:()=>_queueSize,
+    refreshStatus:updateOnlineDot,
     async init(){await openDB();await getQueueSize();updateOnlineDot();
       if(_queueSize>0)console.info('[OfflineQueue] '+_queueSize+' ausstehende Aktionen beim Start');},
   };
@@ -7057,7 +7058,10 @@ function hav(a,b){const R=6371000,r=x=>x*Math.PI/180,dL=r(b[0]-a[0]),dG=r(b[1]-a
 function totDist(pts){let d=0;for(let i=1;i<pts.length;i++)d+=hav(pts[i-1],pts[i]);return d;}
 function setDot(c){document.getElementById('gps-dot').className=c;}
 function setTxt(t){document.getElementById('gps-txt').textContent=t;}
-function setOnline(s){document.getElementById('online-dot').className=s;}
+function setOnline(s){
+  if(s==='on'&&window.OfflineQueue&&typeof window.OfflineQueue.refreshStatus==='function'){window.OfflineQueue.refreshStatus();return;}
+  const dot=document.getElementById('online-dot');if(dot)dot.className=s;
+}
 
 // ── KALMAN ────────────────────────────────────────────────────────
 class KalmanGPS{
