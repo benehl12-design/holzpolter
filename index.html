@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.32">
+  <meta name="app-version" content="13.33">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.32'")) {
+        if (!txt.includes("APP_VERSION = '13.33'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4017,13 +4017,23 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
         if(entry.prefer)headers['Prefer']=entry.prefer;
         const baseUrl=typeof SUPABASE_URL!=='undefined'?SUPABASE_URL:'';
         const resp=await fetch(baseUrl+'/rest/v1/'+entry.path,{method:entry.method,headers,body:entry.body?JSON.stringify(entry.body):undefined});
-        if(resp.ok||resp.status===204){await removeEntry(entry.id);succeeded++;}
+        if(resp.ok||resp.status===204){
+          await removeEntry(entry.id);succeeded++;
+          if(entry.method==='POST'&&entry.body&&entry.body.id&&window.LocalDataStore){
+            const table=entry.path.split('?')[0];
+            await window.LocalDataStore.remove(table,entry.body.id).catch(()=>{});
+          }
+        }
         else if(resp.status===401){
           if(typeof refreshAccessToken==='function'){const ok=await refreshAccessToken();
             if(ok)await incrementRetry(entry.id,entry.retries);
             else{await removeEntry(entry.id).catch(()=>{});failed++;}}
           else await incrementRetry(entry.id,entry.retries);}
-        else if(resp.status===409 && entry.method==='POST'){console.warn('[OfflineQueue] POST bereits vorhanden (409):',entry.path);await removeEntry(entry.id).catch(()=>{});succeeded++;}
+        else if(resp.status===409 && entry.method==='POST'){
+          console.warn('[OfflineQueue] POST bereits vorhanden (409):',entry.path);
+          await removeEntry(entry.id).catch(()=>{});succeeded++;
+          if(entry.body&&entry.body.id&&window.LocalDataStore)await window.LocalDataStore.remove(entry.path.split('?')[0],entry.body.id).catch(()=>{});
+        }
         else if(resp.status===409){console.warn('[OfflineQueue] Konflikt bleibt zur Prüfung in Queue:',entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
         else{console.warn('[OfflineQueue] Server-Fehler',resp.status,entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
       }catch(networkErr){console.warn('[OfflineQueue] Netzfehler während Sync:',networkErr);break;}
@@ -4048,6 +4058,9 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
         localRecord={...queuedBody,created_at:queuedBody.created_at||new Date().toISOString(),_offline_pending:true};
       }
       await enqueue({path,method,body:queuedBody,prefer:options.prefer||'',token});
+      if(method==='POST'&&localRecord&&window.LocalDataStore){
+        await window.LocalDataStore.put(path.split('?')[0],localRecord).catch(()=>{});
+      }
       _toast('📵 Offline — Änderung lokal gespeichert');
       updateOnlineDot();
       if(method==='POST')return localRecord?[localRecord]:[];
@@ -4125,6 +4138,33 @@ async function refreshAccessToken() {
 }
 
 // Alle Supabase REST-Calls mit auto Token-Erneuerung
+// Lokale Quelle für noch nicht synchronisierte Betriebsdaten.
+// Anders als der query-basierte Read-Cache speichert sie Datensätze stabil nach table:id.
+const LocalDataStore = (() => {
+  const DB_NAME='lignum-local-data', STORE='entities', VERSION=1;
+  function openDB(){return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,VERSION);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'key'});};
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+  });}
+  async function put(table,row){
+    if(!row||!row.id)return;
+    const db=await openDB();
+    await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({key:table+':'+row.id,table,row:{...row,_offline_pending:true},ts:Date.now()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+    db.close();
+  }
+  async function remove(table,id){
+    if(!id)return;const db=await openDB();
+    await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(table+':'+id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();
+  }
+  async function list(table){
+    try{const db=await openDB();const all=await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});db.close();return all.filter(x=>x.table===table).map(x=>x.row);}catch{return [];}
+  }
+  async function clear(){try{const db=await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}catch{}}
+  return {put,remove,list,clear};
+})();
+window.LocalDataStore=LocalDataStore;
+
 // Persistenter Read-Cache für Offline-Betrieb
 const OfflineReadCache = (() => {
   const DB_NAME = 'lignum-read-cache', STORE = 'responses', VERSION = 1;
@@ -4306,7 +4346,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.32: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.33: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -4328,18 +4368,8 @@ async function doRegister() {
     return;
   }
 
-  // Fallback für Projekte ohne verpflichtende E-Mail-Bestätigung.
-  const { data: comp, error: compErr } = await sb
-    .from('companies').insert({ name: company }).select().single();
-  if (compErr) return showAuthErr('Fehler beim Anlegen des Unternehmens.');
-
-  const profResp = await fetch(SUPABASE_URL+'/rest/v1/profiles', {
-    method: 'POST',
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+data.session.access_token,
-               'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ id: data.user.id, company_id: comp.id, name, role: 'admin' })
-  });
-  if (!profResp.ok) return showAuthErr('Fehler beim Anlegen des Profils.');
+  // Unternehmen + Admin-Profil werden ausschließlich durch den serverseitigen
+  // auth.users-Trigger angelegt. Keine zweite Client-Provisionierung.
 
   showAuthErr('✓ Registrierung erfolgreich! Du kannst dich jetzt anmelden.');
 }
@@ -6879,7 +6909,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.32: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.33: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -7312,136 +7342,92 @@ map.on('click',e=>{
 
 // ── MARKER SPEICHERN ──────────────────────────────────────────────
 document.getElementById('btn-save').addEventListener('click', async () => {
-  if (!pendingLL) return;
-  const auto = !document.getElementById('auto-chip').classList.contains('hidden');
-  const typ  = document.getElementById('f-typ').value;
-  const art  = getArt();
-  const menge = document.getElementById('f-menge').value;
-  const notiz = document.getElementById('f-notiz').value;
+  if (!pendingLL || !currentProfile || !currentUser) return;
+  const auto=!document.getElementById('auto-chip').classList.contains('hidden');
+  const typ=document.getElementById('f-typ').value, art=getArt();
+  const menge=document.getElementById('f-menge').value, notiz=document.getElementById('f-notiz').value;
+  if(typ==='ruecke'&&!currentAreaId&&!confirm('Kein Einschlagsgebiet gewählt. Ablageort ohne Gebietszuordnung speichern?'))return;
 
-  if (typ === 'ruecke' && !currentAreaId) {
-    const ok = confirm('Kein Einschlagsgebiet gewählt. Ablageort wird ohne Gebietszuordnung gespeichert. Trotzdem speichern?');
-    if (!ok) { document.getElementById('panel').classList.add('hidden'); return; }
-  }
+  const id=crypto.randomUUID ? crypto.randomUUID() : ('local-'+Date.now()+'-'+Math.random().toString(16).slice(2));
+  const body={id,company_id:currentProfile.company_id,created_by:currentUser.id,lat:pendingLL.lat,lng:pendingLL.lng,typ,art,menge,notiz,auto,done:false,area_id:currentAreaId||null};
+  const local={...body,created_at:new Date().toISOString(),_offline_pending:true};
 
-  // v13.32: Optimistic local marker. Die UUID entsteht VOR dem Netzwerkversuch,
-  // damit der Fahrer den Polter sofort sieht – auch bei Flugmodus / Funkloch.
-  const localId = (crypto.randomUUID ? crypto.randomUUID() : ('local-'+Date.now()+'-'+Math.random().toString(16).slice(2)));
-  const markerBody = {
-    id: localId, company_id: currentProfile.company_id, created_by: currentUser.id,
-    lat: pendingLL.lat, lng: pendingLL.lng, typ, art, menge, notiz, auto,
-    done: false, area_id: currentAreaId || null
-  };
-  const optimistic = { ...markerBody, created_at:new Date().toISOString(), _offline_pending:true };
-  addMarkerToMap(optimistic);
-  applyMarkerFilter();
-  renderLog(); renderSidebar(); renderLkwSidebar();
+  // Erst dauerhaft lokal sichern, DANN UI und Netzwerk. So kann ein Reload den Polter nicht verlieren.
+  await LocalDataStore.put('markers',local);
+  upsertMarkerOnMap(local);
+  document.getElementById('panel').classList.add('hidden'); pendingLL=null;
+  renderLog();renderSidebar();renderLkwSidebar();
+  showToast('✓ Polter lokal gespeichert');
 
-  // Eingabefenster sofort schließen: die Aktion fühlt sich auch offline abgeschlossen an.
-  document.getElementById('panel').classList.add('hidden');
-  pendingLL = null;
-  // Nach dem Panel-Reflow auf iOS nochmals explizit in den Marker-Pane zeichnen.
-  requestAnimationFrame(()=>ensureLocalMarkerVisible(localId));
-  setTimeout(()=>ensureLocalMarkerVisible(localId),120);
-  setTimeout(()=>ensureLocalMarkerVisible(localId),450);
-
-  try {
-    const saved = await dbFetch('markers?select=*', {
-      method: 'POST',
-      body: markerBody,
-      prefer: 'return=representation'
-    });
-
-    // Online liefert Supabase den Datensatz zurück. Da dieselbe UUID verwendet
-    // wird, ersetzen wir nur die lokalen Metadaten statt einen zweiten Marker anzulegen.
-    if (saved && saved[0] && !saved[0]._offline_pending) {
-      const idx=markers.findIndex(m=>m.id===localId);
-      if(idx>=0) Object.assign(markers[idx], saved[0], {_offline_pending:false});
-      showToast('✓ Polter gespeichert');
-    } else {
-      showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert', 3500);
+  try{
+    const saved=await dbFetch('markers?select=*',{method:'POST',body,prefer:'return=representation'});
+    if(saved&&saved[0]&&!saved[0]._offline_pending){
+      await LocalDataStore.remove('markers',id);
+      upsertMarkerOnMap({...saved[0],_offline_pending:false});
+      showToast('✓ Polter synchronisiert');
+    }else{
+      showToast('📵 Polter lokal gespeichert · Synchronisierung wartet',3500);
     }
-  } catch(e) {
-    // Der lokal sichtbare Polter bleibt erhalten. Bei unerwartetem Netzfehler
-    // versuchen wir zusätzlich, ihn in die Offline-Queue zu legen.
-    let queued=false;
-    try {
-      if(window.OfflineQueue){
-        const q=await window.OfflineQueue.handle('markers?select=*',{method:'POST',body:markerBody,prefer:'return=representation'});
-        queued=q!==null;
-      }
-    } catch {}
-    ensureLocalMarkerVisible(localId);
-    renderLog(); renderSidebar(); renderLkwSidebar();
-    if(queued) showToast('✓ Polter lokal angelegt · wird bei Netz synchronisiert',3500);
-    else showToast('⚠️ Polter ist lokal sichtbar · Synchronisierung noch offen',3500);
+  }catch(e){
+    // Lokaler Datensatz und Marker bleiben absichtlich bestehen.
+    showToast('📵 Polter lokal gespeichert · Synchronisierung wartet',3500);
   }
 });
 document.getElementById('btn-cancel').addEventListener('click',()=>{document.getElementById('panel').classList.add('hidden');pendingLL=null;});
 
 // ── MARKER AUF KARTE HINZUFÜGEN ───────────────────────────────────
 function addMarkerToMap(data, skipIfExists = true) {
-  if (skipIfExists && markers.find(m => m.id === data.id)) return;
-  const ll = L.latLng(data.lat, data.lng);
-  const layer = L.marker(ll, {
-    icon: data.done ? mkIconDone() : getMarkerIcon(data.typ, data.art),
-    zIndexOffset: data._offline_pending ? 5000 : 0
-  }).addTo(map);
-  const label = data.typ==='harvester'?'<span class=\"ico-harvester\"></span> Harvester':data.typ==='ruecke'?'🚜 Polterplatz':'📋 Notiz';
-  const areaName = data.area_id ? (areas.find(a=>a.id===data.area_id)?.name||'') : '';
-  layer.bindPopup(`<b>${label}</b>${data.auto?' <em style="font-size:10px">(auto)</em>':''}<br>${data.art||''} ${data.menge?data.menge+' Fm':''}<br>${data.notiz||''}${areaName?'<br><span style="font-size:10px;background:#d4edcc;color:#2d5a27;padding:1px 5px;border-radius:4px;">📍 '+areaName+'</span>':''}<br><span style="font-size:10px;color:#aaa;">${data.lat.toFixed(6)}, ${data.lng.toFixed(6)}</span>`);
-  markers.push({ ...data, layer, visible: true });
+  if(skipIfExists&&markers.find(m=>m.id===data.id))return;
+  upsertMarkerOnMap(data);
 }
-
-// Erzwingt die sichtbare Darstellung eines gerade lokal angelegten Polters.
-// Wichtig auf iOS/PWA: nach dem Schließen des Panels kann Leaflet sonst einen
-// bereits hinzugefügten Marker erst beim nächsten Render/Online-Reload zeichnen.
-function ensureLocalMarkerVisible(id) {
-  const m=markers.find(x=>x.id===id);
-  if(!m||!m.layer)return;
-  try {
-    if(!map.hasLayer(m.layer)) m.layer.addTo(map);
-    m.layer.setZIndexOffset(5000);
-    m.visible=true;
-    const el=m.layer.getElement();
-    if(el){el.style.display='block';el.style.visibility='visible';el.style.opacity='1';el.style.zIndex='5000';}
-    m.layer.update();
-    map.invalidateSize(false);
-  } catch(e){ console.warn('Lokaler Marker Render:',e); }
+function upsertMarkerOnMap(data){
+  if(!data||!data.id||!Number.isFinite(Number(data.lat))||!Number.isFinite(Number(data.lng)))return;
+  const existing=markers.find(m=>m.id===data.id);
+  if(existing){
+    Object.assign(existing,data);
+    existing._offline_pending=!!data._offline_pending;
+    try{
+      existing.layer.setLatLng([Number(data.lat),Number(data.lng)]);
+      existing.layer.setIcon(data.done?mkIconDone():getMarkerIcon(data.typ,data.art));
+      existing.layer.setZIndexOffset(data._offline_pending?5000:0);
+      if(!map.hasLayer(existing.layer))existing.layer.addTo(map);
+      existing.visible=true;
+    }catch{}
+    applyMarkerFilter();
+    return existing;
+  }
+  const layer=L.marker([Number(data.lat),Number(data.lng)],{icon:data.done?mkIconDone():getMarkerIcon(data.typ,data.art),zIndexOffset:data._offline_pending?5000:0}).addTo(map);
+  const label=data.typ==='harvester'?'<span class="ico-harvester"></span> Harvester':data.typ==='ruecke'?'🚜 Polterplatz':'📋 Notiz';
+  const areaName=data.area_id?(areas.find(a=>a.id===data.area_id)?.name||''):'';
+  layer.bindPopup(`<b>${label}</b>${data.auto?' <em style="font-size:10px">(auto)</em>':''}<br>${data.art||''} ${data.menge?data.menge+' Fm':''}<br>${data.notiz||''}${areaName?'<br><span style="font-size:10px;background:#d4edcc;color:#2d5a27;padding:1px 5px;border-radius:4px;">📍 '+areaName+'</span>':''}<br><span style="font-size:10px;color:#aaa;">${Number(data.lat).toFixed(6)}, ${Number(data.lng).toFixed(6)}</span>`);
+  const rec={...data,layer,visible:true};markers.push(rec);applyMarkerFilter();return rec;
 }
 
 // ── DATEN LADEN ───────────────────────────────────────────────────
 async function loadData() {
   setOnline('sync');
-  // Marker laden
-  const mData = await dbFetch('markers?company_id=eq.'+currentProfile.company_id+'&order=created_at&select=*').catch(()=>[]);
-  if (mData.length >= 0) {
-    markers.forEach(m => { try { map.removeLayer(m.layer); } catch {} });
-    markers = [];
-    mData.forEach(d => addMarkerToMap(d, false));
-    applyMarkerFilter();
-  }
-  // Tracks laden
-  const tData = await dbFetch('tracks?company_id=eq.'+currentProfile.company_id+'&order=created_at').catch(()=>[]);
-  if (tData.length >= 0) {
-    tracks.forEach(t => { try { map.removeLayer(t.poly); } catch {} });
-    tracks = [];
-    const colors = ['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
-    tData.forEach((t, i) => {
-      const poly = L.polyline(t.pts, { color: colors[i % colors.length], weight: 4, opacity: .85 }).addTo(map);
-      tracks.push({ ...t, poly });
-    });
+  const pendingMarkers=await LocalDataStore.list('markers');
+  const mData=await dbFetch('markers?company_id=eq.'+currentProfile.company_id+'&order=created_at&select=*').catch(()=>[]);
+  const merged=new Map();
+  (Array.isArray(mData)?mData:[]).forEach(d=>merged.set(d.id,{...d,_offline_pending:false}));
+  pendingMarkers.filter(d=>d.company_id===currentProfile.company_id).forEach(d=>merged.set(d.id,{...d,_offline_pending:true}));
+
+  // Entferne nur Marker, die weder Server/Cache noch lokale Pending-Daten enthalten.
+  const wanted=new Set(merged.keys());
+  markers.slice().forEach(m=>{if(!wanted.has(m.id)){try{map.removeLayer(m.layer);}catch{} markers.splice(markers.indexOf(m),1);}});
+  merged.forEach(d=>upsertMarkerOnMap(d));
+
+  const tData=await dbFetch('tracks?company_id=eq.'+currentProfile.company_id+'&order=created_at').catch(()=>[]);
+  if(Array.isArray(tData)){
+    tracks.forEach(t=>{try{map.removeLayer(t.poly);}catch{}});
+    tracks=[];
+    const colors=['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
+    tData.forEach((t,i)=>{const poly=L.polyline(t.pts,{color:colors[i%colors.length],weight:4,opacity:.85}).addTo(map);tracks.push({...t,poly});});
   }
   setOnline('on');
-  // Falls noch Aktionen in der Offline-Queue warten, deren Status anzeigen
-  if (window.OfflineQueue && window.OfflineQueue.size() > 0) {
-    try { document.getElementById('online-dot').className = 'sync'; } catch {}
-  }
-  renderLog();
-  renderSidebar();
-  renderLkwSidebar();
+  if(window.OfflineQueue&&window.OfflineQueue.size()>0){try{document.getElementById('online-dot').className='sync';}catch{}}
+  applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
 }
-
 // ── ECHTZEIT-SYNC ─────────────────────────────────────────────────
 function startRealtime() {
   if (realtimeChannel) sb.removeChannel(realtimeChannel);
@@ -14630,29 +14616,21 @@ if('serviceWorker' in navigator){
       currentUser   = JSON.parse(storedUser);  // enthält {id, email}
       currentProfile = JSON.parse(storedProfile);
 
-      // Token validieren (kurzer Test-Request)
-      const testResp = await fetch(SUPABASE_URL + '/rest/v1/profiles?id=eq.' + currentUser.id + '&select=id&limit=1', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + accessToken }
-      });
-
-      if (testResp.status === 401) {
-        // Token abgelaufen → erneuern
-        const ok = await refreshAccessToken();
-        if (!ok) {
-          // Refresh fehlgeschlagen → neu einloggen
-          accessToken = null; refreshToken = null; currentUser = null; currentProfile = null;
-          try { localStorage.clear(); } catch {}
-          document.getElementById('auth-screen').style.display = 'flex';
-          return;
-        }
-        // Profil neu laden nach Token-Erneuerung
-        const profResp = await fetch(SUPABASE_URL + '/rest/v1/profiles?id=eq.' + currentUser.id + '&select=id,name,role,company_id&limit=1', {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + accessToken }
-        });
-        const profArr = await profResp.json();
-        if (profArr && profArr[0]) {
-          currentProfile = profArr[0];
-          try { localStorage.setItem('hp_profile', JSON.stringify(currentProfile)); } catch {}
+      // Offline-Start: gespeicherte Session verwenden. Eine Netzprüfung darf die
+      // App im Wald nicht auf den Login zurückwerfen.
+      if(navigator.onLine){
+        try{
+          const testResp=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+currentUser.id+'&select=id&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+accessToken}});
+          if(testResp.status===401){
+            const ok=await refreshAccessToken();
+            if(!ok){
+              accessToken=null;refreshToken=null;currentUser=null;currentProfile=null;
+              try{['hp_access','hp_refresh','hp_user','hp_profile'].forEach(k=>localStorage.removeItem(k));}catch{}
+              document.getElementById('auth-screen').style.display='flex';return;
+            }
+          }
+        }catch(e){
+          console.info('Sessionprüfung nicht erreichbar – Offline-Start mit lokaler Session.');
         }
       }
 
