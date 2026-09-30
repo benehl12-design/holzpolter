@@ -1,4 +1,4 @@
--- Lignum v13.26
+-- Lignum v13.33
 -- Run once in Supabase SQL Editor.
 -- Creates a company + admin profile automatically for self-registered users.
 
@@ -22,16 +22,17 @@ begin
     return new;
   end if;
 
-  insert into public.companies (name)
-  values (v_company_name)
+  insert into public.companies (name, contact_email)
+  values (v_company_name, new.email)
   returning id into v_company_id;
 
-  insert into public.profiles (id, company_id, name, role)
+  insert into public.profiles (id, company_id, name, role, is_admin)
   values (
     new.id,
     v_company_id,
     coalesce(v_name, split_part(coalesce(new.email, 'Admin'), '@', 1)),
-    'admin'
+    'admin',
+    true
   );
 
   return new;
