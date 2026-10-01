@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.37">
+  <meta name="app-version" content="13.38">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -1983,11 +1983,13 @@ select option:disabled {
    damit Klicks zuverlässig auf der Karte landen statt im Popup eines Polygons */
 body.trail-drawing .leaflet-overlay-pane svg path,
 body.trail-drawing .leaflet-overlay-pane svg polygon,
-body.trail-drawing .leaflet-overlay-pane svg polyline {
+body.trail-drawing .leaflet-overlay-pane svg polyline,
+body.area-drawing .leaflet-overlay-pane svg path {
   pointer-events: none !important;
 }
 /* Eigener Cursor zeigt dass gerade ein Polygon gezeichnet wird */
-body.trail-drawing .leaflet-container {
+body.trail-drawing .leaflet-container,
+body.area-drawing .leaflet-container {
   cursor: crosshair !important;
 }
 .tspc-chip, .tort-chip{
@@ -6130,9 +6132,10 @@ function adminJumpToAreaBoundary(areaId) {
       // Polygon-Layer (falls vorhanden) kurz hervorheben
       const layer = (typeof areaBoundaryLayers !== 'undefined') ? areaBoundaryLayers[areaId] : null;
       if (layer) {
-        const orig = layer.options.weight || 2;
-        layer.setStyle({ weight: 5, fillOpacity: 0.18 });
-        setTimeout(() => { try { layer.setStyle({ weight: orig, fillOpacity: 0.07 }); } catch {} }, 2500);
+        const fill = layer.getLayers ? layer.getLayers()[0] : layer;
+        const orig = fill.options.weight || 2;
+        fill.setStyle({ weight: 5, fillOpacity: 0.18 });
+        setTimeout(() => { try { fill.setStyle({ weight: orig, fillOpacity: 0.07 }); } catch {} }, 2500);
         try { layer.openPopup(); } catch {}
       }
     } catch(e) { console.warn('adminJumpToAreaBoundary:', e); }
@@ -7552,7 +7555,7 @@ let areaWatchId     = null;      // GPS watch-Handle
 let areaForId       = null;      // an welche area die Grenze gehängt wird
 
 // Vorschau-Polygone bereits gespeicherter Erntefläche-Grenzen
-const areaBoundaryLayers = {};   // { areaId: L.polygon }
+const areaBoundaryLayers = {};   // { areaId: L.featureGroup (Fläche + klickbarer Rand) }
 
 // ── GEODÄSIE (ohne externe Library) ─────────────────────────────────
 
@@ -7649,7 +7652,7 @@ function startAreaCapture(forAreaId) {
   kalman.reset();
   areaPoly = L.polygon([], {
     color: '#e67e22', weight: 3, opacity: .9,
-    fillColor: '#e67e22', fillOpacity: .12, dashArray: '6,5'
+    fillColor: '#e67e22', fillOpacity: .12, dashArray: '6,5', interactive: false
   }).addTo(map);
 
   // UI umschalten
@@ -7708,10 +7711,11 @@ function startAreaDrawing(forAreaId) {
   if (!areaForId) { alert('Bitte zuerst ein Einschlagsgebiet wählen oder anlegen.'); return; }
 
   isAreaDrawing = true;
+  document.body.classList.add('area-drawing');
   areaBoundary = [];
   areaPoly = L.polygon([], {
     color: '#e67e22', weight: 3, opacity: .9,
-    fillColor: '#e67e22', fillOpacity: .12, dashArray: '6,5'
+    fillColor: '#e67e22', fillOpacity: .12, dashArray: '6,5', interactive: false
   }).addTo(map);
 
   map.on('click', onAreaDrawClick);
@@ -7744,6 +7748,7 @@ function undoAreaDrawPoint() {
 async function finishAreaDrawing() {
   map.off('click', onAreaDrawClick);
   isAreaDrawing = false;
+  document.body.classList.remove('area-drawing');
   const dBar = document.getElementById('area-draw-bar');
   if (dBar) dBar.classList.add('hidden');
   await finalizeAreaBoundary();
@@ -7752,6 +7757,7 @@ async function finishAreaDrawing() {
 function cancelAreaDrawing() {
   map.off('click', onAreaDrawClick);
   isAreaDrawing = false;
+  document.body.classList.remove('area-drawing');
   if (areaPoly) { map.removeLayer(areaPoly); areaPoly = null; }
   areaBoundary = [];
   const dBar = document.getElementById('area-draw-bar');
@@ -7804,8 +7810,8 @@ async function finalizeAreaBoundary() {
     if (saved && saved[0]) {
       // Live-Layer dauerhaft anzeigen
       if (areaBoundaryLayers[areaForId]) map.removeLayer(areaBoundaryLayers[areaForId]);
-      areaBoundaryLayers[areaForId] = areaPoly;
-      areaPoly.setStyle({ dashArray: null, fillOpacity: .08 });
+      if (areaPoly) map.removeLayer(areaPoly);
+      areaBoundaryLayers[areaForId] = createAreaBoundaryLayer(saved[0]);
       areaPoly = null;
       setTxt('Erntefläche gespeichert: ' + ha.toFixed(2) + ' ha');
       if (typeof loadAreas === 'function') loadAreas();
@@ -7819,6 +7825,44 @@ async function finalizeAreaBoundary() {
 }
 
 // ── GESPEICHERTE GRENZEN BEIM LADEN ANZEIGEN ────────────────────────
+function createAreaBoundaryLayer(area) {
+  // Fläche und Abfuhrwege bleiben für Polter-Klicks frei. Nur der Rand öffnet die Flächendaten.
+  const fill = L.polygon(area.boundary, {
+    color: '#e67e22', weight: 2, opacity: .8,
+    fillColor: '#e67e22', fillOpacity: .07, interactive: false
+  });
+  const edge = L.polyline(area.boundary.concat([area.boundary[0]]), {
+    color: '#e67e22', weight: 16, opacity: 0, interactive: true, bubblingMouseEvents: false
+  });
+  const layer = L.featureGroup([fill, edge]);
+  layer.bindPopup(() => {
+    const content = document.createElement('div');
+    const hectares = Number(area.area_hectares);
+    content.innerHTML = '<b>📐 Erntefläche</b><br>' + escapeHtml(area.name || 'Einschlagsgebiet') + '<br>' +
+      (Number.isFinite(hectares) && hectares > 0 ? hectares.toFixed(2) + ' ha' : '') +
+      '<br><small>EUDR: ' + (hectares < 4 ? 'Punkt genügt' : 'Polygon-Pflicht') + '</small>';
+    if (currentMode === 'harvester' || currentMode === 'ruecke') {
+      const add = document.createElement('button');
+      add.textContent = '📍 Polter hier anlegen';
+      add.style.cssText = 'display:block;margin-top:8px;padding:9px 12px;border:none;border-radius:7px;background:#2d6a27;color:#fff;font-size:12px;font-family:inherit;cursor:pointer;';
+      add.addEventListener('click', () => {
+        const ll = layer.getPopup().getLatLng();
+        layer.closePopup();
+        if (document.getElementById('panel').classList.contains('hidden')) openPanel(ll, false);
+        else pendingLL = ll; // Bereits eingegebene Polterdaten beim Wechsel des Standorts erhalten.
+      });
+      content.appendChild(add);
+    }
+    const del = document.createElement('button');
+    del.textContent = '🗑 Fläche löschen';
+    del.style.cssText = 'display:block;margin-top:8px;padding:7px 12px;border:none;border-radius:7px;background:rgba(163,32,32,.85);color:#fff;font-size:12px;font-family:inherit;cursor:pointer;';
+    del.addEventListener('click', () => deleteArea(area.id));
+    content.appendChild(del);
+    return content;
+  });
+  return layer.addTo(map);
+}
+
 // In eurer loadAreas()-Funktion aufrufen, nachdem die areas geladen sind.
 // Beispiel: renderAreaBoundaries(areasArray);
 function renderAreaBoundaries(areas) {
@@ -7828,19 +7872,7 @@ function renderAreaBoundaries(areas) {
   });
   (areas || []).forEach(a => {
     if (a.boundary && Array.isArray(a.boundary) && a.boundary.length >= 3) {
-      const poly = L.polygon(a.boundary, {
-        color: '#e67e22', weight: 2, opacity: .8,
-        fillColor: '#e67e22', fillOpacity: .07
-      }).addTo(map);
-      const safeName = (a.name || '').replace(/[\\'"<>&]/g, c => ({'\\':'\\\\','\'':'\\\'','"':'&quot;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-      poly.bindPopup(
-        '<b>📐 Erntefläche</b><br>' +
-        (a.name || 'Einschlagsgebiet') + '<br>' +
-        (a.area_hectares ? a.area_hectares.toFixed(2) + ' ha' : '') +
-        '<br><small>EUDR: ' + (a.area_hectares < 4 ? 'Punkt genügt' : 'Polygon-Pflicht') + '</small>' +
-        '<br><button onclick="deleteArea(\'' + a.id + '\')" style="margin-top:8px;padding:7px 12px;border:none;border-radius:7px;background:rgba(163,32,32,.85);color:#fff;font-size:12px;font-family:inherit;cursor:pointer;">🗑 Fläche löschen</button>'
-      );
-      areaBoundaryLayers[a.id] = poly;
+      areaBoundaryLayers[a.id] = createAreaBoundaryLayer(a);
     }
   });
 }
