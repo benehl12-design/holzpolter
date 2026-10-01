@@ -22,11 +22,11 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.34">
+  <meta name="app-version" content="13.35">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="Holzpolter"/>
+  <meta name="apple-mobile-web-app-title" content="Lignum"/>
   <meta name="theme-color" content="#1a2e1a"/>
   <title>Lignum</title>
   <link rel="manifest" href="manifest.json"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.34'")) {
+        if (!txt.includes("APP_VERSION = '13.35'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -3938,7 +3938,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
         <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>Daten verwalten</b><span><span class="hicon red">🗑 Daten verwalten</span> → Polter / Strecken / Gebiete / Zeiteinträge gezielt löschen (z.B. am Saison-Ende). Achtung: gelöscht ist gelöscht (Zeiteinträge bleiben aber im Audit-Log).</span></div></div>
 
-        <div class="htip">🔒 Alle Daten sind durch Row-Level-Security streng pro Firma getrennt. Andere Lignum-Kunden sehen nichts von deinen Daten — auch nicht das Anthropic-Team.</div>
+        <div class="htip">🔒 Alle Daten sind durch Row-Level-Security streng pro Firma getrennt. Andere Firmenkonten können diese Daten nicht über die App oder API abrufen.</div>
       </div>
 
     </div>
@@ -4347,7 +4347,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.34: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.35: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6910,7 +6910,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.34: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.35: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -14505,7 +14505,7 @@ document.getElementById('btn-export').addEventListener('click',()=>{
   if(!markers.length&&!tracks.length){alert('Nichts zu exportieren.');return;}
   const wpts=markers.map(m=>`  <wpt lat="${m.lat.toFixed(7)}" lon="${m.lng.toFixed(7)}">\n    <n>${m.typ} - ${m.art||'?'}</n>\n    <desc>${m.menge?m.menge+' Fm':''} ${m.notiz||''}</desc>\n  </wpt>`).join('\n');
   const trks=tracks.map((t,i)=>`  <trk>\n    <n>Strecke ${i+1} - ${t.km}km</n>\n    <trkseg>\n${t.pts.map(p=>`      <trkpt lat="${p[0].toFixed(7)}" lon="${p[1].toFixed(7)}"/>`).join('\n')}\n    </trkseg>\n  </trk>`).join('\n');
-  const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="HolzpolterGPS">\n${wpts}\n${trks}\n</gpx>`;
+  const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Lignum">\n${wpts}\n${trks}\n</gpx>`;
   if(isIOS){const w=window.open('','_blank');if(w)w.document.write('<pre style="font-size:11px;padding:20px;">'+gpx.replace(/</g,'&lt;')+'</pre>');}
   else{const a=document.createElement('a');a.href='data:application/gpx+xml;charset=utf-8,'+encodeURIComponent(gpx);a.download='holzpolter.gpx';a.click();}
 });
