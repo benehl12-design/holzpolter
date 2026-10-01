@@ -9,6 +9,9 @@
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
+/offline.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff

@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.36">
+  <meta name="app-version" content="13.37">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2050,21 +2050,7 @@ button, .slide-btn, .htab, a, [onclick] { -webkit-tap-highlight-color: rgba(0,0,
 <script>
 // (Plattform-Feinschliff oben im CSS ergänzt)
 </script>
-<script>
-// Cache-Bust: alten Service Worker deregistrieren wenn Version veraltet
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistration().then(reg => {
-    if (reg) {
-      // Prüfe ob SW veraltet ist
-      fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.36'")) {
-          reg.unregister().then(() => location.reload());
-        }
-      }).catch(()=>{});
-    }
-  });
-}
-</script>
+
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style id="harvester-icon-style">
@@ -2143,7 +2129,6 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
   <button id="btn-gps"></button>
   <button id="btn-grenzen"></button>
   <button id="btn-switch-mode-stub" style="display:none;"></button>
-  <button id="btn-timer-history"></button>
   <button id="btn-timer-start"></button>
   <button id="btn-timer-start-menu"></button>
   <button id="btn-timer-stop"></button>
@@ -3091,18 +3076,6 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     </div>
   </div>
 
-  <!-- ZEITERFASSUNG HISTORY -->
-  <div id="timer-history-overlay" class="hidden" onclick="closeTimerHistory()"></div>
-  <div id="timer-history-panel" class="hidden">
-    <div class="th-head">
-      <h3>⏱ Zeiterfassung</h3>
-      <button onclick="closeTimerHistory()" style="background:none;border:none;cursor:pointer;font-size:22px;color:#888;padding:0;">×</button>
-    </div>
-    <div id="timer-entries">
-      <div style="padding:20px;color:#aaa;text-align:center;font-style:italic;">Noch keine Einträge.</div>
-    </div>
-  </div>
-
   <!-- ── POLTERPLATZ AUSWAHL MODAL ── -->
   <div id="share-select-overlay" style="display:none;" onclick="if(event.target===this)closeShareSelect()">
     <div id="share-select-sheet">
@@ -3947,139 +3920,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script>
-// ════════════════════════════════════════════════════════════════════
-//  LIGNUM — Offline Queue v2.0
-//  © 2026 Benedikt Holz. Alle Rechte vorbehalten.
-//  Speichert fehlgeschlagene DB-Schreiboperationen in IndexedDB und
-//  synchronisiert sie sobald das Gerät wieder online ist.
-// ════════════════════════════════════════════════════════════════════
-(function () {
-  'use strict';
-  const DB_NAME='lignum-offline', DB_VERSION=2, STORE='queue';
-  const WRITE_METHODS=new Set(['POST','PATCH','DELETE']);
-  const SKIP_PATHS=['auth/','rpc/auto_set_drivers_offline','rpc/set_admin_status','rpc/delete_my_account'];
-  let _db=null, _syncing=false, _queueSize=0;
-
-  function openDB(){return new Promise((resolve,reject)=>{
-    if(_db){resolve(_db);return;}
-    const req=indexedDB.open(DB_NAME,DB_VERSION);
-    req.onupgradeneeded=e=>{const db=e.target.result;
-      if(!db.objectStoreNames.contains(STORE)){const store=db.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});store.createIndex('created_at','created_at',{unique:false});}};
-    req.onsuccess=e=>{_db=e.target.result;resolve(_db);};
-    req.onerror=e=>reject(e.target.error);});}
-
-  async function enqueue(entry){const db=await openDB();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);
-    const req=store.add({path:entry.path,method:entry.method,body:entry.body||null,prefer:entry.prefer||'',token:entry.token||null,created_at:Date.now(),retries:0});
-    req.onsuccess=()=>{_queueSize++;updateOnlineDot();resolve(req.result);};
-    req.onerror=e=>reject(e.target.error);});}
-
-  async function dequeueAll(){const db=await openDB();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readonly'),idx=tx.objectStore(STORE).index('created_at'),req=idx.getAll();
-    req.onsuccess=e=>resolve(e.target.result||[]);req.onerror=e=>reject(e.target.error);});}
-
-  async function removeEntry(id){const db=await openDB();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readwrite'),req=tx.objectStore(STORE).delete(id);
-    req.onsuccess=()=>{_queueSize=Math.max(0,_queueSize-1);resolve();};req.onerror=e=>reject(e.target.error);});}
-
-  async function incrementRetry(id,cur){const db=await openDB();return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),get=store.get(id);
-    get.onsuccess=e=>{const rec=e.target.result;if(!rec){resolve();return;}rec.retries=cur+1;const put=store.put(rec);put.onsuccess=()=>resolve();put.onerror=err=>reject(err.target.error);};
-    get.onerror=e=>reject(e.target.error);});}
-
-  async function getQueueSize(){const db=await openDB();return new Promise((resolve)=>{
-    const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).count();
-    req.onsuccess=e=>{_queueSize=e.target.result;resolve(_queueSize);};req.onerror=()=>resolve(0);});}
-
-  function updateOnlineDot(){
-    const dot=document.getElementById('online-dot'),txt=document.getElementById('sync-txt');
-    const set=(cls,title,label)=>{if(dot){dot.className=cls;dot.title=title;}if(txt){txt.textContent=label;txt.style.color=cls==='off'?'#f5a0a0':cls==='sync'?'#f5c870':'#8ab882';}};
-    if(!navigator.onLine){set('off','Offline — '+_queueSize+' Änderung(en) ausstehend',_queueSize?'📵 Offline · '+_queueSize+' wartet':'📵 Offline');return;}
-    if(_syncing){set('sync','Synchronisiert '+_queueSize+' Änderung(en)…','↻ Sync · '+_queueSize);return;}
-    if(_queueSize>0){set('sync',_queueSize+' Änderung(en) warten auf Sync','☁ '+_queueSize+' wartet');return;}
-    set('on','Online — alle Daten synchronisiert','✓ synchron');}
-
-  function _toast(msg){if(typeof showToast==='function')showToast(msg);else console.info('[OfflineQueue]',msg);}
-
-  async function syncQueue(){
-    if(_syncing||!navigator.onLine)return;
-    const entries=await dequeueAll();
-    if(entries.length===0){updateOnlineDot();return;}
-    _syncing=true;updateOnlineDot();
-    _toast('🔄 '+entries.length+' offline gespeicherte Aktion(en) werden synchronisiert…');
-    let succeeded=0,failed=0;
-    for(const entry of entries){
-      if(entry.retries>=10){console.warn('[OfflineQueue] Wiederholter Sync-Fehler, Eintrag bleibt erhalten:',entry);failed++;continue;}
-      try{
-        const token=(typeof accessToken!=='undefined'&&accessToken)?accessToken:(typeof SUPABASE_KEY!=='undefined'?SUPABASE_KEY:'');
-        const headers={'apikey':typeof SUPABASE_KEY!=='undefined'?SUPABASE_KEY:'','Authorization':'Bearer '+token,'Content-Type':'application/json'};
-        if(entry.prefer)headers['Prefer']=entry.prefer;
-        const baseUrl=typeof SUPABASE_URL!=='undefined'?SUPABASE_URL:'';
-        const resp=await fetch(baseUrl+'/rest/v1/'+entry.path,{method:entry.method,headers,body:entry.body?JSON.stringify(entry.body):undefined});
-        if(resp.ok||resp.status===204){
-          await removeEntry(entry.id);succeeded++;
-          if(entry.method==='POST'&&entry.body&&entry.body.id&&window.LocalDataStore){
-            const table=entry.path.split('?')[0];
-            await window.LocalDataStore.remove(table,entry.body.id).catch(()=>{});
-          }
-        }
-        else if(resp.status===401){
-          if(typeof refreshAccessToken==='function'){const ok=await refreshAccessToken();
-            if(ok)await incrementRetry(entry.id,entry.retries);
-            else{await removeEntry(entry.id).catch(()=>{});failed++;}}
-          else await incrementRetry(entry.id,entry.retries);}
-        else if(resp.status===409 && entry.method==='POST'){
-          console.warn('[OfflineQueue] POST bereits vorhanden (409):',entry.path);
-          await removeEntry(entry.id).catch(()=>{});succeeded++;
-          if(entry.body&&entry.body.id&&window.LocalDataStore)await window.LocalDataStore.remove(entry.path.split('?')[0],entry.body.id).catch(()=>{});
-        }
-        else if(resp.status===409){console.warn('[OfflineQueue] Konflikt bleibt zur Prüfung in Queue:',entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
-        else{console.warn('[OfflineQueue] Server-Fehler',resp.status,entry.path);await incrementRetry(entry.id,entry.retries);failed++;}
-      }catch(networkErr){console.warn('[OfflineQueue] Netzfehler während Sync:',networkErr);break;}
-    }
-    _syncing=false;await getQueueSize();updateOnlineDot();
-    if(succeeded>0){_toast('✓ '+succeeded+' Aktion(en) synchronisiert');if(typeof loadData==='function'){try{await loadData();}catch{}}}
-    if(failed>0)_toast('⚠️ '+failed+' Aktion(en) nicht synchronisiert');}
-
-  function shouldSkip(path,method){if(!WRITE_METHODS.has(method))return true;return SKIP_PATHS.some(p=>path.includes(p));}
-
-  window.OfflineQueue={
-    async handle(path,options){
-      const method=(options.method||'GET').toUpperCase();
-      if(shouldSkip(path,method))return null;
-      const token=(typeof accessToken!=='undefined'&&accessToken)?accessToken:'';
-      let queuedBody=options.body||null, localRecord=null;
-      // POSTs bekommen bereits offline eine echte UUID. Dadurch können Polter,
-      // Tracks, Gebiete und Zeiteinträge sofort in der App weiterverwendet werden.
-      if(method==='POST' && queuedBody && typeof queuedBody==='object' && !Array.isArray(queuedBody)){
-        const localId=queuedBody.id || (crypto.randomUUID ? crypto.randomUUID() : ('offline-'+Date.now()+'-'+Math.random().toString(16).slice(2)));
-        queuedBody={...queuedBody,id:localId};
-        localRecord={...queuedBody,created_at:queuedBody.created_at||new Date().toISOString(),_offline_pending:true};
-      }
-      await enqueue({path,method,body:queuedBody,prefer:options.prefer||'',token});
-      if(method==='POST'&&localRecord&&window.LocalDataStore){
-        await window.LocalDataStore.put(path.split('?')[0],localRecord).catch(()=>{});
-      }
-      _toast('📵 Offline — Änderung lokal gespeichert');
-      updateOnlineDot();
-      if(method==='POST')return localRecord?[localRecord]:[];
-      return true;},
-    sync:syncQueue,
-    size:()=>_queueSize,
-    refreshStatus:updateOnlineDot,
-    async init(){await openDB();await getQueueSize();updateOnlineDot();
-      if(_queueSize>0)console.info('[OfflineQueue] '+_queueSize+' ausstehende Aktionen beim Start');},
-  };
-
-  window.addEventListener('offline',()=>{updateOnlineDot();_toast('📵 Kein Netz — Aktionen werden lokal gespeichert');});
-  window.addEventListener('online',async()=>{updateOnlineDot();setTimeout(syncQueue,1500);});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&navigator.onLine)setTimeout(syncQueue,800);});
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>window.OfflineQueue.init());
-  else window.OfflineQueue.init();
-})();
-</script>
+<script src="offline.js"></script>
 <script>
 // ================================================================
 //  LIGNUM — GPS-Fahrgassen-/Polter-Planung für Forstbetriebe
@@ -4120,207 +3961,26 @@ let refreshToken = null;
 // Token automatisch erneuern wenn abgelaufen
 async function refreshAccessToken() {
   if (!refreshToken) return false;
+  const tokenToRefresh = refreshToken, actor = currentUser?.id;
   try {
     const resp = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
-      body: JSON.stringify({ refresh_token: refreshToken })
+      body: JSON.stringify({ refresh_token: tokenToRefresh })
     });
     if (!resp.ok) return false;
     const data = await resp.json();
+    if (currentUser?.id !== actor || refreshToken !== tokenToRefresh) return false;
     accessToken  = data.access_token;
     refreshToken = data.refresh_token;
     try {
       localStorage.setItem('hp_access',  accessToken);
       localStorage.setItem('hp_refresh', refreshToken);
     } catch {}
+    // Keep the SDK session (and Realtime) on the same rotated refresh token.
+    await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).catch(() => {});
     return true;
   } catch { return false; }
-}
-
-// Alle Supabase REST-Calls mit auto Token-Erneuerung
-// Lokale Quelle für noch nicht synchronisierte Betriebsdaten.
-// Anders als der query-basierte Read-Cache speichert sie Datensätze stabil nach table:id.
-const LocalDataStore = (() => {
-  const DB_NAME='lignum-local-data', STORE='entities', VERSION=1;
-  function openDB(){return new Promise((resolve,reject)=>{
-    const req=indexedDB.open(DB_NAME,VERSION);
-    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'key'});};
-    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
-  });}
-  async function put(table,row){
-    if(!row||!row.id)return;
-    const db=await openDB();
-    await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({key:table+':'+row.id,table,row:{...row,_offline_pending:true},ts:Date.now()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
-    db.close();
-  }
-  async function remove(table,id){
-    if(!id)return;const db=await openDB();
-    await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(table+':'+id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();
-  }
-  async function list(table){
-    try{const db=await openDB();const all=await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});db.close();return all.filter(x=>x.table===table).map(x=>x.row);}catch{return [];}
-  }
-  async function clear(){try{const db=await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}catch{}}
-  return {put,remove,list,clear};
-})();
-window.LocalDataStore=LocalDataStore;
-
-// Persistenter Read-Cache für Offline-Betrieb
-const OfflineReadCache = (() => {
-  const DB_NAME = 'lignum-read-cache', STORE = 'responses', VERSION = 1;
-  function openDB(){
-    return new Promise((resolve,reject)=>{
-      const req=indexedDB.open(DB_NAME,VERSION);
-      req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE); };
-      req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
-    });
-  }
-  async function put(key,data){
-    try{ const db=await openDB(); await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put({data,ts:Date.now()},key); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); db.close(); }catch(e){ console.warn('OfflineReadCache put:',e); }
-  }
-  async function get(key){
-    try{ const db=await openDB(); const value=await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(key); req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); db.close(); return value ? value.data : null; }catch(e){ return null; }
-  }
-  async function clear(){
-    try{ const db=await openDB(); await new Promise((resolve,reject)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); db.close(); }catch(e){}
-  }
-  async function mutate(matchPrefix,method,body){
-    try{
-      const db=await openDB();
-      await new Promise((resolve,reject)=>{
-        const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE),req=store.openCursor();
-        req.onsuccess=()=>{
-          const cur=req.result;if(!cur)return;
-          if(String(cur.key).startsWith(matchPrefix)){
-            const rec=cur.value,arr=Array.isArray(rec.data)?rec.data:[];
-            if(method==='POST'&&body) arr.push(body);
-            if((method==='PATCH'||method==='DELETE')&&body&&body.id){
-              const i=arr.findIndex(x=>x&&x.id===body.id);
-              if(i>=0){if(method==='DELETE')arr.splice(i,1);else arr[i]={...arr[i],...body};}
-            }
-            rec.data=arr;cur.update(rec);
-          }
-          cur.continue();
-        };
-        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
-      });db.close();
-    }catch(e){}
-  }
-  return {put,get,clear,mutate};
-})();
-window.OfflineReadCache = OfflineReadCache;
-
-// Alle Supabase REST-Calls mit auto Token-Erneuerung + Offline-Lesecache
-async function dbFetch(path, options = {}) {
-  const method = String(options.method || 'GET').toUpperCase();
-  const body   = options.body;
-  const prefer = options.prefer || '';
-  const isGet  = method === 'GET';
-
-  if (!navigator.onLine) {
-    if (isGet) {
-      const cached = await OfflineReadCache.get(path);
-      if (cached !== null) return cached;
-      throw new Error('Offline – diese Daten wurden noch nicht auf diesem Gerät gespeichert');
-    }
-    if (window.OfflineQueue) {
-      const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-      if (result !== null) {
-        if(method==='POST' && result[0]){
-          const table=path.split('?')[0];
-          OfflineReadCache.mutate(table+'?', 'POST', result[0]).catch(()=>{});
-        }
-        return result;
-      }
-    }
-    throw new Error('Offline und kein Netz verfügbar');
-  }
-
-  const doFetch = async () => {
-    const headers = {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + (accessToken || SUPABASE_KEY),
-      'Content-Type': 'application/json',
-      ...(prefer ? { 'Prefer': prefer } : {})
-    };
-    return fetch(SUPABASE_URL + '/rest/v1/' + path, {
-      method, headers, body: body ? JSON.stringify(body) : undefined
-    });
-  };
-
-  let resp;
-  try {
-    resp = await doFetch();
-  } catch (networkErr) {
-    if (isGet) {
-      const cached = await OfflineReadCache.get(path);
-      if (cached !== null) return cached;
-    } else if (window.OfflineQueue) {
-      const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-      if (result !== null) {
-        if(method==='POST' && result[0]){
-          const table=path.split('?')[0];
-          OfflineReadCache.mutate(table+'?', 'POST', result[0]).catch(()=>{});
-        }
-        return result;
-      }
-    }
-    throw networkErr;
-  }
-
-  if (resp.status === 401) {
-    const ok = await refreshAccessToken();
-    if (ok) {
-      try { resp = await doFetch(); }
-      catch (networkErr) {
-        if (isGet) {
-          const cached = await OfflineReadCache.get(path);
-          if (cached !== null) return cached;
-        } else if (window.OfflineQueue) {
-          const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-          if (result !== null) return result;
-        }
-        throw networkErr;
-      }
-    } else {
-      showAuthErr('Sitzung abgelaufen — bitte neu anmelden.');
-      hideAllScreens();
-      document.getElementById('auth-screen').style.display = 'flex';
-      return [];
-    }
-  }
-
-  if (!resp.ok) {
-    if (isGet && resp.status >= 500) {
-      const cached = await OfflineReadCache.get(path);
-      if (cached !== null) return cached;
-    }
-    // iOS meldet bei WLAN ohne Internet häufig navigator.onLine=true.
-    // 502/503/504 deshalb bei Schreibvorgängen wie einen Offline-Fall behandeln.
-    if (!isGet && [502,503,504].includes(resp.status) && window.OfflineQueue) {
-      const result = await window.OfflineQueue.handle(path, { method, body, prefer });
-      if (result !== null) {
-        if(method==='POST' && result[0]){
-          const table=path.split('?')[0];
-          OfflineReadCache.mutate(table+'?', 'POST', result[0]).catch(()=>{});
-        }
-        return result;
-      }
-    }
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.message || err.hint || resp.status);
-  }
-
-  if (resp.status === 204 || method === 'PATCH' || method === 'DELETE') {
-    const text = await resp.text().catch(() => '');
-    return text ? JSON.parse(text) : true;
-  }
-
-  const text = await resp.text();
-  const data = text ? JSON.parse(text) : [];
-  if (isGet) OfflineReadCache.put(path,data);
-  return data;
 }
 
 // ── AUTH TABS ─────────────────────────────────────────────────────
@@ -4483,6 +4143,10 @@ async function doLogout() {
 
 // ── SESSION LISTENER ──────────────────────────────────────────────
 sb.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'TOKEN_REFRESHED' && session?.user?.id === currentUser?.id) {
+    accessToken = session.access_token; refreshToken = session.refresh_token;
+    try { localStorage.setItem('hp_access', accessToken); localStorage.setItem('hp_refresh', refreshToken); } catch {}
+  }
   if (event === 'SIGNED_OUT') {
     currentUser = null; currentProfile = null;
     // mode-screen entfernt
@@ -4542,7 +4206,7 @@ function openShareSelect() {
         onchange="toggleShareItem('${m.id}', this.checked)"/>
       <div class="share-select-row-info">
         <div class="share-select-row-title">🚜 Polterplatz ${nr}</div>
-        <div class="share-select-row-sub">${sub || ''} · ${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div>
+        <div class="share-select-row-sub">${escapeHtml(sub || '')} · ${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div>
       </div>
     </label>`;
   }).join('');
@@ -4746,7 +4410,7 @@ function updateDriverMarkersOnMap(drivers) {
       driverMapMarkers[d.id].setIcon(icon);
     } else {
       const marker = L.marker([d.last_lat, d.last_lng], { icon })
-        .bindPopup(`<b>${d.name}</b><br>${isH ? 'Harvester' : 'Forwarder'}<br>${isActive ? '🟢 Aktiv' : '⚫ Offline'}`)
+        .bindPopup(`<b>${escapeHtml(d.name)}</b><br>${isH ? 'Harvester' : 'Forwarder'}<br>${isActive ? '🟢 Aktiv' : '⚫ Offline'}`)
         .addTo(map);
       driverMapMarkers[d.id] = marker;
     }
@@ -4882,7 +4546,7 @@ function renderDriverOverview(drivers) {
       '<div class="dov-card-head">' +
         '<div class="dov-driver-icon ' + (isH ? 'h' : 'f') + '">' + (isH ? '🪵' : '🚜') + '</div>' +
         '<div>' +
-          '<div class="dov-driver-name">' + d.name + '</div>' +
+          '<div class="dov-driver-name">' + escapeHtml(d.name) + '</div>' +
           '<div class="dov-driver-role">' + (isH ? 'Harvester-Fahrer' : 'Forwarder-Fahrer') + '</div>' +
         '</div>' +
         '<span class="dov-status-badge ' + (d.isActive ? 'active' : 'offline') + '">' + statusText + '</span>' +
@@ -5283,7 +4947,7 @@ function updateFuhrenSelect() {
   if (!sel) return;
   const ablageorte = markers.filter(m => m.typ === 'ruecke' && (!currentAreaId || m.area_id === currentAreaId));
   sel.innerHTML = '<option value="">-- Ablageort wählen --</option>' +
-    ablageorte.map((m,i) => `<option value="${m.id}">🚜 Ablageort ${i+1}${m.notiz?' – '+m.notiz:''} (${m.fuhren||0} Fuhren)</option>`).join('');
+    ablageorte.map((m,i) => `<option value="${m.id}">🚜 Ablageort ${i+1}${m.notiz?' – '+escapeHtml(m.notiz):''} (${m.fuhren||0} Fuhren)</option>`).join('');
   // Event
   sel.onchange = () => updateFuhrenInfo();
 }
@@ -5528,6 +5192,7 @@ function hideAllScreens() {
 }
 
 async function showModeScreen() {
+  if (window.OfflineQueue) await window.OfflineQueue.init().catch(e => showToast('⚠️ Lokaler Speicher: ' + e.message));
   hideAllScreens();
   if (isAdminUser()) {
     await showAdminDashboard();
@@ -6693,7 +6358,7 @@ async function loadDrivers() {
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="adash-driver-icon ${d.role === 'harvester' ? 'h' : 'f'}">${d.role === 'harvester' ? '🪵' : '🚜'}</div>
         <div style="flex:1;min-width:0;">
-          <div class="adash-driver-name" style="display:flex;align-items:center;flex-wrap:wrap;">${d.name}${adminBadge}</div>
+          <div class="adash-driver-name" style="display:flex;align-items:center;flex-wrap:wrap;">${escapeHtml(d.name)}${adminBadge}</div>
           <div class="adash-driver-role">${d.role === 'harvester' ? 'Harvester-Fahrer' : 'Forwarder-Fahrer'}</div>
         </div>
         <button style="background:rgba(163,32,32,.2);border:1px solid rgba(163,32,32,.3);border-radius:6px;padding:4px 10px;color:#f5a0a0;font-size:11px;cursor:pointer;font-family:inherit;" onclick="deleteDriver('${d.id}')">✕</button>
@@ -7222,35 +6887,25 @@ map.on('click',e=>{
 // ── MARKER SPEICHERN ──────────────────────────────────────────────
 document.getElementById('btn-save').addEventListener('click', async () => {
   if (!pendingLL || !currentProfile || !currentUser) return;
-  const auto=!document.getElementById('auto-chip').classList.contains('hidden');
-  const typ=document.getElementById('f-typ').value, art=getArt();
-  const menge=document.getElementById('f-menge').value, notiz=document.getElementById('f-notiz').value;
-  if(typ==='ruecke'&&!currentAreaId&&!confirm('Kein Einschlagsgebiet gewählt. Ablageort ohne Gebietszuordnung speichern?'))return;
-
-  const id=crypto.randomUUID ? crypto.randomUUID() : ('local-'+Date.now()+'-'+Math.random().toString(16).slice(2));
-  const body={id,company_id:currentProfile.company_id,created_by:currentUser.id,lat:pendingLL.lat,lng:pendingLL.lng,typ,art,menge,notiz,auto,done:false,area_id:currentAreaId||null};
-  const local={...body,created_at:new Date().toISOString(),_offline_pending:true};
-
-  // Erst dauerhaft lokal sichern, DANN UI und Netzwerk. So kann ein Reload den Polter nicht verlieren.
-  await LocalDataStore.put('markers',local);
-  upsertMarkerOnMap(local);
-  document.getElementById('panel').classList.add('hidden'); pendingLL=null;
-  renderLog();renderSidebar();renderLkwSidebar();
-  showToast('✓ Polter lokal gespeichert');
-
-  try{
-    const saved=await dbFetch('markers?select=*',{method:'POST',body,prefer:'return=representation'});
-    if(saved&&saved[0]&&!saved[0]._offline_pending){
-      await LocalDataStore.remove('markers',id);
-      upsertMarkerOnMap({...saved[0],_offline_pending:false});
-      showToast('✓ Polter synchronisiert');
-    }else{
-      showToast('📵 Polter lokal gespeichert · Synchronisierung wartet',3500);
-    }
-  }catch(e){
-    // Lokaler Datensatz und Marker bleiben absichtlich bestehen.
-    showToast('📵 Polter lokal gespeichert · Synchronisierung wartet',3500);
-  }
+  const button = document.getElementById('btn-save');
+  if (button.disabled) return;
+  const auto = !document.getElementById('auto-chip').classList.contains('hidden');
+  const typ = document.getElementById('f-typ').value, art = getArt();
+  const menge = document.getElementById('f-menge').value, notiz = document.getElementById('f-notiz').value;
+  if (typ === 'ruecke' && !currentAreaId && !confirm('Kein Einschlagsgebiet gewählt. Ablageort ohne Gebietszuordnung speichern?')) return;
+  button.disabled = true;
+  try {
+    const body = { id: newRecordId(), company_id: currentProfile.company_id, created_by: currentUser.id,
+      lat: pendingLL.lat, lng: pendingLL.lng, typ, art, menge, notiz, auto, done: false, area_id: currentAreaId || null };
+    // Durable queue first: a reload between drawing the marker and sending the POST cannot orphan it.
+    const saved = await window.OfflineQueue.handle('markers?select=*', { method: 'POST', body, prefer: 'return=representation' });
+    upsertMarkerOnMap(saved[0]);
+    document.getElementById('panel').classList.add('hidden'); pendingLL = null;
+    renderLog(); renderSidebar(); renderLkwSidebar();
+    showToast('✓ Polter lokal gespeichert · Synchronisierung wartet', 3500);
+  } catch (error) {
+    showToast('⚠️ Polter konnte nicht gespeichert werden: ' + error.message, 5000);
+  } finally { button.disabled = false; }
 });
 document.getElementById('btn-cancel').addEventListener('click',()=>{document.getElementById('panel').classList.add('hidden');pendingLL=null;});
 
@@ -7272,46 +6927,60 @@ function upsertMarkerOnMap(data){
       if(!map.hasLayer(existing.layer))existing.layer.addTo(map);
       existing.visible=true;
     }catch{}
+  const label=data.typ==='harvester'?'<span class="ico-harvester"></span> Harvester':data.typ==='ruecke'?'🚜 Polterplatz':'📋 Notiz';
+  const areaName=data.area_id?(areas.find(a=>a.id===data.area_id)?.name||''):'';
+  existing.layer.bindPopup(`<b>${label}</b>${data.auto?' <em style="font-size:10px">(auto)</em>':''}<br>${escapeHtml(data.art||'')} ${data.menge?escapeHtml(data.menge)+' Fm':''}<br>${escapeHtml(data.notiz||'')}${areaName?'<br><span style="font-size:10px;background:#d4edcc;color:#2d5a27;padding:1px 5px;border-radius:4px;">📍 '+escapeHtml(areaName)+'</span>':''}<br><span style="font-size:10px;color:#aaa;">${Number(data.lat).toFixed(6)}, ${Number(data.lng).toFixed(6)}</span>`);
     applyMarkerFilter();
     return existing;
   }
   const layer=L.marker([Number(data.lat),Number(data.lng)],{icon:data.done?mkIconDone():getMarkerIcon(data.typ,data.art),zIndexOffset:data._offline_pending?5000:0}).addTo(map);
   const label=data.typ==='harvester'?'<span class="ico-harvester"></span> Harvester':data.typ==='ruecke'?'🚜 Polterplatz':'📋 Notiz';
   const areaName=data.area_id?(areas.find(a=>a.id===data.area_id)?.name||''):'';
-  layer.bindPopup(`<b>${label}</b>${data.auto?' <em style="font-size:10px">(auto)</em>':''}<br>${data.art||''} ${data.menge?data.menge+' Fm':''}<br>${data.notiz||''}${areaName?'<br><span style="font-size:10px;background:#d4edcc;color:#2d5a27;padding:1px 5px;border-radius:4px;">📍 '+areaName+'</span>':''}<br><span style="font-size:10px;color:#aaa;">${Number(data.lat).toFixed(6)}, ${Number(data.lng).toFixed(6)}</span>`);
+  layer.bindPopup(`<b>${label}</b>${data.auto?' <em style="font-size:10px">(auto)</em>':''}<br>${escapeHtml(data.art||'')} ${data.menge?escapeHtml(data.menge)+' Fm':''}<br>${escapeHtml(data.notiz||'')}${areaName?'<br><span style="font-size:10px;background:#d4edcc;color:#2d5a27;padding:1px 5px;border-radius:4px;">📍 '+escapeHtml(areaName)+'</span>':''}<br><span style="font-size:10px;color:#aaa;">${Number(data.lat).toFixed(6)}, ${Number(data.lng).toFixed(6)}</span>`);
   const rec={...data,layer,visible:true};markers.push(rec);applyMarkerFilter();return rec;
 }
 
 // ── DATEN LADEN ───────────────────────────────────────────────────
+let loadDataGeneration = 0;
 async function loadData() {
+  if (!currentProfile || !currentUser) return;
+  const company = currentProfile.company_id, actor = currentUser.id, generation = ++loadDataGeneration;
   setOnline('sync');
-  const pendingMarkers=await LocalDataStore.list('markers');
-  const mData=await dbFetch('markers?company_id=eq.'+currentProfile.company_id+'&order=created_at&select=*').catch(()=>[]);
-  const merged=new Map();
-  (Array.isArray(mData)?mData:[]).forEach(d=>merged.set(d.id,{...d,_offline_pending:false}));
-  pendingMarkers.filter(d=>d.company_id===currentProfile.company_id).forEach(d=>merged.set(d.id,{...d,_offline_pending:true}));
-
-  // Entferne nur Marker, die weder Server/Cache noch lokale Pending-Daten enthalten.
-  const wanted=new Set(merged.keys());
-  markers.slice().forEach(m=>{if(!wanted.has(m.id)){try{map.removeLayer(m.layer);}catch{} markers.splice(markers.indexOf(m),1);}});
-  merged.forEach(d=>upsertMarkerOnMap(d));
-
-  const pendingTracks=await LocalDataStore.list('tracks');
-  const tData=await dbFetch('tracks?company_id=eq.'+currentProfile.company_id+'&order=created_at').catch(()=>[]);
-  const trackMerged=new Map();
-  (Array.isArray(tData)?tData:[]).forEach(t=>trackMerged.set(t.id,{...t,_offline_pending:false}));
-  pendingTracks.filter(t=>t.company_id===currentProfile.company_id).forEach(t=>trackMerged.set(t.id,{...t,_offline_pending:true}));
-  tracks.forEach(t=>{try{map.removeLayer(t.poly);}catch{}});
-  tracks=[];
-  const colors=['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
-  Array.from(trackMerged.values()).forEach((t,i)=>{
-    if(!Array.isArray(t.pts)||t.pts.length<2)return;
-    const poly=L.polyline(t.pts,{color:colors[i%colors.length],weight:4,opacity:.85,dashArray:t._offline_pending?'7 5':null}).addTo(map);
-    tracks.push({...t,poly});
-  });
-  setOnline(navigator.onLine?'on':'off');
-  if(window.OfflineQueue&&window.OfflineQueue.size()>0){try{document.getElementById('online-dot').className='sync';}catch{}}
-  applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
+  const [markerResult, trackResult] = await Promise.allSettled([
+    dbFetch('markers?company_id=eq.' + company + '&order=created_at&select=*'),
+    dbFetch('tracks?company_id=eq.' + company + '&order=created_at')
+  ]);
+  if (generation !== loadDataGeneration || currentUser?.id !== actor) return;
+  if (markerResult.status === 'fulfilled' && Array.isArray(markerResult.value)) {
+    const wanted = new Set(markerResult.value.map(m => m.id));
+    markers.slice().forEach(m => {
+      if (!wanted.has(m.id)) { try { map.removeLayer(m.layer); } catch {} markers.splice(markers.indexOf(m), 1); }
+    });
+    markerResult.value.forEach(upsertMarkerOnMap);
+  }
+  if (trackResult.status === 'fulfilled' && Array.isArray(trackResult.value)) {
+    tracks.forEach(t => { try { map.removeLayer(t.poly); } catch {} });
+    tracks = [];
+    const colors = ['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
+    trackResult.value.forEach((t,i) => {
+      if (!Array.isArray(t.pts) || t.pts.length < 2) return;
+      const poly = L.polyline(t.pts, { color: colors[i % colors.length], weight: 4, opacity: .85,
+        dashArray: t._offline_pending ? '7 5' : null }).addTo(map);
+      tracks.push({ ...t, poly });
+    });
+  }
+  // Failed reads preserve the current map instead of interpreting an outage as an empty company.
+  setOnline(navigator.onLine ? 'on' : 'off');
+  window.OfflineQueue.refreshStatus();
+  applyMarkerFilter(); renderLog(); renderSidebar(); renderLkwSidebar();
+}
+async function receiveMarkerUpdate(data) {
+  if (!data || data.company_id !== currentProfile?.company_id) return;
+  if (await window.OfflineQueue.pendingFor('markers', data.id)) return;
+  await LocalDataStore.remove('markers', data.id).catch(() => {});
+  await OfflineReadCache.mutate('markers', 'POST', data);
+  upsertMarkerOnMap({ ...data, _offline_pending: false });
+  renderLog(); renderSidebar(); renderLkwSidebar();
 }
 // ── ECHTZEIT-SYNC ─────────────────────────────────────────────────
 function startRealtime() {
@@ -7322,22 +6991,22 @@ function startRealtime() {
       payload => {
         const d=payload.new;
         if(!d)return;
-        LocalDataStore.remove('markers',d.id).catch(()=>{});
-        upsertMarkerOnMap({...d,_offline_pending:false});
-        applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
+        receiveMarkerUpdate(d).catch(e => console.warn('Marker-Sync:', e.message));
       })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'markers',
       filter: 'company_id=eq.' + currentProfile.company_id },
       payload => {
         const d=payload.new;if(!d)return;
-        LocalDataStore.remove('markers',d.id).catch(()=>{});
-        upsertMarkerOnMap({...d,_offline_pending:false});
-        applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
+        receiveMarkerUpdate(d).catch(e => console.warn('Marker-Sync:', e.message));
       })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'markers',
       filter: 'company_id=eq.' + currentProfile.company_id },
-      payload => {
-        const idx = markers.findIndex(m => m.id === payload.old.id);
+      async payload => {
+        const id = payload.old?.id;
+        if (!id || await window.OfflineQueue.pendingFor('markers', id)) return;
+        await LocalDataStore.remove('markers', id).catch(() => {});
+        await OfflineReadCache.mutate('markers?id=eq.' + id, 'DELETE');
+        const idx = markers.findIndex(m => m.id === id);
         if (idx >= 0) { map.removeLayer(markers[idx].layer); markers.splice(idx, 1); renderLog(); renderSidebar(); renderLkwSidebar(); }
       })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles',
@@ -8589,6 +8258,15 @@ async function executeAccountDeletion() {
     return;
   }
   if (err) err.textContent = '';
+  // Company data queued on this device must reach the server before its owner disappears.
+  if (window.OfflineQueue && window.OfflineQueue.size() > 0) {
+    await window.OfflineQueue.sync().catch(() => {});
+    if (window.OfflineQueue.size() > 0) {
+      if (err) err.textContent = 'Es warten noch Änderungen auf Synchronisierung. Bitte zuerst online synchronisieren und danach das Konto löschen.';
+      return;
+    }
+  }
+
 
   try {
     const resp = await fetch(SUPABASE_URL + '/rest/v1/rpc/delete_my_account', {
@@ -12258,55 +11936,49 @@ async function delMarker(id) {
   }
   try {
     await dbFetch('markers?id=eq.'+id, { method: 'DELETE', prefer: 'return=minimal' });
-    map.removeLayer(m.layer);
-    markers.splice(idx, 1);
+    const currentIndex = markers.findIndex(record => record.id === id);
+    if (currentIndex >= 0) { map.removeLayer(markers[currentIndex].layer); markers.splice(currentIndex, 1); }
   } catch(e) {
     showToast('⚠️ Löschen nicht erlaubt oder fehlgeschlagen.');
     return;
   }
   renderLog(); renderSidebar(); renderLkwSidebar();
 }
+function canDeleteTrack(track) {
+  return isAdminUser() || track.created_by === currentUser?.id;
+}
 async function delTrack(id) {
-  const idx = tracks.findIndex(t => t.id === id);
-  if (idx < 0) return;
-  map.removeLayer(tracks[idx].poly);
-  tracks.splice(idx, 1);
-  await dbFetch('tracks?id=eq.'+id, { method: 'DELETE' }).catch(()=>{});
-  renderLog();
+  const track = tracks.find(t => t.id === id);
+  if (!track) return;
+  if (!canDeleteTrack(track)) { showToast('🔒 Nur eigene Strecken oder Firmen-Admins dürfen löschen.'); return; }
+  try {
+    await dbFetch('tracks?id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+    const idx = tracks.findIndex(t => t.id === id);
+    if (idx >= 0) { map.removeLayer(tracks[idx].poly); tracks.splice(idx, 1); }
+    renderLog();
+  } catch (error) { showToast('⚠️ Strecke konnte nicht gelöscht werden: ' + error.message); }
 }
 async function markDone(id) {
-  const idx = markers.findIndex(m => m.id === id);
-  if (idx < 0) return;
-  const newDone = !markers[idx].done;
-  markers[idx].done = newDone;
-  const wasVisible = markers[idx].visible;
-  map.removeLayer(markers[idx].layer);
-  const m = markers[idx];
-  const newLayer = L.marker(L.latLng(m.lat, m.lng), {
-    icon: newDone ? mkIconDone() : getMarkerIcon(m.typ, m.art)
-  });
-  if (wasVisible) newLayer.addTo(map);
-  newLayer.bindPopup(m.layer.getPopup ? m.layer.getPopup().getContent() : '');
-  markers[idx].layer = newLayer;
-  markers[idx].visible = wasVisible;
-  await dbFetch('markers?id=eq.'+id, {
-    method: 'PATCH',
-    body: { done: newDone },
-    prefer: 'return=minimal'
-  }).catch(()=>{});
-  applyMarkerFilter(); renderLog(); renderSidebar(); renderLkwSidebar();
+  const marker = markers.find(m => m.id === id);
+  if (!marker) return;
+  const done = !marker.done;
+  try {
+    await dbFetch('markers?id=eq.' + id, { method: 'PATCH', body: { done }, prefer: 'return=minimal' });
+    const current = markers.find(m => m.id === id);
+    if (current) upsertMarkerOnMap({ ...current, done, _offline_pending: await window.OfflineQueue.pendingFor('markers', id) });
+    renderLog(); renderSidebar(); renderLkwSidebar();
+  } catch (error) { showToast('⚠️ Status konnte nicht gespeichert werden: ' + error.message); }
 }
-
 // ── LOG RENDERN ───────────────────────────────────────────────────
 function mkRow(m) {
   const tc=m.typ==='harvester'?'th':m.typ==='ruecke'?'tr':'tn';
   const tl=m.typ==='harvester'?'<span class=\"ico-harvester\"></span> Harvester':m.typ==='ruecke'?'🪵 Polterplatz':'📋 Notiz';
-  const artB=m.art?`<span style="font-size:9px;background:#eaefe8;color:#2d5a27;padding:1px 5px;border-radius:4px;margin-left:3px;">${m.art}</span>`:'';
+  const artB=m.art?`<span style="font-size:9px;background:#eaefe8;color:#2d5a27;padding:1px 5px;border-radius:4px;margin-left:3px;">${escapeHtml(m.art)}</span>`:'';
   const autoB=m.auto?`<span style="font-size:9px;background:#d4edcc;color:#2d5a27;padding:1px 4px;border-radius:4px;margin-left:2px;">auto</span>`:'';
   const checkBtn=currentMode==='ruecke'&&m.typ==='harvester'?`<button class="lcheck" onclick="markDone('${m.id}')">${m.done?'↩':'✓ Weg'}</button>`:'';
   const canDelete = m.typ !== 'ruecke' || isAdminUser();
   const deleteBtn = canDelete ? `<button class="ldel" onclick="delMarker('${m.id}')">✕</button>` : '';
-  return `<div class="lrow${m.done?' done':''}"><span class="tag ${tc}">${tl}</span><div class="linfo">${m.menge?m.menge+' Fm':''}${artB}${autoB}<div class="lcoord">${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>${m.notiz?'<div style="color:#666;font-size:10px;">'+m.notiz+'</div>':''}</div>${checkBtn}${deleteBtn}</div>`;
+  return `<div class="lrow${m.done?' done':''}"><span class="tag ${tc}">${tl}</span><div class="linfo">${m.menge?escapeHtml(m.menge)+' Fm':''}${artB}${autoB}<div class="lcoord">${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>${m.notiz?'<div style="color:#666;font-size:10px;">'+escapeHtml(m.notiz)+'</div>':''}</div>${checkBtn}${deleteBtn}</div>`;
 }
 
 function renderLog() {
@@ -12340,7 +12012,7 @@ function renderLog() {
         if (!g || (!g.markers.length && !g.tracks.length)) return;
         html += `<div style="background:rgba(74,170,74,.10);padding:7px 14px;font-size:11px;font-weight:600;color:#a0d89a;border-bottom:1px solid rgba(74,170,74,.18);border-top:1px solid rgba(74,170,74,.18);">📍 ${area.name} · ${g.markers.length} Polter · ${g.tracks.length} Strecken</div>`;
         html += g.markers.map(m => mkRow(m)).join('');
-        html += g.tracks.map(t => `<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div><button class="ldel" onclick="delTrack('${t.id}')">✕</button></div>`).join('');
+        html += g.tracks.map(t => `<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div>${canDeleteTrack(t)?`<button class="ldel" onclick="delTrack('${t.id}')">✕</button>`:''}</div>`).join('');
       });
 
       // Ohne Gebiet
@@ -12348,14 +12020,14 @@ function renderLog() {
       if (none && (none.markers.length || none.tracks.length)) {
         html += `<div style="background:rgba(255,255,255,.04);padding:7px 14px;font-size:11px;font-weight:600;color:#7a9a7a;border-bottom:1px solid rgba(255,255,255,.06);border-top:1px solid rgba(255,255,255,.06);font-style:italic;">Kein Einschlagsgebiet</div>`;
         html += none.markers.map(m => mkRow(m)).join('');
-        html += none.tracks.map(t => `<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div><button class="ldel" onclick="delTrack('${t.id}')">✕</button></div>`).join('');
+        html += none.tracks.map(t => `<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div>${canDeleteTrack(t)?`<button class="ldel" onclick="delTrack('${t.id}')">✕</button>`:''}</div>`).join('');
       }
 
       el.innerHTML = html || '<div class="lrow" style="color:#aaa;font-style:italic;">Noch keine Einträge.</div>';
     } else {
       // Harvester: einfache Liste
       const mRows=markers.map(m=>mkRow(m));
-      const tRows=tracks.map(t=>`<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div><button class="ldel" onclick="delTrack('${t.id}')">✕</button></div>`);
+      const tRows=tracks.map(t=>`<div class="lrow"><span class="tag tt">📏 Strecke</span><div class="linfo">${t.km} km<div class="lcoord">${t.recorded_at||''}</div></div>${canDeleteTrack(t)?`<button class="ldel" onclick="delTrack('${t.id}')">✕</button>`:''}</div>`);
       el.innerHTML=[...mRows,...tRows].join('');
     }
   } else {
@@ -12375,12 +12047,11 @@ function renderLog() {
 
 // ── LÖSCHEN ALLE ─────────────────────────────────────────────────
 document.getElementById('btn-clear-all').addEventListener('click', async () => {
-  if(!confirm('Alle Markierungen und Strecken löschen?'))return;
-  for(const m of markers){map.removeLayer(m.layer);await dbFetch('markers?id=eq.'+m.id,{method:'DELETE'}).catch(()=>{});}
-  for(const t of tracks){map.removeLayer(t.poly);await dbFetch('tracks?id=eq.'+t.id,{method:'DELETE'}).catch(()=>{});}
-  markers=[];tracks=[];document.getElementById('km-txt').textContent='';renderLog();
+  if (!confirm('Alle löschbaren Markierungen und eigenen Strecken löschen?')) return;
+  for (const id of markers.filter(m => m.typ !== 'ruecke' || isAdminUser()).map(m => m.id)) await delMarker(id);
+  for (const id of tracks.filter(canDeleteTrack).map(t => t.id)) await delTrack(id);
+  document.getElementById('km-txt').textContent = ''; renderLog();
 });
-
 // ── LOG-PANEL: SHOW / HIDE ALS OVERLAY ──────────────────────────
 function openLogPanel() {
   const bb = document.getElementById('bottombar');
@@ -12426,9 +12097,8 @@ function updateLogBadge() {
 window.updateLogBadge = updateLogBadge;
 document.getElementById('btn-clear-arbeit').addEventListener('click', async () => {
   if(!confirm('Alle Harvester-Polter löschen?'))return;
-  const keep=[];
-  for(const m of markers){if(m.typ==='harvester'){map.removeLayer(m.layer);await dbFetch('markers?id=eq.'+m.id,{method:'DELETE'}).catch(()=>{});}else keep.push(m);}
-  markers=keep;renderLog();
+  for (const id of markers.filter(m => m.typ === 'harvester').map(m => m.id)) await delMarker(id);
+  renderLog();
 });
 document.getElementById('btn-clear-polter').addEventListener('click', async () => {
   if(!isAdminUser()){ showToast('🔒 LKW-Polterplätze können nur vom Firmen-Admin gelöscht werden.'); return; }
@@ -12447,9 +12117,8 @@ document.getElementById('sidebar-close-btn').addEventListener('click',closeSideb
 document.getElementById('sidebar-overlay').addEventListener('click',closeSidebar);
 document.getElementById('sidebar-clear').addEventListener('click', async () => {
   if(!confirm('Alle Harvester-Polter löschen?'))return;
-  const keep=[];
-  for(const m of markers){if(m.typ==='harvester'){map.removeLayer(m.layer);await dbFetch('markers?id=eq.'+m.id,{method:'DELETE'}).catch(()=>{});}else keep.push(m);}
-  markers=keep;renderSidebar();renderLog();
+  for (const id of markers.filter(m => m.typ === 'harvester').map(m => m.id)) await delMarker(id);
+  renderSidebar(); renderLog();
 });
 
 function renderSidebar(){
@@ -12462,7 +12131,7 @@ function renderSidebar(){
   if(!arbeit.length){el.innerHTML='<div class="slrow" style="color:#aaa;font-style:italic;padding:16px;">Keine Polter.</div>';return;}
   el.innerHTML=arbeit.map(m=>{
     const icon=m.art==='Birke'?'🌳':m.art==='Sonstige'?'🌿':m.art?'🌲':'🪵';
-    return `<div class="slrow${m.done?' done':''}"><div class="sli"><div class="sli-art">${icon} ${m.art||'unbekannt'}${m.auto?'<span class="sli-auto">auto</span>':''}</div>${m.menge?'<div style="font-size:11px;color:#4a6044;">'+m.menge+' Fm</div>':''}<div class="sli-coord">${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div>${m.notiz?'<div class="sli-notiz">'+m.notiz+'</div>':''}</div><button class="s-check" onclick="sidebarToggleDone('${m.id}')">${m.done?'↩ Zurück':'✓ Weg'}</button><button class="s-del" onclick="delMarker('${m.id}')">✕</button></div>`;
+    return `<div class="slrow${m.done?' done':''}"><div class="sli"><div class="sli-art">${icon} ${escapeHtml(m.art||'unbekannt')}${m.auto?'<span class="sli-auto">auto</span>':''}</div>${m.menge?'<div style="font-size:11px;color:#4a6044;">'+escapeHtml(m.menge)+' Fm</div>':''}<div class="sli-coord">${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div>${m.notiz?'<div class="sli-notiz">'+escapeHtml(m.notiz)+'</div>':''}</div><button class="s-check" onclick="sidebarToggleDone('${m.id}')">${m.done?'↩ Zurück':'✓ Weg'}</button><button class="s-del" onclick="delMarker('${m.id}')">✕</button></div>`;
   }).join('');
 }
 
@@ -12481,11 +12150,11 @@ document.getElementById('lkw-close').addEventListener('click',closeLkwSidebar);
 document.getElementById('lkw-close-btn').addEventListener('click',closeLkwSidebar);
 document.getElementById('lkw-overlay').addEventListener('click',closeLkwSidebar);
 document.getElementById('lkw-clear').addEventListener('click', async () => {
-  if(!getLkwPolter().length)return;
-  if(!confirm('Alle Polterplätze löschen?'))return;
-  const keep=[];
-  for(const m of markers){if(m.typ==='ruecke'){map.removeLayer(m.layer);await dbFetch('markers?id=eq.'+m.id,{method:'DELETE'}).catch(()=>{});}else keep.push(m);}
-  markers=keep;renderLkwSidebar();renderLog();
+  if (!isAdminUser()) { showToast('🔒 LKW-Polterplätze können nur vom Firmen-Admin gelöscht werden.'); return; }
+  const ids = getLkwPolter().map(m => m.id);
+  if (!ids.length || !confirm('Alle Polterplätze des gewählten Gebiets löschen?')) return;
+  for (const id of ids) await delMarker(id);
+  renderLkwSidebar(); renderLog();
 });
 
 function getLkwPolter(){
@@ -12516,6 +12185,8 @@ document.getElementById('lkw-share-mail').addEventListener('click',  () => openS
 document.getElementById('lkw-share-copy').addEventListener('click',  () => openShareSelect());
 
 function renderLkwSidebar(){
+  const clearButton = document.getElementById('lkw-clear');
+  if (clearButton) clearButton.style.display = isAdminUser() ? '' : 'none';
   const polter=getLkwPolter();
   const badge=document.getElementById('lkw-badge');
   badge.textContent=polter.length;badge.style.display=polter.length>0?'flex':'none';
@@ -12535,8 +12206,8 @@ function renderLkwSidebar(){
     return`<div style="padding:12px 14px;border-bottom:1px solid rgba(26,95,168,.1);font-family:inherit;">
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
         <div style="background:#1a5fa8;color:#e6f1fb;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;cursor:pointer;" onclick="jumpToMarker('${m.id}')">${nr}</div>
-        <div style="flex:1;cursor:pointer;" onclick="jumpToMarker('${m.id}')"><div style="font-size:13px;font-weight:600;color:#1a2e1a;">🪵 Polterplatz ${nr}${m.menge?'<span style="font-size:11px;font-weight:400;color:#4a6044;margin-left:5px;">'+m.menge+' Fm</span>':''}</div>
-        ${m.notiz?'<div style="font-size:11px;color:#666;margin-top:2px;">'+m.notiz+'</div>':''}
+        <div style="flex:1;cursor:pointer;" onclick="jumpToMarker('${m.id}')"><div style="font-size:13px;font-weight:600;color:#1a2e1a;">🪵 Polterplatz ${nr}${m.menge?'<span style="font-size:11px;font-weight:400;color:#4a6044;margin-left:5px;">'+escapeHtml(m.menge)+' Fm</span>':''}</div>
+        ${m.notiz?'<div style="font-size:11px;color:#666;margin-top:2px;">'+escapeHtml(m.notiz)+'</div>':''}
         <div style="font-size:10px;color:#bbb;">${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div></div>
         ${isAdminUser()?`<button onclick="delMarker('${m.id}')" style="background:none;border:1px solid rgba(0,0,0,.12);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;color:#888;min-height:28px;font-family:inherit;">✕</button>`:''}
       </div>
@@ -12567,8 +12238,9 @@ let areas = [];
 let currentAreaId = null;
 
 async function loadAreas() {
-  const data = await dbFetch('areas?company_id=eq.'+currentProfile.company_id+'&order=name').catch(()=>[]);
-  if (data.length >= 0) {
+  if (!currentProfile) return;
+  const data = await dbFetch('areas?company_id=eq.'+currentProfile.company_id+'&order=name').catch(() => null);
+  if (Array.isArray(data)) {
     areas = data;
     renderAreaSelect();
     // EUDR Modul 1: Erntefläche-Grenzen auf Karte zeichnen
@@ -14378,8 +14050,8 @@ document.getElementById('btn-basemap').addEventListener('click',()=>{
 // ── GPX EXPORT ────────────────────────────────────────────────────
 document.getElementById('btn-export').addEventListener('click',()=>{
   if(!markers.length&&!tracks.length){alert('Nichts zu exportieren.');return;}
-  const wpts=markers.map(m=>`  <wpt lat="${m.lat.toFixed(7)}" lon="${m.lng.toFixed(7)}">\n    <n>${m.typ} - ${m.art||'?'}</n>\n    <desc>${m.menge?m.menge+' Fm':''} ${m.notiz||''}</desc>\n  </wpt>`).join('\n');
-  const trks=tracks.map((t,i)=>`  <trk>\n    <n>Strecke ${i+1} - ${t.km}km</n>\n    <trkseg>\n${t.pts.map(p=>`      <trkpt lat="${p[0].toFixed(7)}" lon="${p[1].toFixed(7)}"/>`).join('\n')}\n    </trkseg>\n  </trk>`).join('\n');
+  const wpts=markers.map(m=>`  <wpt lat="${m.lat.toFixed(7)}" lon="${m.lng.toFixed(7)}">\n    <name>${escapeHtml(m.typ)} - ${escapeHtml(m.art||'?')}</name>\n    <desc>${escapeHtml(m.menge?m.menge+' Fm':'')} ${escapeHtml(m.notiz||'')}</desc>\n  </wpt>`).join('\n');
+  const trks=tracks.map((t,i)=>`  <trk>\n    <name>Strecke ${i+1} - ${t.km}km</name>\n    <trkseg>\n${t.pts.map(p=>`      <trkpt lat="${p[0].toFixed(7)}" lon="${p[1].toFixed(7)}"/>`).join('\n')}\n    </trkseg>\n  </trk>`).join('\n');
   const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Lignum">\n${wpts}\n${trks}\n</gpx>`;
   if(isIOS){const w=window.open('','_blank');if(w)w.document.write('<pre style="font-size:11px;padding:20px;">'+gpx.replace(/</g,'&lt;')+'</pre>');}
   else{const a=document.createElement('a');a.href='data:application/gpx+xml;charset=utf-8,'+encodeURIComponent(gpx);a.download='holzpolter.gpx';a.click();}
@@ -14447,7 +14119,7 @@ if('serviceWorker' in navigator){
         nw.addEventListener('statechange',()=>{
           if(nw.state==='installed'&&navigator.serviceWorker.controller){
             nw.postMessage({type:'SKIP_WAITING'});
-            setTimeout(()=>window.location.reload(),500);
+            showToast('✓ Aktualisierung bereit. App zum Übernehmen neu öffnen.', 6000);
           }
         });
       });
@@ -14556,7 +14228,7 @@ async function openExportPanel() {
     const sel = document.getElementById('exp-driver');
     sel.innerHTML = '<option value="">Alle Fahrer</option>' +
       (drivers || []).filter(d => d.role !== 'admin')
-        .map(d => `<option value="${d.id}">${d.name} (${d.role==='harvester'?'H':'F'})</option>`).join('');
+        .map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.role==='harvester'?'H':'F'})</option>`).join('');
   } catch(e) { console.warn('Driver list:', e); }
 }
 
@@ -15449,3 +15121,4 @@ window.closeKalk = function(){ document.getElementById('kalk-panel').classList.a
 </script>
 </body>
 </html>
+
