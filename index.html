@@ -22,7 +22,15 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.38">
+  <meta name="app-version" content="13.39">
+  <script id="app-version-display">
+    document.addEventListener('DOMContentLoaded', function() {
+      const version = document.querySelector('meta[name="app-version"]').content;
+      document.querySelectorAll('[data-app-version]').forEach(function(label) {
+        label.textContent = 'Version ' + version;
+      });
+    });
+  </script>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2190,6 +2198,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
   </div>
   <div style="margin-top:22px;text-align:center;font-size:11px;color:#6a7a6a;line-height:1.5;">
     © 2026 Lignum · Benedikt Holz<br>Alle Rechte vorbehalten
+    <span data-app-version style="display:block;margin-top:4px;"></span>
   </div>
 </div>
 
@@ -2311,6 +2320,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
     <div style="margin-top:20px;margin-bottom:8px;text-align:center;font-size:11px;color:#5a6a5a;line-height:1.5;">
       © 2026 Lignum · Benedikt Holz · Alle Rechte vorbehalten
+      <span data-app-version style="display:block;margin-top:4px;"></span>
     </div>
 
   </div>
@@ -2612,6 +2622,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
   <button class="ds-logout" onclick="doLogout()">Abmelden</button>
   <div style="margin-top:16px;text-align:center;font-size:11px;color:#5a6a5a;line-height:1.5;">
     © 2026 Lignum · Benedikt Holz · Alle Rechte vorbehalten
+    <span data-app-version style="display:block;margin-top:4px;"></span>
   </div>
 </div>
 

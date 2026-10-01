@@ -39,8 +39,8 @@ function harness(failedURL) {
 }
 test('the app shell and offline module are cached with the same version', async () => {
   const h = harness(); await h.event('install');
-  assert.ok(await h.cache('lignum-app-v13.38').match('/offline.js')); assert.equal(h.activated(), 1);
-  assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.38"/);
+  assert.ok(await h.cache('lignum-app-v13.39').match('/offline.js')); assert.equal(h.activated(), 1);
+  assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.39"/);
 });
 test('a failed required offline-module download keeps the previous worker active', async () => {
   const h = harness('/offline.js'); await assert.rejects(h.event('install'), /Download failed/);
@@ -51,8 +51,8 @@ test('optional export-library failure does not block an otherwise complete offli
   await h.event('install'); assert.equal(h.activated(), 1);
 });
 test('activation preserves protected offline maps and unrelated application caches', async () => {
-  const h = harness(); for (const name of ['lignum-app-v13.37','lignum-app-v13.38','lignum-sat-offline-v1','lignum-osm-offline-v1','other-app']) h.cache(name);
-  await h.event('activate'); assert.deepEqual(h.deleted, ['lignum-app-v13.37']);
+  const h = harness(); for (const name of ['lignum-app-v13.38','lignum-app-v13.39','lignum-sat-offline-v1','lignum-osm-offline-v1','other-app']) h.cache(name);
+  await h.event('activate'); assert.deepEqual(h.deleted, ['lignum-app-v13.38']);
 });
 test('manually saved map tiles are returned without a network request', async () => {
   const h = harness(), url = 'https://server.arcgisonline.com/tiles/18/1/2';
