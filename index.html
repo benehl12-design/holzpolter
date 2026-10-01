@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.33">
+  <meta name="app-version" content="13.34">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -2057,7 +2057,7 @@ if ('serviceWorker' in navigator) {
     if (reg) {
       // Prüfe ob SW veraltet ist
       fetch('/sw.js', {cache:'no-store'}).then(r => r.text()).then(txt => {
-        if (!txt.includes("APP_VERSION = '13.33'")) {
+        if (!txt.includes("APP_VERSION = '13.34'")) {
           reg.unregister().then(() => location.reload());
         }
       }).catch(()=>{});
@@ -4347,7 +4347,7 @@ async function doRegister() {
   if (!company || !name || !email || !pw) return showAuthErr('Bitte alle Felder ausfüllen.');
   if (pw.length < 6) return showAuthErr('Passwort mind. 6 Zeichen.');
 
-  // v13.33: Registrierungsdaten am Auth-User speichern. Bei aktivierter
+  // v13.34: Registrierungsdaten am Auth-User speichern. Bei aktivierter
   // E-Mail-Bestätigung liefert Supabase absichtlich noch keine Session.
   const { data, error } = await sb.auth.signUp({
     email,
@@ -6910,7 +6910,7 @@ function hideMainApp() {
 }
 
 // KARTE
-// v13.33: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
+// v13.34: letzte Kartenansicht sofort wiederherstellen – spart unnötige Start-Tiles.
 let _savedMapState = null;
 try { _savedMapState = JSON.parse(localStorage.getItem('lignum_map_state') || 'null'); } catch {}
 const _initialCenter = (_savedMapState && Number.isFinite(_savedMapState.lat) && Number.isFinite(_savedMapState.lng))
@@ -7421,14 +7421,20 @@ async function loadData() {
   markers.slice().forEach(m=>{if(!wanted.has(m.id)){try{map.removeLayer(m.layer);}catch{} markers.splice(markers.indexOf(m),1);}});
   merged.forEach(d=>upsertMarkerOnMap(d));
 
+  const pendingTracks=await LocalDataStore.list('tracks');
   const tData=await dbFetch('tracks?company_id=eq.'+currentProfile.company_id+'&order=created_at').catch(()=>[]);
-  if(Array.isArray(tData)){
-    tracks.forEach(t=>{try{map.removeLayer(t.poly);}catch{}});
-    tracks=[];
-    const colors=['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
-    tData.forEach((t,i)=>{const poly=L.polyline(t.pts,{color:colors[i%colors.length],weight:4,opacity:.85}).addTo(map);tracks.push({...t,poly});});
-  }
-  setOnline('on');
+  const trackMerged=new Map();
+  (Array.isArray(tData)?tData:[]).forEach(t=>trackMerged.set(t.id,{...t,_offline_pending:false}));
+  pendingTracks.filter(t=>t.company_id===currentProfile.company_id).forEach(t=>trackMerged.set(t.id,{...t,_offline_pending:true}));
+  tracks.forEach(t=>{try{map.removeLayer(t.poly);}catch{}});
+  tracks=[];
+  const colors=['#c0392b','#7b3fa0','#1a6fa8','#c87020','#1a7050'];
+  Array.from(trackMerged.values()).forEach((t,i)=>{
+    if(!Array.isArray(t.pts)||t.pts.length<2)return;
+    const poly=L.polyline(t.pts,{color:colors[i%colors.length],weight:4,opacity:.85,dashArray:t._offline_pending?'7 5':null}).addTo(map);
+    tracks.push({...t,poly});
+  });
+  setOnline(navigator.onLine?'on':'off');
   if(window.OfflineQueue&&window.OfflineQueue.size()>0){try{document.getElementById('online-dot').className='sync';}catch{}}
   applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
 }
@@ -7439,28 +7445,19 @@ function startRealtime() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'markers',
       filter: 'company_id=eq.' + currentProfile.company_id },
       payload => {
-        const d = payload.new;
-        if (!markers.find(m => m.id === d.id)) {
-          addMarkerToMap(d, true);
-          applyMarkerFilter();
-          renderLog(); renderSidebar(); renderLkwSidebar();
-        }
+        const d=payload.new;
+        if(!d)return;
+        LocalDataStore.remove('markers',d.id).catch(()=>{});
+        upsertMarkerOnMap({...d,_offline_pending:false});
+        applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
       })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'markers',
       filter: 'company_id=eq.' + currentProfile.company_id },
       payload => {
-        const d = payload.new;
-        const idx = markers.findIndex(m => m.id === d.id);
-        if (idx >= 0) {
-          const wasVisible = markers[idx].visible;
-          map.removeLayer(markers[idx].layer);
-          const ll = L.latLng(d.lat, d.lng);
-          const layer = L.marker(ll, { icon: d.done ? mkIconDone() : getMarkerIcon(d.typ, d.art) }).addTo(map);
-          layer.bindPopup(`<b>${d.typ==='harvester'?'<span class="ico-harvester"></span> Harvester':d.typ==='ruecke'?'🪵 Polterplatz':'📋 Notiz'}</b><br>${d.art||''} ${d.menge?d.menge+' Fm':''}<br>${d.notiz||''}`);
-          markers[idx] = { ...d, layer, visible: wasVisible };
-          applyMarkerFilter();
-          renderLog(); renderSidebar(); renderLkwSidebar();
-        }
+        const d=payload.new;if(!d)return;
+        LocalDataStore.remove('markers',d.id).catch(()=>{});
+        upsertMarkerOnMap({...d,_offline_pending:false});
+        applyMarkerFilter();renderLog();renderSidebar();renderLkwSidebar();
       })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'markers',
       filter: 'company_id=eq.' + currentProfile.company_id },
@@ -12666,7 +12663,7 @@ function renderLkwSidebar(){
         <div style="flex:1;cursor:pointer;" onclick="jumpToMarker('${m.id}')"><div style="font-size:13px;font-weight:600;color:#1a2e1a;">🪵 Polterplatz ${nr}${m.menge?'<span style="font-size:11px;font-weight:400;color:#4a6044;margin-left:5px;">'+m.menge+' Fm</span>':''}</div>
         ${m.notiz?'<div style="font-size:11px;color:#666;margin-top:2px;">'+m.notiz+'</div>':''}
         <div style="font-size:10px;color:#bbb;">${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}</div></div>
-        <button onclick="delMarker('${m.id}')" style="background:none;border:1px solid rgba(0,0,0,.12);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;color:#888;min-height:28px;font-family:inherit;">✕</button>
+        ${isAdminUser()?`<button onclick="delMarker('${m.id}')" style="background:none;border:1px solid rgba(0,0,0,.12);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;color:#888;min-height:28px;font-family:inherit;">✕</button>`:''}
       </div>
       <div style="display:flex;gap:6px;">
         <a href="${gm}" target="_blank" style="flex:1;padding:7px 4px;border-radius:6px;background:#e8f0fe;color:#1a5fa8;font-size:11px;text-align:center;text-decoration:none;border:1px solid rgba(26,95,168,.2);display:block;">🗺 Google Maps</a>
@@ -14624,7 +14621,9 @@ if('serviceWorker' in navigator){
       // App im Wald nicht auf den Login zurückwerfen.
       if(navigator.onLine){
         try{
-          const testResp=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+currentUser.id+'&select=id&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+accessToken}});
+          const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),6000);
+          const testResp=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+currentUser.id+'&select=id&limit=1',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+accessToken},signal:ctl.signal});
+          clearTimeout(tm);
           if(testResp.status===401){
             const ok=await refreshAccessToken();
             if(!ok){
