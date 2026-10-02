@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.40">
+  <meta name="app-version" content="13.41">
   <script id="app-version-display">
     document.addEventListener('DOMContentLoaded', function() {
       const version = document.querySelector('meta[name="app-version"]').content;
@@ -2076,6 +2076,17 @@ button, .slide-btn, .htab, a, [onclick] { -webkit-tap-highlight-color: rgba(0,0,
 /* In großen Icon-Kacheln zentriert darstellen */
 .mc-icon .ico-harvester, .adash-main-icon .ico-harvester{vertical-align:middle;}
 
+/* Eigenes Forwarder-Icon; mit der App-Shell auch offline gespeichert. */
+.ico-forwarder{
+  display:inline-block;width:1.15em;height:1.15em;
+  vertical-align:-0.25em;margin-right:.05em;
+  background-image:url('forwarder-icon.png');
+  background-size:contain;background-repeat:no-repeat;background-position:center;
+}
+.ico-forwarder.lg{width:1.5em;height:1.5em;vertical-align:-0.35em;}
+.mc-icon .ico-forwarder, .ds-machine-icon .ico-forwarder,
+.adash-driver-icon .ico-forwarder, .dov-driver-icon .ico-forwarder{vertical-align:middle;}
+
 
 /* ── SONNENMODUS (helle, kontrastreiche Ansicht für draußen bei Sonne) ── */
 body.sunmode{filter:invert(1) hue-rotate(180deg);}
@@ -2491,7 +2502,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
           <input type="text" id="new-name" placeholder="Name" style="font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#c8e6c0;font-family:inherit;"/>
           <select id="new-role" style="font-size:13px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(20,36,20,.95);color:#c8e6c0;font-family:inherit;">
             <option value="harvester">🪵 Harvester</option>
-            <option value="forwarder">🚜 Forwarder</option>
+            <option value="forwarder">Forwarder</option>
             <option value="worker">🌱 Mitarbeiter</option>
           </select>
         </div>
@@ -2538,7 +2549,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     <div><div class="mc-title">Harvester</div><div class="mc-desc">Polter markieren · Strecke aufzeichnen · Stillstand-Erkennung</div></div>
   </button>
   <button class="machine-card" id="work-forwarder-btn" onclick="selectWorkMode('ruecke')">
-    <span class="mc-icon">🚜</span>
+    <span class="mc-icon"><span class="ico-forwarder lg" aria-hidden="true"></span></span>
     <div><div class="mc-title">Forwarder / Rückezug</div><div class="mc-desc">Arbeitsliste · Polter einsammeln · LKW-Koordinaten teilen</div></div>
   </button>
   <button onclick="hideDashSub()" style="background:none;border:none;color:#4a6a4a;font-size:13px;cursor:pointer;font-family:inherit;margin-top:4px;">← Zurück zum Dashboard</button>
@@ -3716,7 +3727,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     <div id="help-tabs" style="overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
       <button class="htab on" data-tab="start" onclick="helpTab(this)"><span class="ic-emoji">🚀</span> Start</button>
       <button class="htab" data-tab="harvester" onclick="helpTab(this)"><span class="ico-harvester ic-emoji"></span> Harvester</button>
-      <button class="htab" data-tab="forwarder" onclick="helpTab(this)"><span class="ic-emoji">🚜</span> Forwarder</button>
+      <button class="htab" data-tab="forwarder" onclick="helpTab(this)"><span class="ico-forwarder ic-emoji" aria-hidden="true"></span> Forwarder</button>
       <button class="htab" data-tab="zeit" onclick="helpTab(this)"><span class="ic-emoji">⏱</span> Zeiten</button>
       <button class="htab" data-tab="karte" onclick="helpTab(this)"><span class="ic-emoji">🗺</span> Karte</button>
       <button class="htab" data-tab="fahrgassen" onclick="helpTab(this)"><span class="ic-emoji">🚜</span> Fahrgassen</button>
@@ -4411,7 +4422,7 @@ function updateDriverMarkersOnMap(drivers) {
     const lastSeen = d.last_seen ? new Date(d.last_seen) : null;
     const isActive = lastSeen && (now - lastSeen.getTime()) < 15 * 60 * 1000 && d.is_active;
     const isH = d.role === 'harvester';
-    const emoji = isH ? '🪵' : '🚜';
+    const emoji = isH ? '🪵' : '<span class="ico-forwarder lg" aria-hidden="true"></span>';
     const color = isActive ? '#34c759' : '#888';
     const icon = L.divIcon({
       className: '',
@@ -4557,7 +4568,7 @@ function renderDriverOverview(drivers) {
 
     html += '<div class="dov-card">' +
       '<div class="dov-card-head">' +
-        '<div class="dov-driver-icon ' + (isH ? 'h' : 'f') + '">' + (isH ? '🪵' : '🚜') + '</div>' +
+        '<div class="dov-driver-icon ' + (isH ? 'h' : 'f') + '">' + (isH ? '🪵' : '<span class="ico-forwarder lg" aria-hidden="true"></span>') + '</div>' +
         '<div>' +
           '<div class="dov-driver-name">' + escapeHtml(d.name) + '</div>' +
           '<div class="dov-driver-role">' + (isH ? 'Harvester-Fahrer' : 'Forwarder-Fahrer') + '</div>' +
@@ -5085,7 +5096,7 @@ function updateSlideMenuMode() {
   const badge = document.getElementById('slide-mode-badge');
   if (title) {
     if (isH) { title.innerHTML = '<span class="ico-harvester"></span> Harvester-Modus'; }
-    else if (isF) { title.textContent = '🚜 Forwarder-Modus'; }
+    else if (isF) { title.innerHTML = '<span class="ico-forwarder" aria-hidden="true"></span> Forwarder-Modus'; }
     else { title.textContent = 'Admin-Übersicht'; }
   }
   if (badge) {
@@ -5450,7 +5461,7 @@ async function loadDashDrivers() {
       const name = (d.name || '(ohne Name)').replace(/</g,'&lt;');
       return `
       <div class="adash-driver-row" onclick="openDriversScreen()">
-        <div class="adash-driver-icon ${d.role==='harvester'?'h':'f'}">${d.role==='harvester'?'🪵':'🚜'}</div>
+        <div class="adash-driver-icon ${d.role==='harvester'?'h':'f'}">${d.role==='harvester'?'🪵':'<span class="ico-forwarder lg" aria-hidden="true"></span>'}</div>
         <div style="flex:1;min-width:0;">
           <div class="adash-driver-name">${name}</div>
           <div class="adash-driver-role">${d.role==='harvester'?'Harvester-Fahrer':'Forwarder-Fahrer'}</div>
@@ -6244,7 +6255,7 @@ function showDriverStart() {
     document.getElementById('driver-machine-title').textContent = 'Harvester';
     document.getElementById('driver-machine-desc').textContent = 'Holzpolter markieren · Strecke aufzeichnen · Stillstand-Erkennung';
   } else {
-    document.getElementById('driver-machine-icon').textContent = '🚜';
+    document.getElementById('driver-machine-icon').innerHTML = '<span class="ico-forwarder lg" aria-hidden="true"></span>';
     document.getElementById('driver-machine-title').textContent = 'Forwarder / Rückezug';
     document.getElementById('driver-machine-desc').textContent = 'Arbeitsliste · Polter einsammeln · LKW-Koordinaten teilen';
   }
@@ -6370,7 +6381,7 @@ async function loadDrivers() {
     return `
     <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div class="adash-driver-icon ${d.role === 'harvester' ? 'h' : 'f'}">${d.role === 'harvester' ? '🪵' : '🚜'}</div>
+        <div class="adash-driver-icon ${d.role === 'harvester' ? 'h' : 'f'}">${d.role === 'harvester' ? '🪵' : '<span class="ico-forwarder lg" aria-hidden="true"></span>'}</div>
         <div style="flex:1;min-width:0;">
           <div class="adash-driver-name" style="display:flex;align-items:center;flex-wrap:wrap;">${escapeHtml(d.name)}${adminBadge}</div>
           <div class="adash-driver-role">${d.role === 'harvester' ? 'Harvester-Fahrer' : 'Forwarder-Fahrer'}</div>
@@ -7281,7 +7292,7 @@ function startMode(mode) {
     document.getElementById('mode-badge').style.color = '#e8f5e4';
   } else {
     topbar.className = 'mode-ruecke'; statusbar.className = 'mode-ruecke';
-    document.getElementById('topbar-title').textContent = '🚜 Forwarder-Modus';
+    document.getElementById('topbar-title').innerHTML = '<span class="ico-forwarder" aria-hidden="true"></span> Forwarder-Modus';
     document.getElementById('mode-badge').textContent = 'Forwarder';
     document.getElementById('mode-badge').className = 'mode-badge ruecke';
   }
@@ -14610,7 +14621,7 @@ window.runPdfExport = runPdfExport;
       </label>
       <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;cursor:pointer;">
         <input type="checkbox" id="exp-fuhren" checked style="width:18px;height:18px;accent-color:#2d6a27;">
-        <span style="color:#c8e6c0;font-size:14px;">🚜 Fuhren (Forwarder-Eingesammelt)</span>
+        <span style="color:#c8e6c0;font-size:14px;"><span class="ico-forwarder" aria-hidden="true"></span> Fuhren (Forwarder-Eingesammelt)</span>
       </label>
       <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;cursor:pointer;">
         <input type="checkbox" id="exp-tracks" style="width:18px;height:18px;accent-color:#2d6a27;">

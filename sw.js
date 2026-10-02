@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.40';
+const APP_VERSION  = '13.41';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -25,6 +25,7 @@ const APP_SHELL = [
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
+  '/forwarder-icon.png',
   // Leaflet — cdnjs statt unpkg (zuverlässiger CORS-Header im SW-Context)
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
@@ -35,7 +36,7 @@ const APP_SHELL = [
   'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
 ];
 const REQUIRED_SHELL = new Set([
-  '/index.html', '/offline.js',
+  '/index.html', '/offline.js', '/forwarder-icon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
