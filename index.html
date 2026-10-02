@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.41">
+  <meta name="app-version" content="13.42">
   <script id="app-version-display">
     document.addEventListener('DOMContentLoaded', function() {
       const version = document.querySelector('meta[name="app-version"]').content;
@@ -4342,7 +4342,7 @@ function startAdminOwnGps() {
     const ll = L.latLng(lat, lng);
     const adminColor = '#1a5fa8';
     const adminHtml = (typeof buildUserMarkerHtml === 'function')
-      ? buildUserMarkerHtml(adminColor, currentHeading)
+      ? buildUserMarkerHtml(adminColor, currentHeading, 'admin')
       : '<div style="background:#1a5fa8;border:3px solid #fff;border-radius:50%;width:16px;height:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>';
     if (adminOwnMarker) {
       adminOwnMarker.setLatLng(ll);
@@ -4407,11 +4407,13 @@ async function loadDriversOnMap() {
   } catch(e) { console.warn('loadDriversOnMap:', e); }
 }
 
-function updateDriverMarkersOnMap(drivers) {
+function updateDriverMarkersOnMap(drivers, replaceAll = true) {
   if (!driversOnMapEnabled) return;
+  // Der eigene GPS-Marker folgt dem Arbeitsmodus, nicht der Kontorolle.
+  drivers = drivers.filter(d => d.id !== currentUser?.id);
   const now = Date.now();
-  // Bestehende Marker entfernen die nicht mehr vorhanden
-  Object.keys(driverMapMarkers).forEach(id => {
+  // Nur eine vollständige Fahrerliste darf fehlende Marker entfernen.
+  if (replaceAll) Object.keys(driverMapMarkers).forEach(id => {
     if (!drivers.find(d => d.id === id)) {
       try { map.removeLayer(driverMapMarkers[id]); } catch {}
       delete driverMapMarkers[id];
@@ -4422,7 +4424,7 @@ function updateDriverMarkersOnMap(drivers) {
     const lastSeen = d.last_seen ? new Date(d.last_seen) : null;
     const isActive = lastSeen && (now - lastSeen.getTime()) < 15 * 60 * 1000 && d.is_active;
     const isH = d.role === 'harvester';
-    const emoji = isH ? '🪵' : '<span class="ico-forwarder lg" aria-hidden="true"></span>';
+    const emoji = isH ? '<span class="ico-harvester lg" aria-hidden="true"></span>' : '<span class="ico-forwarder lg" aria-hidden="true"></span>';
     const color = isActive ? '#34c759' : '#888';
     const icon = L.divIcon({
       className: '',
@@ -6779,7 +6781,26 @@ function feedGpsHeading(heading, speed) {
   scheduleMarkerHeadingUpdate();
 }
 
-function buildUserMarkerHtml(color, heading) {
+function createUserMarkerIcon(color, heading, mode = currentMode) {
+  const size = mode === 'harvester' || mode === 'ruecke' ? 32 : 14;
+  return L.divIcon({
+    className: '', html: buildUserMarkerHtml(color, heading, mode),
+    iconSize: [size, size], iconAnchor: [size / 2, size / 2]
+  });
+}
+
+function refreshUserLocationIcon() {
+  // Alte eigene Live-Marker würden den richtigen GPS-Marker überdecken.
+  const ownId = currentUser?.id;
+  if (ownId && driverMapMarkers[ownId]) {
+    map.removeLayer(driverMapMarkers[ownId]);
+    delete driverMapMarkers[ownId];
+  }
+  if (uMarker) uMarker.setIcon(createUserMarkerIcon(lastUmColor, currentHeading));
+}
+
+function buildUserMarkerHtml(color, heading, mode = currentMode) {
+  const machine = mode === 'harvester' ? 'harvester' : mode === 'ruecke' ? 'forwarder' : null;
   const showWedge = heading != null;
   const gid = 'umGrad_' + Math.floor(Math.random()*1e6);
   const wedge = showWedge ? `
@@ -6795,9 +6816,11 @@ function buildUserMarkerHtml(color, heading) {
       <path d="M 0,0 L -14,-24.25 A 28,28 0 0,1 14,-24.25 Z" fill="url(#${gid})"/>
     </svg>` : '';
   return `
-    <div class="um-root" style="position:relative;width:18px;height:18px;">
+    <div class="um-root" style="position:relative;width:${machine ? 32 : 18}px;height:${machine ? 32 : 18}px;">
       ${wedge}
-      <div style="position:absolute;top:0;left:0;width:14px;height:14px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);"></div>
+      ${machine
+        ? `<div class="um-machine" style="position:absolute;inset:0;box-sizing:border-box;width:32px;height:32px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:16px;"><span class="ico-${machine} lg" aria-hidden="true"></span></div>`
+        : `<div style="position:absolute;top:0;left:0;width:14px;height:14px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);"></div>`}
     </div>`;
 }
 
@@ -6820,10 +6843,7 @@ function _renderMarkerHeading() {
     return;
   }
   if (!wedge) {
-    uMarker.setIcon(L.divIcon({
-      className: '', html: buildUserMarkerHtml(lastUmColor, currentHeading),
-      iconSize: [14, 14], iconAnchor: [7, 7]
-    }));
+    uMarker.setIcon(createUserMarkerIcon(lastUmColor, currentHeading));
   } else {
     wedge.style.transform = 'rotate(' + currentHeading + 'deg)';
   }
@@ -6835,7 +6855,7 @@ function _renderMarkerHeading() {
         aw.style.transform = 'rotate(' + currentHeading + 'deg)';
       } else if (currentHeading != null) {
         adminOwnMarker.setIcon(L.divIcon({
-          className: '', html: buildUserMarkerHtml('#1a5fa8', currentHeading),
+          className: '', html: buildUserMarkerHtml('#1a5fa8', currentHeading, 'admin'),
           iconSize: [14, 14], iconAnchor: [7, 7]
         }));
       }
@@ -6856,16 +6876,10 @@ function updateUM(ll, acc, state) {
   }
   if (uMarker) {
     uMarker.setLatLng(ll);
-    uMarker.setIcon(L.divIcon({
-      className: '', html: buildUserMarkerHtml(c, currentHeading),
-      iconSize: [14, 14], iconAnchor: [7, 7]
-    }));
+    uMarker.setIcon(createUserMarkerIcon(c, currentHeading));
   } else {
     uMarker = L.marker(ll, {
-      icon: L.divIcon({
-        className: '', html: buildUserMarkerHtml(c, currentHeading),
-        iconSize: [14, 14], iconAnchor: [7, 7]
-      })
+      icon: createUserMarkerIcon(c, currentHeading)
     }).addTo(map);
   }
   setDot(state==='trk' ? 'trk' : state==='stl' ? 'stl' : 'ok');
@@ -7046,7 +7060,7 @@ function startRealtime() {
         }
         // Fahrer-Marker auf Karte (Admin)
         if (driversOnMapEnabled && d.last_lat && d.last_lng) {
-          updateDriverMarkersOnMap([d]);
+          updateDriverMarkersOnMap([d], false);
         }
       })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trail_plans',
@@ -7195,6 +7209,7 @@ function stopBgGps() {
 // ── MODUS STARTEN ─────────────────────────────────────────────────
 function startMode(mode) {
   currentMode = mode;
+  refreshUserLocationIcon();
   if (mode !== 'admin') {
     startBgGps();
     setTimeout(updateGpsToggleUI, 100); // Toggle-Status setzen

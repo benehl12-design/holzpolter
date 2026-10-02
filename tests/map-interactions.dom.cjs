@@ -149,3 +149,99 @@ test('reloading areas removes both old render layers and preserves the admin dat
   assert.match(content.textContent, /Test/); assert.doesNotMatch(content.textContent, /Polter hier/);
   assert.equal(h.api.pending(), null);
 });
+
+function appFunction(name) {
+  let start = source.indexOf('function ' + name + '(');
+  assert.ok(start >= 0, 'application function exists: ' + name);
+  if (source.slice(start - 6, start) === 'async ') start -= 6;
+  const end = source.indexOf('\n}', start) + 2;
+  assert.ok(end > start, 'application function ends: ' + name);
+  return source.slice(start, end);
+}
+function locationFixture(t) {
+  const dom = new JSDOM(source, { runScripts:'outside-only', url:'https://lignum.test/' });
+  const w = dom.window, container = w.document.getElementById('map');
+  w.SVGSVGElement.prototype.createSVGRect = () => ({});
+  for (const [key,value] of Object.entries({clientWidth:480,clientHeight:760,offsetWidth:480,offsetHeight:760})) {
+    Object.defineProperty(container, key, { value });
+  }
+  w.eval(leaflet);
+  // Avoid unrelated background work; GPS fixes and server events are supplied below.
+  w.setTimeout = w.setInterval = w.requestAnimationFrame = () => 0;
+  w.eval(`
+    const map = L.map('map', { zoomControl:false, attributionControl:false, zoomAnimation:false, fadeAnimation:false }).setView([67.001,22.0025],17);
+    let currentMode = 'harvester', activeFilter = 'alle';
+    const currentUser = { id:'admin-a' }, currentProfile = { id:'admin-a', role:'admin', company_id:'company-a' };
+    let uMarker = null, uCircle = null, adminOwnMarker = null, lastUmColor = '#1a7050', currentHeading = null;
+    let driverMapMarkers = {}, driversOnMapEnabled = true, driverUpdateInterval = null;
+    let realtimeChannel = null, dovAllDrivers = [];
+    const profileEvents = new Map();
+    const channel = { on(_kind, filter, callback) { if (filter.table === 'profiles') profileEvents.set(filter.event, callback); return this; }, subscribe() { return this; } };
+    const sb = { channel:() => channel, removeChannel() {} };
+    const noop = () => {};
+    const startBgGps = noop, updateGpsToggleUI = noop, startOfflineCheck = noop, loadDriversOnMap = noop;
+    const applyMarkerFilter = noop, ensureMapNavigation = noop, showAuthErr = noop, updateSlideMenuMode = noop;
+    const renderLog = noop, scheduleMapPrefetch = noop, setDot = noop;
+    ${['escapeHtml','createUserMarkerIcon','refreshUserLocationIcon','buildUserMarkerHtml','_renderMarkerHeading','updateUM','updateDriverMarkersOnMap','startRealtime','startMode'].map(appFunction).join('\n')}
+    window.locationFixture = {
+      map, gps:(ll,accuracy,state) => updateUM(ll,accuracy,state), mode:startMode,
+      heading:h => { currentHeading = h; _renderMarkerHeading(); },
+      self:() => uMarker, circle:() => uCircle, drivers:() => driverMapMarkers,
+      snapshot:updateDriverMarkersOnMap, profile:d => profileEvents.get('UPDATE')({ new:d }),
+      adminIcon:() => createUserMarkerIcon('#1a5fa8',45,'admin'),
+      seedOldSelf:() => { driverMapMarkers[currentUser.id] = L.marker([67.001,22.0025], { icon:L.divIcon({html:'old Forwarder'}) }).addTo(map); return driverMapMarkers[currentUser.id]; }
+    };
+  `);
+  t.after(() => { w.locationFixture.map.remove(); dom.window.close(); });
+  return { w, api:w.locationFixture };
+}
+test('an admin GPS location follows the selected machine immediately without another GPS fix', t => {
+  const { api } = locationFixture(t);
+  api.gps(inside,12,'trk');
+  const marker = api.self(), circle = api.circle();
+  assert.ok(marker.getElement().querySelector('.ico-harvester'));
+  assert.equal(marker.getElement().querySelector('.ico-forwarder'), null);
+  api.heading(90);
+  assert.ok(marker.getElement().querySelector('.ico-harvester'));
+  assert.match(marker.getElement().querySelector('.um-wedge').style.transform,/90deg/);
+  api.mode('ruecke');
+  assert.equal(api.self(),marker); assert.ok(marker.getElement().querySelector('.ico-forwarder'));
+  assert.equal(marker.getElement().querySelector('.ico-harvester'),null);
+  assert.equal(marker.getElement().querySelector('.um-machine').style.background,'rgb(224, 85, 85)');
+  api.mode('harvester');
+  assert.ok(marker.getElement().querySelector('.ico-harvester'));
+  assert.equal(marker.getElement().querySelector('.ico-forwarder'),null);
+  assert.ok(marker.getLatLng().equals(inside)); assert.equal(api.circle(),circle); assert.equal(circle.getRadius(),12);
+  assert.deepEqual(Array.from(marker.options.icon.options.iconAnchor),[16,16]);
+});
+test('own profile events cannot overlay the selected machine or erase other drivers', t => {
+  const { w, api } = locationFixture(t);
+  api.gps(inside,10,'ok'); api.mode('harvester');
+  const row = { last_lat:67.001,last_lng:22.0025,last_seen:new Date().toISOString(),is_active:true };
+  api.snapshot([{...row,id:'harvester-a',name:'Harvester',role:'harvester'},{...row,id:'forwarder-a',name:'Forwarder',role:'forwarder'}]);
+  const other = api.drivers()['forwarder-a'];
+  assert.ok(api.drivers()['harvester-a'].getElement().querySelector('.ico-harvester'));
+  api.profile({...row,id:'admin-a',name:'Admin',role:'admin'});
+  assert.equal(api.drivers()['admin-a'],undefined);
+  assert.ok(api.self().getElement().querySelector('.ico-harvester'));
+  assert.equal(api.drivers()['forwarder-a'],other); assert.ok(api.map.hasLayer(other));
+  api.profile({...row,id:'harvester-a',name:'Harvester',role:'harvester',last_lat:67.002});
+  assert.equal(api.drivers()['harvester-a'].getLatLng().lat,67.002);
+  assert.equal(api.drivers()['forwarder-a'],other);
+  assert.equal([...w.document.querySelectorAll('.leaflet-marker-icon')].length,3);
+});
+test('mode changes remove an old own profile overlay and keep non-machine locations neutral', t => {
+  const { w, api } = locationFixture(t);
+  api.gps(inside,10,'ok'); const old = api.seedOldSelf();
+  api.mode('harvester');
+  assert.equal(api.map.hasLayer(old),false); assert.equal(api.drivers()['admin-a'],undefined);
+  for (const mode of ['admin','worker']) {
+    api.mode(mode); api.heading(45);
+    assert.equal(api.self().getElement().querySelector('.um-machine'),null);
+    assert.deepEqual(Array.from(api.self().options.icon.options.iconAnchor),[7,7]);
+  }
+  api.mode('ruecke');
+  const explicitAdmin = w.document.createElement('div'); explicitAdmin.innerHTML = api.adminIcon().options.html;
+  assert.equal(explicitAdmin.querySelector('.um-machine'),null);
+  assert.ok(explicitAdmin.querySelector('.um-wedge'));
+});
