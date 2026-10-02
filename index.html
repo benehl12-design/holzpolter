@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.39">
+  <meta name="app-version" content="13.40">
   <script id="app-version-display">
     document.addEventListener('DOMContentLoaded', function() {
       const version = document.querySelector('meta[name="app-version"]').content;
@@ -204,14 +204,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 /* Map Preview */
 .ds-map-preview{
   position:relative;flex-shrink:0;
-  height:240px;overflow:hidden;cursor:pointer;background:#2a4a2a;
+  height:160px;overflow:hidden;cursor:pointer;background:#2a4a2a;
   border-radius:16px;margin:0 16px;
   border:1px solid rgba(255,255,255,.06);
   box-shadow:0 4px 20px rgba(0,0,0,.25);
   -webkit-tap-highlight-color:transparent;touch-action:manipulation;
 }
-@media(min-height:750px) {.ds-map-preview{height:280px;}}
-@media(min-height:900px) {.ds-map-preview{height:320px;}}
 #driver-map-preview{position:absolute;inset:0;width:100%;height:100%;z-index:1;}
 .ds-map-overlay{
   position:absolute;inset:0;z-index:10;
@@ -1085,15 +1083,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 /* Karten-Vorschau oben */
 .adash-map-preview{
   position:relative;flex-shrink:0;
-  height:320px;
+  height:160px;
   overflow:hidden;cursor:pointer;
   background:#2a4a2a;
   border-radius:16px;
   margin:10px 12px 0;
 }
-@media(min-height:750px) {.adash-map-preview{height:370px;}}
-@media(min-height:900px) {.adash-map-preview{height:420px;}}
-@media(min-height:1100px){.adash-map-preview{height:500px;}}
+/* Kompakte Kartenvorschau auf allen Startseiten, mehr Platz für die Kacheln darunter. */
+@media(min-height:750px) {.adash-map-preview,.ds-map-preview{height:180px;}}
+@media(min-height:900px) {.adash-map-preview,.ds-map-preview{height:200px;}}
+@media(min-height:1100px){.adash-map-preview,.ds-map-preview{height:220px;}}
 #admin-map-preview{
   position:absolute;inset:0;width:100%;height:100%;z-index:1;
 }
@@ -1103,6 +1102,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   display:block;border:none;
 }.adash-map-preview:active .adash-map-overlay{background:rgba(0,0,0,.3);}
 
+.adash-map-overlay{
   position:absolute;inset:0;z-index:10;
   display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
   padding:16px;
