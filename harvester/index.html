@@ -1,0 +1,22 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Lignum Harvester 0.1</title>
+<style>body{font-family:Arial,sans-serif;margin:0;background:#172019;color:#eef5ee}header{padding:12px 18px;background:#25372a;border-bottom:2px solid #607b65}h1{font-size:22px;margin:0}main{padding:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{background:#25372a;border:1px solid #607b65;padding:14px}.big{font-size:36px;font-weight:bold}.muted{color:#b9c7bb}button,select,input{font:inherit;padding:10px;margin:4px 0}button{cursor:pointer;font-weight:bold}.full{width:100%}table{width:100%;border-collapse:collapse}td,th{padding:7px;border-bottom:1px solid #526457;text-align:left}@media(max-width:700px){.grid{grid-template-columns:1fr}}</style></head>
+<body><header><h1>Lignum Harvester <span class="muted">0.1 Prototype</span></h1><div id="adapter"></div></header>
+<main><div class="grid"><section class="card"><h2>Auftrag</h2><input id="jobName" value="Sarvisvaara – Testauftrag" class="full"><button id="createJob" class="full">Testauftrag anlegen/aktivieren</button><div id="job"></div></section>
+<section class="card"><h2>Aktuelles Stück</h2><div class="big"><span id="diameter">—</span> mm</div><div class="big"><span id="length">—</span> mm</div><div id="currentAssortment" class="muted">Noch keine Produktion</div></section>
+<section class="card"><h2>Sortiment</h2><select id="assortment" class="full"></select><button id="cut" class="full">Schnitt simulieren</button><p class="muted">Nur Simulator. Keine Verbindung zur Maschinensteuerung.</p></section>
+<section class="card"><h2>Produktion</h2><div><b>Stück:</b> <span id="pieces">0</span> &nbsp; <b>Volumen:</b> <span id="volume">0.000</span> m³</div><table><thead><tr><th>Zeit</th><th>Sortiment</th><th>Länge</th><th>Ø</th></tr></thead><tbody id="production"></tbody></table></section></div></main>
+<script src="model.js"></script><script src="storage.js"></script><script src="timbermatic-adapter.js"></script><script>
+var store=LignumHarvesterStorage.load(),adapter=new LignumTimberMatic.Simulator();
+document.getElementById("adapter").textContent=adapter.status().message;
+function active(){return store.jobs.find(function(j){return j.id===store.activeJobId;});}
+function render(){var j=active(), sel=document.getElementById("assortment");document.getElementById("job").textContent=j?j.name+" – "+j.assortments.length+" Sortimente":"Kein aktiver Auftrag";sel.innerHTML="";
+ if(j)j.assortments.forEach(function(a,i){var o=document.createElement("option");o.value=i;o.textContent=a.species+" · "+a.name+" · "+a.lengthsMm.map(function(x){return x/1000+" m";}).join(" / ");sel.appendChild(o);});
+ var rows=store.production.filter(function(p){return !j||p.jobId===j.id;});document.getElementById("pieces").textContent=rows.length;document.getElementById("volume").textContent=rows.reduce(function(s,p){return s+p.volumeM3;},0).toFixed(3);
+ document.getElementById("production").innerHTML=rows.slice(-8).reverse().map(function(p){return "<tr><td>"+new Date(p.timestamp).toLocaleTimeString()+"</td><td>"+p.species+" "+p.assortment+"</td><td>"+p.lengthMm+"</td><td>"+p.diameterMm+"</td></tr>";}).join("");
+}
+document.getElementById("createJob").onclick=function(){var j=LignumHarvesterModel.createJob({name:document.getElementById("jobName").value,assortments:[
+ {species:"Kiefer",name:"Sägeholz",minDiameterMm:160,maxDiameterMm:500,lengthsMm:[3700,4300,4900],priority:1},
+ {species:"Kiefer",name:"Massaved",minDiameterMm:80,maxDiameterMm:300,lengthsMm:[3000],priority:2},
+ {species:"Fichte",name:"Sägeholz",minDiameterMm:160,maxDiameterMm:500,lengthsMm:[3700,4300,4900],priority:1}]});store.jobs.push(j);store.activeJobId=j.id;LignumHarvesterStorage.save(store);render();};
+document.getElementById("cut").onclick=function(){var j=active();if(!j)return alert("Zuerst Auftrag aktivieren.");var a=j.assortments[Number(document.getElementById("assortment").value||0)],p=adapter.simulatePiece(j,a);store.production.push(p);store.syncQueue.push(p.id);LignumHarvesterStorage.save(store);document.getElementById("diameter").textContent=p.diameterMm;document.getElementById("length").textContent=p.lengthMm;document.getElementById("currentAssortment").textContent=p.species+" · "+p.assortment;render();};render();
+</script></body></html>
