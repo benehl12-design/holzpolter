@@ -62,14 +62,14 @@ async function offlineRequest(url, options = {}) {
 }
 function offlineWritePrefer(path, method, prefer) {
   const { table, params } = offlineQuery(path);
-  if (['markers','tracks'].includes(table) && params.has('id') && ['PATCH','DELETE'].includes(method)) {
+  if (['markers','tracks','forest_properties','forest_stands'].includes(table) && params.has('id') && ['PATCH','DELETE'].includes(method)) {
     return [prefer.replace(/return=(minimal|representation)/g, '').replace(/^,|,$/g, ''), 'return=representation'].filter(Boolean).join(',');
   }
   return prefer;
 }
 async function offlineVerifyWrite(path, method, data, actor) {
   const { table, params } = offlineQuery(path), id = params.get('id');
-  if (!['markers','tracks'].includes(table) || !id || !Array.isArray(data) || data.length) return;
+  if (!['markers','tracks','forest_properties','forest_stands'].includes(table) || !id || !Array.isArray(data) || data.length) return;
   const fail = () => { const error = new Error('Eintrag wurde nicht geändert — Berechtigung oder Datenstand prüfen.'); error.syncPermanent = true; throw error; };
   if (method === 'PATCH') fail();
   if (method === 'DELETE') {
@@ -351,7 +351,14 @@ window.OfflineReadCache = OfflineReadCache;
     const check = await offlineRequest(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + encodeURIComponent(entry.body.id) + '&select=*', { headers: headers('') });
     if (!check.ok || offlineActor().id !== actor) return false;
     const rows = await check.json();
-    const equal = (a,b) => typeof a === 'object' || typeof b === 'object' ? JSON.stringify(a) === JSON.stringify(b) : a === b || (a != null && b != null && String(a) === String(b));
+    const equal = (a,b) => {
+      if(a===b)return true;
+      if(a&&b&&typeof a==='object'&&typeof b==='object'){
+        const ak=Object.keys(a).sort(),bk=Object.keys(b).sort();
+        return Array.isArray(a)===Array.isArray(b)&&ak.length===bk.length&&ak.every((k,i)=>k===bk[i]&&equal(a[k],b[k]));
+      }
+      return a!=null&&b!=null&&typeof a!=='object'&&typeof b!=='object'&&String(a)===String(b);
+    };
     return Array.isArray(rows) && rows.some(row => row.id === entry.body.id && Object.entries(entry.body).every(([key,value]) => equal(row[key],value)));
   }
   async function sync() {
@@ -397,6 +404,7 @@ window.OfflineReadCache = OfflineReadCache;
       if ((changed.has('markers') || changed.has('tracks')) && typeof loadData === 'function') refresh.push(loadData());
       if (changed.has('areas') && typeof loadAreas === 'function') refresh.push(loadAreas());
       if (changed.has('time_entries') && typeof loadWorktimeEntries === 'function') refresh.push(loadWorktimeEntries());
+      if ((changed.has('forest_properties')||changed.has('forest_stands')) && window.ForestPlanning?.isOpen()) refresh.push(window.ForestPlanning.refresh());
       await Promise.allSettled(refresh);
     }
     if (lastError) toast('⚠️ ' + lastError);

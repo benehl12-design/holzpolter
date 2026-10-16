@@ -22,7 +22,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.43">
+  <meta name="app-version" content="13.44">
+  <link rel="stylesheet" href="forest-planning.css">
   <script id="app-version-display">
     document.addEventListener('DOMContentLoaded', function() {
       const version = document.querySelector('meta[name="app-version"]').content;
@@ -2242,6 +2243,11 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
       <span class="adash-main-label">Aufträge & Planung</span>
       <span class="adash-main-desc">Anlegen · zuweisen · Wochenplan</span>
     </button>
+    <button class="adash-main-btn" onclick="ForestPlanning.open()" style="margin-bottom:8px;">
+      <span class="adash-main-icon">🌲</span>
+      <span class="adash-main-label">Forstplanung</span>
+      <span class="adash-main-desc">Grundstücke · Bestände · Walddaten</span>
+    </button>
     <!-- 4 Haupt-Buttons im 2x2-Grid -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <button class="adash-main-btn" onclick="openDriversScreen()">
@@ -2587,6 +2593,9 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
     <button class="ds-start-btn" onclick="startDriverMode()">▶ Starten</button>
   </div>
 
+  <button class="ds-machine-card" onclick="ForestPlanning.open()" style="width:calc(100% - 32px);text-align:left;font-family:inherit;color:inherit;">
+    <div class="ds-machine-row"><span class="ds-machine-icon" style="font-size:32px;">🌲</span><div class="ds-machine-info"><div class="ds-machine-title">Forstplanung</div><div class="ds-machine-desc">Bestände und Walddaten ansehen</div></div></div>
+  </button>
   <!-- Fahrer: Aufträge & Planung -->
   <button class="ds-machine-card" id="driver-orders-btn" onclick="openMeineAuftraege()" style="width:calc(100% - 32px);text-align:left;cursor:pointer;font-family:inherit;color:inherit;">
     <div class="ds-machine-row">
@@ -2772,6 +2781,10 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
     <!-- Werkzeuge -->
     <div class="slide-section-title" id="smenu-sec-werkzeuge">Werkzeuge</div>
+    <button class="slide-btn" onclick="closeSlideMenu();ForestPlanning.open()">
+      <div class="slide-btn-icon" style="background:rgba(45,90,39,.3);">🌲</div>
+      <div class="slide-btn-info"><div class="slide-btn-label">Forstplanung</div><div class="slide-btn-desc">Grundstücke, Bestände und Walddaten</div></div>
+    </button>
     <button class="slide-btn" id="smenu-trail-plan" onclick="startCompartmentEditor();closeSlideMenu();">
       <div class="slide-btn-icon" style="background:rgba(120,80,30,.25);color:#d8a060;">🚜</div>
       <div class="slide-btn-info">
@@ -3928,6 +3941,10 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="offline.js"></script>
+<script src="vendor/proj4-2.11.0.js"></script>
+<script src="vendor/polygon-clipping-0.15.7.js"></script>
+<script src="forest-model.js"></script>
+<script src="forest-planning.js"></script>
 <script>
 // ================================================================
 //  LIGNUM — GPS-Fahrgassen-/Polter-Planung für Forstbetriebe
@@ -5189,6 +5206,7 @@ async function loadDashTimeInline() {
 
 // ── SCREEN ROUTING ───────────────────────────────────────────────
 function hideAllScreens() {
+  if(window.ForestPlanning) window.ForestPlanning.hide();
   document.getElementById('admin-dashboard').classList.remove('active');
   const wd=document.getElementById('worker-dashboard'); if(wd) wd.classList.remove('active');
   const ma=document.getElementById('meine-auftraege-screen'); if(ma) ma.style.display='none';
