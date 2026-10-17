@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.43';
+const APP_VERSION  = '13.45';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -16,12 +16,14 @@ const MAX_OSM      = 600;
 const MAX_SAT      = 1600;
 
 // ── APP-SHELL ────────────────────────────────────────────────────────
-// FEHLER 2 BEHOBEN: icon-192.png und icon-512.png brauchen führenden Slash
+// App-Dateien auch unter dem GitHub-Pages-Unterverzeichnis laden.
 // FEHLER 3 BEHOBEN: unpkg.com Leaflet durch cdnjs ersetzt (unpkg hat CORS-Probleme im SW)
+const shellURL = path => new URL(path.replace(/^\//, ''), self.registration.scope).href;
 const APP_SHELL = [
   '/',
   '/index.html',
   '/offline.js',
+  '/forest-planning.css', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -37,6 +39,7 @@ const APP_SHELL = [
 ];
 const REQUIRED_SHELL = new Set([
   '/index.html', '/offline.js', '/forwarder-icon.png',
+  '/forest-planning.css', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
@@ -49,7 +52,7 @@ self.addEventListener('install', e => {
       .then(cache =>
         Promise.all(
           APP_SHELL.map(url =>
-            cache.add(url).catch(err => {
+            cache.add(shellURL(url)).catch(err => {
               console.warn('[SW] App-Shell konnte nicht gecacht werden:', url, err);
               if (REQUIRED_SHELL.has(url)) throw err;
             })
@@ -65,7 +68,7 @@ self.addEventListener('install', e => {
 
 // ── ACTIVATE: alte Caches aufräumen ─────────────────────────────────
 self.addEventListener('activate', e => {
-  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE, SAT_OFFLINE_CACHE, OSM_OFFLINE_CACHE]);
+  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE, SAT_OFFLINE_CACHE, OSM_OFFLINE_CACHE, 'lignum-forest-rasters-v1']);
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
@@ -173,7 +176,7 @@ self.addEventListener('fetch', e => {
         .catch(() => {
           // Offline + nicht im Cache
           if (e.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/index.html');
+            return caches.match(shellURL('/index.html'));
           }
           return new Response('', { status: 503 });
         });

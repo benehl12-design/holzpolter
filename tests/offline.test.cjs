@@ -278,6 +278,39 @@ test('online expired-session writes fail explicitly instead of returning a succe
   await assert.rejects(create(h), /Sitzung abgelaufen/);
 });
 
+test('forest property and stand edits survive reload and replay before deleting the property',async()=>{
+  const h=harness(),property={id:'611ed011-4c38-4b67-8283-a47234c79ef6',company_id:'company-a',created_by:'user-a',name:'Wald',area_ha:10};
+  const stand={...property,id:'711ed011-4c38-4b67-8283-a47234c79ef6',property_id:property.id,number:'1',area_ha:3,inventory:{volume_m3sk_ha:200}};
+  await h.context.dbFetch('forest_properties?select=*',{method:'POST',body:property});
+  await h.context.dbFetch('forest_stands?select=*',{method:'POST',body:stand});
+  await h.context.dbFetch('forest_stands?id=eq.'+stand.id,{method:'PATCH',body:{inventory:{volume_m3sk_ha:220}}});
+  const reload=harness(h.idb);
+  assert.equal((await read(reload,'forest_properties?company_id=eq.company-a'))[0].name,'Wald');
+  assert.equal((await read(reload,'forest_stands?company_id=eq.company-a'))[0].inventory.volume_m3sk_ha,220);
+  await reload.context.dbFetch('forest_properties?id=eq.'+property.id,{method:'DELETE'});
+  reload.context.navigator.onLine=true;
+  reload.context.reply=(url,o)=>json(o.method==='POST'?[JSON.parse(o.body)]:o.method==='PATCH'?[{...stand,inventory:{volume_m3sk_ha:220}}]:[property]);
+  await reload.context.OfflineQueue.sync();assert.equal(await reload.count(),0);
+  assert.deepEqual(reload.calls.map(c=>c.method),['POST','POST','PATCH','DELETE']);
+  reload.context.navigator.onLine=false;const after=harness(h.idb);assert.equal((await after.context.OfflineQueue.read('forest_properties?company_id=eq.company-a',[])).length,0);
+});
+test('forest JSONB duplicate verification ignores key order but retains changed contents',async()=>{
+  const body={id:'811ed011-4c38-4b67-8283-a47234c79ef6',company_id:'company-a',inventory:{volume_m3sk_ha:200,species_pct:{pine:60,spruce:30,birch:10,other:0}}};
+  for(const changed of [false,true]){
+    const h=harness();await h.context.dbFetch('forest_stands?select=*',{method:'POST',body});h.context.navigator.onLine=true;
+    h.context.reply=(url,o)=>o.method==='POST'?json({code:'23505'},409):json([{company_id:'company-a',id:body.id,inventory:{species_pct:{other:0,birch:10,spruce:30,pine:60},volume_m3sk_ha:changed?201:200}}]);
+    await h.context.OfflineQueue.sync();assert.equal(await h.count(),changed?1:0);
+  }
+});
+test('forest zero-row writes and another account cannot acknowledge pending work',async()=>{
+  const h=harness(),id='911ed011-4c38-4b67-8283-a47234c79ef6';
+  await h.context.dbFetch('forest_stands?id=eq.'+id,{method:'PATCH',body:{name:'Änderung'}});
+  h.context.navigator.onLine=true;h.context.reply=()=>json([]);
+  await h.context.OfflineQueue.sync();assert.equal(await h.count(),1);assert.match(h.calls[0].headers.Prefer,/return=representation/);
+  h.run("currentUser={id:'user-b'};accessToken='session-b'");const count=h.calls.length;await h.context.OfflineQueue.sync();assert.equal(h.calls.length,count);
+  h.context.navigator.onLine=false;await assert.rejects(read(h,'forest_stands?company_id=eq.company-a'),/noch nicht gespeichert/);
+});
+
 function mapHarness() {
   const h = harness(), layers = new Set();
   function layer() { return { addTo() { layers.add(this); return this; }, bindPopup(html) { this.popup = html; return this; },
