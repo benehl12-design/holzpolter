@@ -40,10 +40,10 @@ function harness(failedURL, scope = 'https://lignum.test/') {
 }
 test('the app shell and offline module are cached with the same version', async () => {
   const h = harness(); await h.event('install');
-  assert.ok(await h.cache('lignum-app-v13.45').match('/offline.js')); assert.equal(h.activated(), 1);
-  assert.ok(await h.cache('lignum-app-v13.45').match('/forwarder-icon.png'));
-  for(const url of ['/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js'])assert.ok(await h.cache('lignum-app-v13.45').match(url));
-  assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.45"/);
+  assert.ok(await h.cache('lignum-app-v13.46').match('/offline.js')); assert.equal(h.activated(), 1);
+  assert.ok(await h.cache('lignum-app-v13.46').match('/forwarder-icon.png'));
+  for(const url of ['/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js'])assert.ok(await h.cache('lignum-app-v13.46').match(url));
+  assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.46"/);
 });
 test('a failed required module or machine-icon download keeps the previous worker active', async () => {
   for (const url of ['/offline.js','/forwarder-icon.png','/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js']) {
@@ -54,7 +54,7 @@ test('a failed required module or machine-icon download keeps the previous worke
 test('GitHub Pages installs and launches the app within its repository directory', async () => {
   const scope = 'https://lignum.test/holzpolter/', h = harness(undefined, scope);
   await h.event('install');
-  const cache = h.cache('lignum-app-v13.45'), urls = await cache.keys();
+  const cache = h.cache('lignum-app-v13.46'), urls = await cache.keys();
   assert.ok(urls.some(url => url === scope + 'forest-raster-worker.js'));
   assert.ok(urls.filter(url => new URL(url).origin === new URL(scope).origin).every(url => url.startsWith(scope)));
   assert.ok(urls.includes('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'));
@@ -78,8 +78,16 @@ test('optional export-library failure does not block an otherwise complete offli
   await h.event('install'); assert.equal(h.activated(), 1);
 });
 test('activation preserves protected offline maps and unrelated application caches', async () => {
-  const h = harness(); for (const name of ['lignum-app-v13.44','lignum-app-v13.45','lignum-forest-rasters-v1','lignum-sat-offline-v1','lignum-osm-offline-v1','other-app']) h.cache(name);
-  await h.event('activate'); assert.deepEqual(h.deleted, ['lignum-app-v13.44']);
+  const h = harness(); for (const name of ['lignum-app-v13.45','lignum-app-v13.46','lignum-forest-rasters-v1','lignum-sat-offline-v1','lignum-osm-offline-v1','other-app']) h.cache(name);
+  await h.event('activate'); assert.deepEqual(h.deleted, ['lignum-app-v13.45']);
+});
+test('an expanded raster index is fetched from the network even when the old index is cached', async () => {
+  const scope = 'https://lignum.test/holzpolter/', h = harness(undefined, scope), url = scope + 'data/forest-rasters/index.json';
+  await h.cache('lignum-forest-rasters-v1').put(url, new Response('old region'));
+  await h.cache('lignum-app-v13.45').put(url, new Response('old region'));
+  const response = await h.event('fetch', new Request(url, { cache: 'no-cache' }));
+  assert.equal(await response.text(), 'network');
+  assert.deepEqual(h.fetched, [url]);
 });
 test('manually saved map tiles are returned without a network request', async () => {
   const h = harness(), url = 'https://server.arcgisonline.com/tiles/18/1/2';

@@ -93,3 +93,36 @@ test('cached public grids survive a page restart offline and honour the GitHub P
   assert.ok(Math.abs(reopened.inventory.volume_m3sk-first.inventory.volume_m3sk)<1e-7);
   assert.equal(saved.size,2);assert.equal(requests.filter(r=>!r.online).length,1);
 });
+test('online inventory still works when browser cache access or writes fail',async()=>{
+  const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),f=fixture();
+  for(const cache of [{open:async()=>{throw Error('Storage unavailable');}},{open:async()=>({match:async()=>null,put:async()=>{throw Error('Quota exceeded');}})}]){
+    const context=vm.createContext({URL,Response,AbortController,setTimeout,clearTimeout,document:{baseURI:'https://example.test/holzpolter/'},caches:cache,
+      fetch:async url=>Response.json(url.endsWith('index.json')?f.index:f.tiles[0].data)});
+    for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-raster-data.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context);
+    assert.ok(Math.abs((await context.ForestRasterData.inventory(geo())).inventory.volume_m3sk_ha-200)<1e-5);
+  }
+});
+test('an updated index expands coverage instead of reusing the old cached boundary',async()=>{
+  const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),f=fixture(),saved=new Map();
+  saved.set('https://example.test/holzpolter/data/forest-rasters/index.json',Response.json({...f.index,tiles:[]}));
+  const context=vm.createContext({URL,Response,AbortController,setTimeout,clearTimeout,document:{baseURI:'https://example.test/holzpolter/'},
+    caches:{open:async()=>({match:async key=>saved.get(key)?.clone(),put:async(key,value)=>saved.set(key,value.clone())})},
+    fetch:async url=>Response.json(url.endsWith('index.json')?{...f.index,name:'Erweitertes Gebiet'}:f.tiles[0].data)});
+  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-raster-data.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context);
+  const coverage=await context.ForestRasterData.coverage(geo());assert.equal(coverage.name,'Erweitertes Gebiet');assert.ok(Math.abs(coverage.coverage_ha-.02)<1e-6);
+  assert.ok(Math.abs((await context.ForestRasterData.inventory(geo())).inventory.volume_m3sk_ha-200)<1e-5);
+});
+test('the western and northern village area is covered, including grid-aligned borders across two tiles',()=>{
+  const fs=require('node:fs'),path=require('node:path'),root=path.join(__dirname,'../data/forest-rasters');
+  const index=JSON.parse(fs.readFileSync(path.join(root,'index.json'),'utf8'));
+  const tiles=index.tiles.filter(t=>t.bounds[0]===782000&&t.bounds[1]>=7418000&&t.bounds[1]<=7419000)
+    .map(t=>({file:t.file,data:JSON.parse(fs.readFileSync(path.join(root,t.file),'utf8'))}));
+  assert.equal(tiles.length,2);
+  for(const ageType of ['pine','spruce','birch','mixed','other'])for(const siteSpecies of ['T','G']){
+    const result=R.evaluate(geo(782600,7418950,782700,7419050),index,tiles,{ageType,siteSpecies});
+    assert.ok(Math.abs(result.area_ha-1)<1e-7);assert.ok(Math.abs(result.coverage_ha-1)<1e-7);
+    for(const key of ['volume_m3sk_ha','mean_height_m','mean_diameter_cm','basal_area_m2_ha','age_years'])assert.ok(result.inventory[key]>0,key);
+    assert.ok(result.inventory.site_index.startsWith(siteSpecies));
+    assert.ok(Math.abs(Object.values(result.inventory.species_pct).reduce((a,b)=>a+b,0)-100)<1e-7);
+  }
+});

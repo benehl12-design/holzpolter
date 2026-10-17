@@ -6,6 +6,7 @@
   'use strict';
   const SWEREF='+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs',CACHE='lignum-forest-rasters-v1';
   const rectangle=b=>[[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]];
+  const localRectangle=(b,origin)=>rectangle([b[0]-origin[0],b[1]-origin[1],b[2]-origin[0],b[3]-origin[1]]);
   const boundsOverlap=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
   function ringArea(r){const [x,y]=r[0];let sum=0;for(let i=1;i<r.length;i++)sum+=(r[i-1][0]-x)*(r[i][1]-y)-(r[i][0]-x)*(r[i-1][1]-y);return Math.abs(sum)/2;}
   const area=ps=>ps.reduce((sum,p)=>sum+Math.max(0,ringArea(p[0])-p.slice(1).reduce((s,r)=>s+ringArea(r),0)),0);
@@ -37,7 +38,7 @@
   const metricKeys={volume:'volume_m3sk_ha',height:'mean_height_m',diameter:'mean_diameter_cm',basal_area:'basal_area_m2_ha'};
   function evaluate(geometry,index,tiles,options={}){
     if(index.schema!=='lignum-raster-index-v1')throw Error('Datenpaket wird nicht unterstützt.');
-    const polygon=projected(geometry),fullArea=area(polygon),expected=index.tiles.filter(t=>boundsOverlap(t.bounds,bounds(polygon))&&area(clip.intersection(polygon,rectangle(t.bounds)))>1e-7);
+    const {poly:polygon,needed:expected,origin}=selection(geometry,index),fullArea=area(polygon);
     const byFile=new Map(tiles.map(t=>[t.file,t.data]));
     for(const t of expected)if(!byFile.has(t.file))throw Error('Ein benötigter Datenausschnitt fehlt. Bitte online vollständig laden.');
     const totals={},provenance={},species={pine:0,spruce:0,birch:0,other:0},speciesFiles=new Set();let speciesArea=0,covered=0;
@@ -48,8 +49,8 @@
     }
     for(const entry of expected){
       const tile=byFile.get(entry.file);if(tile.schema!=='lignum-raster-tile-v1'||JSON.stringify(tile.bounds)!==JSON.stringify(entry.bounds))throw Error('Falscher Datenausschnitt.');
-      const part=clip.intersection(polygon,rectangle(tile.bounds));covered+=area(part);
-      const layers=Object.fromEntries(Object.entries(tile.layers).map(([k,v])=>[k,decode(v)]));
+      const part=clip.intersection(polygon,localRectangle(tile.bounds,origin));covered+=area(part);
+      const layers=Object.fromEntries(Object.entries(tile.layers).map(([k,v])=>[k,{...decode(v),x:v.x-origin[0],y:v.y-origin[1]}]));
       for(const [kind,key] of Object.entries(metricKeys)){
         const ids=[kind+'_3',kind+'_2'].filter(id=>layers[id]),base=layers[ids[0]];if(!base)continue;
         for(const id of ids){const l=layers[id];if(l.x!==base.x||l.y!==base.y||l.step!==base.step||l.width!==base.width||l.height!==base.height)throw Error('Grunddatenraster sind nicht deckungsgleich.');}
@@ -100,15 +101,38 @@
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
   let indexPromise;
   async function jsonFile(url,fresh=false){
-    const cache=typeof caches!=='undefined'?await caches.open(CACHE):null,hit=cache&&await cache.match(url);
-    if(hit&&!fresh)return hit.json();
-    try{const r=await fetch(url,{cache:'no-cache',signal:AbortSignal.timeout(60000)});if(!r.ok)throw Error('Datendatei nicht verfügbar ('+r.status+').');const copy=r.clone(),data=await r.json();if(cache)await cache.put(url,copy);return data;}
-    catch(e){if(hit)return hit.json();throw Error('Datenausschnitt nicht gespeichert. Bitte einmal online auswerten. '+e.message);}
+    let cache=null,hit=null,timer;
+    try{if(typeof caches!=='undefined'){cache=await caches.open(CACHE);hit=await cache.match(url);}}catch{}
+    if(hit&&!fresh){try{return await hit.clone().json();}catch{}}
+    const controller=typeof AbortController!=='undefined'?new AbortController():null;
+    if(controller)timer=setTimeout(()=>controller.abort(),60000);
+    try{
+      const r=await fetch(url,{cache:'no-cache',signal:controller?.signal});
+      if(!r.ok)throw Error('Datendatei nicht verfügbar ('+r.status+').');
+      const copy=r.clone(),data=await r.json();
+      if(cache){try{await cache.put(url,copy);}catch{}}
+      return data;
+    }catch(e){if(hit){try{return await hit.clone().json();}catch{}}throw Error('Datenausschnitt nicht gespeichert. Bitte einmal online auswerten. '+e.message);}
+    finally{clearTimeout(timer);}
   }
-  async function index(){if(!indexPromise)indexPromise=jsonFile(new URL('index.json',baseURL()).href,true).catch(e=>{indexPromise=null;throw e;});return indexPromise;}
+  async function index(){if(!indexPromise)indexPromise=jsonFile(new URL('index.json',baseURL()).href,true).then(info=>{
+    if(info.schema!=='lignum-raster-index-v1'||!Array.isArray(info.tiles))throw Error('Das Datenverzeichnis ist ungültig. Bitte online erneut laden.');return info;
+  }).catch(e=>{indexPromise=null;throw e;});return indexPromise;}
+  function selection(geometry,info){
+    const global=projected(geometry),b=bounds(global),origin=[Math.floor(b[0]/1000)*1000,Math.floor(b[1]/1000)*1000];
+    // A rigid translation keeps native cells and border precision unchanged,
+    // while avoiding unstable clipping around 7-million-metre northings.
+    const poly=global.map(p=>p.map(r=>r.map(([x,y])=>[x-origin[0],y-origin[1]])));
+    return {poly,origin,needed:info.tiles.filter(t=>boundsOverlap(t.bounds,b)&&area(clip.intersection(poly,localRectangle(t.bounds,origin)))>1e-7)};
+  }
+  async function coverage(geometry){
+    const info=await index(),{poly,needed,origin}=selection(geometry,info);
+    return {name:info.name||info.region||'Sarvisvaara',area_ha:area(poly)/10000,
+      coverage_ha:needed.reduce((total,t)=>total+area(clip.intersection(poly,localRectangle(t.bounds,origin))),0)/10000};
+  }
   async function inventory(geometry,options={},progress=()=>{}){
-    const info=await index(),poly=projected(geometry),b=bounds(poly),needed=info.tiles.filter(t=>boundsOverlap(t.bounds,b)&&area(clip.intersection(poly,rectangle(t.bounds)))>1e-7);
-    if(!needed.length)throw Error('Für diese Fläche ist noch kein regionales ZIP-Datenpaket hinterlegt.');
+    const info=await index(),{needed}=selection(geometry,info);
+    if(!needed.length)throw Error('Die Fläche liegt außerhalb des verfügbaren Datengebiets '+(info.name||'Sarvisvaara')+'. Die Auswahl der Alterskarte ändert das Datengebiet nicht.');
     const tiles=[];
     for(const entry of needed){if(!/^[\w-]+\.json$/.test(entry.file))throw Error('Ungültige Datendatei.');progress(tiles.length+1,needed.length);tiles.push({file:entry.file,data:await jsonFile(new URL(entry.file,baseURL()).href)});}
     if(typeof Worker!=='undefined'&&typeof document!=='undefined')return new Promise((resolve,reject)=>{
@@ -126,5 +150,5 @@
     for(const key of result.fields){delete out[key];delete out.sources[key];}
     return {...out,...result.inventory,sources:{...out.sources,...result.inventory.sources}};
   }
-  return {inventory,index,evaluate,decode,merge};
+  return {inventory,index,coverage,evaluate,decode,merge};
 });

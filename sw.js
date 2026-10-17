@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.45';
+const APP_VERSION  = '13.46';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -145,6 +145,12 @@ self.addEventListener('fetch', e => {
         })
       )
     );
+    return;
+  }
+
+  // Refresh the mutable raster index; ForestRasterData owns offline fallback.
+  if (url.split('?')[0] === shellURL('/data/forest-rasters/index.json')) {
+    e.respondWith(fetch(e.request));
     return;
   }
 

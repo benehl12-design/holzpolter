@@ -4,14 +4,16 @@ const dir=path.join(__dirname,'..');let leaflet;
 test.before(async()=>{leaflet=process.env.LIGNUM_TEST_LEAFLET?fs.readFileSync(process.env.LIGNUM_TEST_LEAFLET,'utf8'):await(await fetch('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')).text();});
 const tick=()=>new Promise(r=>setTimeout(r,5));
 async function until(check){for(let i=0;i<100;i++){if(check())return;await tick();}assert.ok(check(),'expected UI transition completed');}
-function fixture(t,{role='admin',props=[],stands=[]}={}){
+function fixture(t,{role='admin',props=[],stands=[],mapSize=[500,400]}={}){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
   const dom=new JSDOM(fs.readFileSync(path.join(dir,'index.html'),'utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://lignum.test/',virtualConsole:vc});
   const w=dom.window,d=w.document;
   const css=d.createElement('style');css.textContent=fs.readFileSync(path.join(dir,'forest-planning.css'),'utf8');d.head.append(css);
   w.SVGSVGElement.prototype.createSVGRect=()=>({});
-  for(const key of ['clientWidth','offsetWidth'])Object.defineProperty(w.HTMLElement.prototype,key,{get(){return this.id==='fp-map'?500:400;}});
-  for(const key of ['clientHeight','offsetHeight'])Object.defineProperty(w.HTMLElement.prototype,key,{get(){return this.id==='fp-map'?400:300;}});
+  for(const key of ['clientWidth','offsetWidth'])Object.defineProperty(w.HTMLElement.prototype,key,{get(){return this.id==='fp-map'?mapSize[0]:400;}});
+  for(const key of ['clientHeight','offsetHeight'])Object.defineProperty(w.HTMLElement.prototype,key,{get(){return this.id==='fp-map'?mapSize[1]:300;}});
+  const observers=[];w.ResizeObserver=class {constructor(callback){this.callback=callback;observers.push(this);}observe(){}disconnect(){}};
+  const resizeMap=(width,height)=>{mapSize=[width,height];observers.forEach(o=>o.callback());};
   w.HTMLElement.prototype.getBoundingClientRect=function(){return {left:0,top:0,right:500,bottom:400,width:500,height:400,x:0,y:0};};
   Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});
   w.eval(leaflet);const maps=[];w.L.Map.addInitHook(function(){maps.push(this);});
@@ -35,7 +37,7 @@ function fixture(t,{role='admin',props=[],stands=[]}={}){
   const click=sel=>{const b=d.querySelector(sel);assert.ok(b,'button exists: '+sel);b.click();};
   const set=(name,value)=>{const input=d.querySelector(`[name="${name}"]`);assert.ok(input,'input exists '+name);input.value=value;};
   const submit=()=>{d.getElementById('fp-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));};
-  return {w,d,tables,writes,errors,maps,click,set,submit};
+  return {w,d,tables,writes,errors,maps,click,set,submit,resizeMap};
 }
 const prop={id:'property-a',company_id:'company-a',name:'Sarvisvaara Test',area_ha:114,cadastral_ref:'Test',geometry:null};
 const stand={id:'stand-a',company_id:'company-a',property_id:'property-a',number:'1',name:'Nordfläche',area_ha:3,land_type:'forest',hk_class:'G2',action:'thinning',removal_pct:25,inventory:{volume_m3sk_ha:200,scan_year:2022,species_pct:{pine:60,spruce:30,birch:10,other:0}},notes:'Testnotiz'};
@@ -115,4 +117,43 @@ test('ZIP inventory is calculated offline from native cells, reviewed and saved 
   await until(()=>h.d.querySelector('[data-act="apply-zip"]'));assert.equal(h.writes.length,0);h.click('[data-act="apply-zip"]');await until(()=>!h.d.querySelector('.fp-dialog'));
   const i=h.tables.forest_stands[0].inventory;assert.ok(Math.abs(i.volume_m3sk_ha-200)<.001);assert.ok(Math.abs(i.mean_height_m-18)<.001);assert.equal(i.age_years,50);assert.equal(i.site_index,'T19');assert.equal(i.reference_year,undefined);assert.equal(requests.length,2);
   assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Zugang noch einzurichten/);assert.deepEqual(h.errors,[]);
+});
+test('a map first opened with zero size recovers when its layout becomes visible',async t=>{
+  const h=fixture(t,{props:[prop],mapSize:[0,0]});await h.w.ForestPlanning.open();
+  await new Promise(r=>setTimeout(r,80));h.resizeMap(700,450);
+  await until(()=>h.maps[0].getSize().x===700&&h.maps[0].getSize().y===450);
+  h.w.ForestPlanning.hide();h.resizeMap(850,350);await h.w.ForestPlanning.open();
+  await until(()=>h.maps[0].getSize().x===850&&h.maps[0].getSize().y===350);
+  assert.equal(h.maps.length,1);assert.deepEqual(h.errors,[]);
+});
+test('tile failures expose retry and street-map controls, and successful tiles clear the error',async t=>{
+  const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();
+  const layer=()=>{let found;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.TileLayer)found=l;});return found;};
+  const first=layer();first.fire('loading');first.fire('tileerror');first.fire('load');
+  assert.equal(h.d.getElementById('fp-map-status').hidden,false);assert.match(h.d.getElementById('fp-map-status').textContent,/Offline/);
+  h.click('[data-act="retry-map"]');assert.notEqual(layer(),first);
+  layer().fire('tileload');layer().fire('load');assert.equal(h.d.getElementById('fp-map-status').hidden,true);
+  layer().fire('tileerror');layer().fire('load');h.click('[data-act="street-map"]');
+  assert.equal(h.d.getElementById('fp-basemap').value,'streets');assert.match(layer().getTileUrl({x:1,y:1}),/tile\.openstreetmap\.org/);
+  assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
+});
+test('ZIP coverage and download errors are visible inside the open dialog',async t=>{
+  const h=fixture(t,{props:[prop],stands:[stand]});
+  h.tables.forest_stands[0].geometry=h.w.ForestModel.geometry({type:'Polygon',coordinates:[[[780000,7410000],[780020,7410000],[780020,7410020],[780000,7410020],[780000,7410000]]]},'EPSG:3006');
+  h.w.fetch=async()=>({ok:true,json:async()=>({schema:'lignum-raster-index-v1',name:'Testgebiet',tiles:[]}),clone(){return this;}});
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');h.click('[data-act="fetch-data"]');
+  await until(()=>h.d.getElementById('fp-zip-coverage').textContent.includes('Testgebiet'));
+  h.click('[data-act="calculate-zip"]');await until(()=>!h.d.querySelector('[data-act="calculate-zip"]').disabled);
+  assert.match(h.d.getElementById('fp-zip-error').textContent,/außerhalb.*Testgebiet/);
+  assert.ok(h.d.querySelector('.fp-dialog'));assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
+});
+test('a partly loaded map retries automatically once and keeps manual recovery available',async t=>{
+  const h=fixture(t,{props:[prop]});Object.defineProperty(h.w.navigator,'onLine',{value:true,configurable:true});await h.w.ForestPlanning.open();
+  let layer;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.TileLayer)layer=l;});
+  let retries=0;layer.redraw=()=>{retries++;return layer;};
+  layer.fire('loading');layer.fire('tileload');layer.fire('tileerror');layer.fire('load');
+  await new Promise(r=>setTimeout(r,1300));assert.equal(retries,1);
+  layer.fire('loading');layer.fire('tileload');layer.fire('tileerror');layer.fire('load');
+  await new Promise(r=>setTimeout(r,1300));assert.equal(retries,1);
+  assert.ok(h.d.querySelector('#fp-map-status [data-act="retry-map"]'));
 });

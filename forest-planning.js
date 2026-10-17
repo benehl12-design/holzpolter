@@ -4,6 +4,11 @@
   const M=window.ForestModel,esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=0)=>n==null?'–':Number(n).toLocaleString('de-DE',{maximumFractionDigits:d});
   let screen,map,shapes,propertyId=null,standId=null,properties=[],stands=[],owner=null,ownerCompany=null,request=0,theme='class',draft=null,draw=null,busy=false,search='';
+  let basemap,baseMode='satellite',mapObserver,mapFrame,mapTimer,mapRetry,fitPending=false;
+  const basemaps={
+    satellite:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:18,attribution:'Tiles © Esri'}],
+    streets:['https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:21,maxNativeZoom:19,attribution:'© OpenStreetMap contributors'}]
+  };
   const el=id=>document.getElementById(id),admin=()=>isAdminUser(),ctx=()=>({id:currentUser?.id,company:currentProfile?.company_id});
   const same=who=>ctx().id===who.id&&ctx().company===who.company;
   const property=()=>properties.find(p=>p.id===propertyId),selected=()=>stands.find(s=>s.id===standId&&s.property_id===propertyId);
@@ -15,23 +20,65 @@
     screen=document.createElement('section');screen.id='forest-screen';screen.setAttribute('aria-label','Forstplanung');
     screen.innerHTML=`<header class="fp-header"><button class="fp-btn" data-act="close" aria-label="Zurück zur Startseite">←</button><h1>Forstplanung<small id="fp-subtitle">Grundstücke · Bestände · Maßnahmen</small></h1><button class="fp-btn" data-act="refresh" aria-label="Forstplanung aktualisieren">↻</button></header>
       <div id="fp-message" class="fp-message" role="status" aria-live="polite"></div>
-      <div class="fp-toolbar"><select id="fp-property" class="fp-input" aria-label="Grundstück"></select><button class="fp-btn" data-act="new-property" data-admin>+ Grundstück</button><select id="fp-theme" class="fp-input" aria-label="Kartenfarben"><option value="class">Bestandsklassen</option><option value="age">Alter</option><option value="species">Baumarten</option><option value="volume">Vorrat je Hektar</option></select></div>
-      <div class="fp-layout"><div class="fp-map-side"><div class="fp-map-wrap"><div id="fp-map" aria-label="Bestandskarte"></div><div id="fp-draw-tools" class="fp-draw-tools" hidden></div></div><div id="fp-legend" class="fp-legend"></div></div><main id="fp-content" class="fp-content"></main></div><div id="fp-modal-root"></div><input id="fp-file" class="fp-visually-hidden" type="file" accept=".geojson,.json,.csv" aria-label="Bestandsdaten importieren">`;
+      <div class="fp-toolbar"><select id="fp-property" class="fp-input" aria-label="Grundstück"></select><button class="fp-btn" data-act="new-property" data-admin>+ Grundstück</button><select id="fp-theme" class="fp-input" aria-label="Kartenfarben"><option value="class">Bestandsklassen</option><option value="age">Alter</option><option value="species">Baumarten</option><option value="volume">Vorrat je Hektar</option></select><select id="fp-basemap" class="fp-input" aria-label="Hintergrundkarte"><option value="satellite">Satellit</option><option value="streets">Straßenkarte</option></select></div>
+      <div class="fp-layout"><div class="fp-map-side"><div class="fp-map-wrap"><div id="fp-map" aria-label="Bestandskarte"></div><div id="fp-map-status" class="fp-map-status" role="status" hidden></div><div id="fp-draw-tools" class="fp-draw-tools" hidden></div></div><div id="fp-legend" class="fp-legend"></div></div><main id="fp-content" class="fp-content"></main></div><div id="fp-modal-root"></div><input id="fp-file" class="fp-visually-hidden" type="file" accept=".geojson,.json,.csv" aria-label="Bestandsdaten importieren">`;
     document.body.append(screen);
     screen.addEventListener('click',event=>{const b=event.target.closest('[data-act]');if(!b||b.disabled)return;event.preventDefault();dispatch(b.dataset.act,b.dataset.id,b).catch(e=>message(e.message,true));});
     el('fp-property').addEventListener('change',()=>{if(busy){el('fp-property').value=propertyId;return;}cancelDraw();closeModal();propertyId=el('fp-property').value||null;standId=null;render(true);});
     el('fp-theme').addEventListener('change',()=>{theme=el('fp-theme').value;renderMap();});
+    el('fp-basemap').addEventListener('change',()=>setBasemap(el('fp-basemap').value));
+    window.addEventListener('online',()=>{if(visible())reloadMap();});
+    window.addEventListener('resize',()=>sizeMap());
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)sizeMap();});
     screen.addEventListener('input',e=>{if(e.target.id==='fp-search'){search=e.target.value.toLowerCase();renderList();}});
     screen.addEventListener('keydown',e=>{if(e.key==='Escape'){if(draw)cancelDraw();else if(el('fp-modal-root').children.length)closeModal();else close();}});
     el('fp-file').addEventListener('change',()=>readFile().catch(e=>message(e.message,true)));
   }
+  const visible=()=>!!screen&&screen.style.display!=='none';
+  function mapStatus(text='',retry=false){
+    const status=el('fp-map-status');if(!status)return;
+    status.hidden=!text;status.innerHTML=esc(text)+(retry?`<div class="fp-actions">${button('retry-map','Erneut laden')}${baseMode==='satellite'?button('street-map','Straßenkarte zeigen'):''}</div>`:'');
+  }
+  function sizeMap(fit=false){
+    if(!map||!visible())return;fitPending=fitPending||fit;
+    cancelAnimationFrame(mapFrame);
+    mapFrame=requestAnimationFrame(()=>{
+      const box=el('fp-map');if(!visible()||!box.clientWidth||!box.clientHeight)return;
+      map.invalidateSize({pan:false,animate:false});
+      if(fitPending){const bounds=shapes.getBounds();if(bounds.isValid())map.fitBounds(bounds,{padding:[18,18],maxZoom:18,animate:false});fitPending=false;}
+    });
+  }
+  function setBasemap(mode=baseMode){
+    if(!map||!basemaps[mode])return;
+    clearTimeout(mapTimer);clearTimeout(mapRetry);if(basemap)map.removeLayer(basemap);
+    baseMode=mode;el('fp-basemap').value=mode;
+    const [url,options]=basemaps[mode],layer=L.tileLayer(url,options);
+    let loaded=0,failed=0,retried=false;
+    const current=()=>basemap===layer&&visible();
+    const failure=()=>{
+      if(!current())return;
+      mapStatus(navigator.onLine?'Die Hintergrundkarte wurde nicht vollständig geladen. Bitte erneut laden oder die Kartenart wechseln.':'Offline: Für diesen Kartenausschnitt sind noch keine vollständigen Kartenbilder gespeichert.',true);
+      if(!retried&&navigator.onLine){retried=true;mapRetry=setTimeout(()=>{if(current())layer.redraw();},1200);}
+    };
+    layer.on('loading',()=>{if(!current())return;loaded=0;failed=0;clearTimeout(mapTimer);mapTimer=setTimeout(failure,10000);});
+    layer.on('tileload',()=>{if(current()){loaded++;if(!failed)mapStatus();}});
+    layer.on('tileerror',()=>{if(current())failed++;});
+    layer.on('load',()=>{if(!current())return;clearTimeout(mapTimer);if(failed)failure();else{clearTimeout(mapRetry);mapStatus();}});
+    basemap=layer;mapStatus('Hintergrundkarte wird geladen …');layer.addTo(map);sizeMap();
+  }
+  function reloadMap(){sizeMap();setBasemap();}
   async function open(){
     mount();hideAllScreens();screen.style.display='flex';
-    if(!map){map=L.map('fp-map',{zoomControl:true,attributionControl:true}).setView([66.748,21.47],12);shapes=L.featureGroup().addTo(map);L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:18,attribution:'Tiles © Esri'}).addTo(map);map.on('click',e=>{if(draw){draw.points.push([e.latlng.lng,e.latlng.lat]);paintDraw();}});}
+    if(!map){
+      map=L.map('fp-map',{zoomControl:true,attributionControl:true}).setView([66.748,21.47],12);shapes=L.featureGroup().addTo(map);
+      map.on('click',e=>{if(draw){draw.points.push([e.latlng.lng,e.latlng.lat]);paintDraw();}});
+      if(typeof ResizeObserver!=='undefined'){mapObserver=new ResizeObserver(()=>sizeMap());mapObserver.observe(el('fp-map'));}
+    }
+    setBasemap();
     const who=ctx();if(owner!==who.id||ownerCompany!==who.company){owner=who.id;ownerCompany=who.company;properties=[];stands=[];propertyId=null;standId=null;}
-    render();setTimeout(()=>map.invalidateSize(),60);await refresh();
+    render();sizeMap();await refresh();
   }
-  function hide(){if(!screen)return;screen.style.display='none';cancelDraw();closeModal();request++;}
+  function hide(){if(!screen)return;screen.style.display='none';cancelAnimationFrame(mapFrame);clearTimeout(mapTimer);clearTimeout(mapRetry);cancelDraw();closeModal();request++;}
   function close(){hide();showModeScreen();}
   async function refresh(){
     if(!screen||screen.style.display==='none')return;const token=++request,who=ctx();if(!who.id||!who.company)return hide();
@@ -57,7 +104,7 @@
       layer.eachLayer(l=>{l.bindTooltip(esc(s.number),{permanent:true,direction:'center',className:'fp-stand-label'});l.on('click',e=>{if(draw)return;L.DomEvent.stopPropagation(e);standId=s.id;render();});});layer.addTo(shapes);
     }
     if(draw)paintDraw();
-    if(fit&&shapes.getBounds().isValid())map.fitBounds(shapes.getBounds(),{padding:[18,18],maxZoom:18});
+    sizeMap(fit);
     const labels=theme==='class'?{...M.HK,unknown:'Keine Klasse'}:theme==='species'?M.SPECIES:theme==='age'?{'0–19':'0–19 Jahre','20–39':'20–39 Jahre','40–59':'40–59 Jahre','60–79':'60–79 Jahre','80–119':'80–119 Jahre','120+':'120+ Jahre'}:{'<50':'< 50 m³sk/ha','50–99':'50–99','100–199':'100–199','200–299':'200–299','300+':'300+'};
     const colors=theme==='class'?['#ec7775','#8ccbe3','#91c85d','#549d49','#a5a7a3','#6c7370','#578c6d','#c3a16d','#856b98','#87918a']:theme==='species'?['#d1dc4e','#277d6e','#d28a42','#a074c7']:theme==='age'?['#9accff','#a9d77e','#68b35d','#2e8d4c','#28614b','#6c3c83']:['#d9e7bd','#a6cd8d','#6ba66b','#367958','#15513e'];
     el('fp-legend').innerHTML=Object.values(labels).map((v,i)=>`<span><i class="fp-dot" style="background:${colors[i]}"></i>${esc(v)}</span>`).join('')+(theme==='class'?'':'<span><i class="fp-dot" style="background:#87918a"></i>Keine Daten</span>');
@@ -164,25 +211,33 @@
     if(!s?.geometry)throw Error('Bitte zuerst eine Bestandsgrenze zeichnen oder importieren.');
     if(!window.ForestRasterData)throw Error('Bitte die App online neu laden, damit die ZIP-Auswertung verfügbar wird.');
     draft={kind:'zip-options',stand:s,who:ctx(),propertyId};
-    modal('ZIP-Daten auswerten',`<p>${esc(s.name)} · Vorrat, Höhe, Durchmesser, Grundfläche und Baumarten aus dem hinterlegten Datenpaket.</p><label>Alterskarte<select id="fp-age-type" class="fp-input"><option value="">Alter zunächst nicht übernehmen</option><option value="pine">Kiefernwald</option><option value="spruce">Fichtenwald</option><option value="birch">Birkenwald</option><option value="other">Weitere Laubbäume</option><option value="mixed">Mischwald</option></select></label><p class="fp-muted">Wähle den tatsächlichen Waldtyp: Eine Baumart muss mindestens 65 % der Grundfläche ausmachen; sonst Mischwald. Die SLU-Volumenanteile allein bestimmen diese Auswahl nicht. Alterswerte beziehen sich auf 2025 und unterschätzen alte Bestände.</p><label>Standortanzeigende Baumart<select id="fp-site-species" class="fp-input"><option value="">Standortindex zunächst nicht übernehmen</option><option value="T">Kiefer · T</option><option value="G">Fichte · G</option></select></label><p class="fp-muted">Die standortanzeigende Baumart kann von der häufigsten Baumart abweichen. Bereits geladene Ausschnitte lassen sich auch offline auswerten.</p><div class="fp-actions">${button('calculate-zip','Auswerten','','primary')}${button('cancel','Abbrechen')}</div>`);
+    const job=draft;
+    modal('ZIP-Daten auswerten',`<p>${esc(s.name)} · Vorrat, Höhe, Durchmesser, Grundfläche und Baumarten aus dem hinterlegten Datenpaket.</p><p id="fp-zip-coverage" class="fp-muted">Datenabdeckung wird geprüft …</p><label>Alterskarte<select id="fp-age-type" class="fp-input"><option value="">Alter zunächst nicht übernehmen</option><option value="pine">Kiefernwald</option><option value="spruce">Fichtenwald</option><option value="birch">Birkenwald</option><option value="other">Weitere Laubbäume</option><option value="mixed">Mischwald</option></select></label><p class="fp-muted">Wähle den tatsächlichen Waldtyp: Eine Baumart muss mindestens 65 % der Grundfläche ausmachen; sonst Mischwald. Die SLU-Volumenanteile allein bestimmen diese Auswahl nicht. Alterswerte beziehen sich auf 2025 und unterschätzen alte Bestände.</p><label>Standortanzeigende Baumart<select id="fp-site-species" class="fp-input"><option value="">Standortindex zunächst nicht übernehmen</option><option value="T">Kiefer · T</option><option value="G">Fichte · G</option></select></label><p class="fp-muted">Die standortanzeigende Baumart kann von der häufigsten Baumart abweichen. Bereits geladene Ausschnitte lassen sich auch offline auswerten.</p><div id="fp-zip-error" class="fp-form-error" role="alert" tabindex="-1"></div><div class="fp-actions">${button('calculate-zip','Auswerten','','primary')}${button('cancel','Abbrechen')}</div>`);
+    window.ForestRasterData.coverage(s.geometry).then(c=>{
+      if(draft!==job||!same(job.who))return;
+      el('fp-zip-coverage').textContent=`Datengebiet ${c.name}: ${fmt(c.coverage_ha,2)} von ${fmt(c.area_ha,2)} ha im Datenpaket.`;
+      if(!c.coverage_ha)el('fp-zip-error').textContent='Die Fläche liegt außerhalb des derzeit verfügbaren Datengebiets. Die Auswahl der Alterskarte ändert das Datengebiet nicht.';
+    }).catch(e=>{if(draft===job)el('fp-zip-coverage').textContent=e.message;});
   }
   async function calculateZIP(){
     if(draft?.kind!=='zip-options')return;const job=draft,who=job.who,s=job.stand;
     const options={ageType:el('fp-age-type').value,siteSpecies:el('fp-site-species').value};
     busy=true;el('fp-modal-root').querySelectorAll('button').forEach(b=>b.disabled=true);
+    el('fp-zip-error').textContent='';
     try{
       const r=await window.ForestRasterData.inventory(s.geometry,options,(n,total)=>message('ZIP-Daten werden ausgewertet · Ausschnitt '+n+' von '+total+' …'));
       if(!same(who)||selected()?.id!==s.id||screen.style.display==='none'||draft!==job)return;
       draft={kind:'zip',stand:s,result:r,who,propertyId};
       modal('ZIP-Ergebnis prüfen',`<p>${esc(s.name)} · ausgewerteter Ausschnitt ${fmt(r.coverage_ha,2)} von ${fmt(r.area_ha,2)} ha.</p><div class="fp-grid">${Object.entries(r.inventory).filter(([k,v])=>M.FIELDS[k]&&typeof v==='number').map(([k,v])=>stat(M.FIELDS[k][0],v,M.FIELDS[k][1],1)).join('')}${r.inventory.site_index?`<div class="fp-stat"><small>Standortindex</small><strong>${esc(r.inventory.site_index)}</strong></div>`:''}</div><p class="fp-muted">${esc(r.note)} Vorhandene Kennzahlen der ausgewerteten Datentypen werden ersetzt; nicht abgedeckte Werte werden unbekannt. Nicht gewählte Alters- und Standortangaben bleiben erhalten. ${r.coverage_ha<r.area_ha-.0001?'Ein Teil des Bestandes liegt außerhalb des Datenpakets. Die fehlende Fläche wird nicht hochgerechnet.':''}</p><div class="fp-actions">${button('apply-zip','Kennzahlen übernehmen','','primary')}${button('cancel','Abbrechen')}</div>`);message('Auswertung fertig. Bitte Kennzahlen prüfen und übernehmen.');
-    }finally{busy=false;el('fp-modal-root').querySelectorAll('button').forEach(b=>b.disabled=false);}
+    }catch(e){if(draft===job&&same(who)){el('fp-zip-error').textContent=e.message;el('fp-zip-error').focus();message(e.message,true);}}
+    finally{busy=false;el('fp-modal-root').querySelectorAll('button').forEach(b=>b.disabled=false);}
   }
   async function prepareOrder(s){await openAuftragForm();el('apl-f-titel').value=(M.ACTIONS[s.action]||'Forstmaßnahme')+' · '+s.name;el('apl-f-beschreibung').value='Forstplanung: '+property().name+' · Bestand '+s.number+'\nFläche: '+fmt(s.area_ha,2)+' ha\nGeschätzter Vorrat: '+fmt(M.stock(s))+' m³sk\nGeplante Entnahme: '+fmt(s.removal_pct,1)+' %\n'+(s.notes||'');if(s.area_id)el('apl-f-gebiet').value=s.area_id;if(s.geometry){const ll=L.geoJSON(s.geometry).getBounds().getCenter();aplFormSetLoc(ll.lat,ll.lng);}message('Auftrag aus der Forstplanung vorbereitet.');}
   async function dispatch(act,id,buttonEl){
     if(busy)return;
     if(['new-property','edit-property','new-stand','edit-stand','draw-property','draw-stand','import','confirm-import','from-area','choose-area','fetch-data','calculate-zip','apply-zip','delete-property','delete-stand','order'].includes(act)&&!admin())throw Error('Nur ein Admin kann die Forstplanung ändern.');
     switch(act){
-      case 'close':return close();case 'refresh':return refresh();case 'overview':standId=null;return render();case 'select':standId=id;return render();case 'cancel':return closeModal();
+      case 'close':return close();case 'refresh':reloadMap();return refresh();case 'retry-map':return reloadMap();case 'street-map':return setBasemap('streets');case 'overview':standId=null;return render();case 'select':standId=id;return render();case 'cancel':return closeModal();
       case 'new-property':return showForm('property');case 'edit-property':return showForm('property',property());case 'new-stand':return showForm('stand');case 'edit-stand':return showForm('stand',selected());
       case 'draw-property':return startDraw('property',id);case 'draw-stand':return startDraw('stand',id);case 'finish-draw':return finishDraw();case 'undo-draw':draw?.points.pop();return paintDraw();case 'cancel-draw':cancelDraw();return renderMap();
       case 'delete-property':return remove('property',id);case 'delete-stand':return remove('stand',id);case 'import':el('fp-file').click();return;case 'confirm-import':return confirmImport();case 'from-area':return fromArea();
