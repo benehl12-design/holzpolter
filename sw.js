@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.44';
+const APP_VERSION  = '13.45';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -22,7 +22,7 @@ const APP_SHELL = [
   '/',
   '/index.html',
   '/offline.js',
-  '/forest-planning.css', '/forest-model.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
+  '/forest-planning.css', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -38,7 +38,7 @@ const APP_SHELL = [
 ];
 const REQUIRED_SHELL = new Set([
   '/index.html', '/offline.js', '/forwarder-icon.png',
-  '/forest-planning.css', '/forest-model.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
+  '/forest-planning.css', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
@@ -67,7 +67,7 @@ self.addEventListener('install', e => {
 
 // ── ACTIVATE: alte Caches aufräumen ─────────────────────────────────
 self.addEventListener('activate', e => {
-  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE, SAT_OFFLINE_CACHE, OSM_OFFLINE_CACHE]);
+  const KEEP = new Set([APP_CACHE, TILE_CACHE, SAT_CACHE, SAT_OFFLINE_CACHE, OSM_OFFLINE_CACHE, 'lignum-forest-rasters-v1']);
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(

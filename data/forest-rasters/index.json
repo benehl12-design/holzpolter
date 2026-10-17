@@ -1,0 +1,820 @@
+{
+  "schema": "lignum-raster-index-v1",
+  "name": "Sarvisvaara und Umgebung",
+  "region": "Norrbottens län",
+  "bounds": [
+    784000,
+    7413000,
+    790000,
+    7419000
+  ],
+  "crs": "EPSG:3006",
+  "built_on": "2026-10-17",
+  "sources": {
+    "volume_3": {
+      "name": "Skogliga grunddata · Omdrev 3 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Volym_omdrev3_25.zip",
+      "sha256": "a7c054aa591c125df8022ba4d9dc730deacf8e7fc4544b7c54bea93c811baad2",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Volym_omdrev3_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "volume_2": {
+      "name": "Skogliga grunddata · Omdrev 2 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Volym_omdrev2_25.zip",
+      "sha256": "86548e7d3e126fcf20ea9ddd83c26707b9d32cebafc477330c46f656e59241fa",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Volym_omdrev2_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "height_3": {
+      "name": "Skogliga grunddata · Omdrev 3 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Medelhöjd_omdrev3_25.zip",
+      "sha256": "8bb73150cba2aee9ec1115416bb94b4149ed398918973155911d1fc2a4534545",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Medelh%C3%B6jd_omdrev3_25.zip",
+      "scale": 0.1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "height_2": {
+      "name": "Skogliga grunddata · Omdrev 2 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Medelhöjd_omdrev2_25.zip",
+      "sha256": "d5c969f7b004e73e356b127a19a6c2ce5f375b9fafff626556ff588d164ac26c",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Medelh%C3%B6jd_omdrev2_25.zip",
+      "scale": 0.1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "diameter_3": {
+      "name": "Skogliga grunddata · Omdrev 3 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Medeldiameter_omdrev3_25.zip",
+      "sha256": "f838b99ad069e4c3dab229e6d2d80c5a263259c84693f48d72f1a9bdd28f140b",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Medeldiameter_omdrev3_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "diameter_2": {
+      "name": "Skogliga grunddata · Omdrev 2 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Medeldiameter_omdrev2_25.zip",
+      "sha256": "21809d547426efa724ce85e23fb16c773428c524eaff37d3f66feb8bd9bd65d3",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Medeldiameter_omdrev2_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "basal_area_3": {
+      "name": "Skogliga grunddata · Omdrev 3 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Grundyta_omdrev3_25.zip",
+      "sha256": "484b600a039637a675b60875a436859c646550cc892dd392a193fe1333bed271",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Grundyta_omdrev3_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "basal_area_2": {
+      "name": "Skogliga grunddata · Omdrev 2 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Grundyta_omdrev2_25.zip",
+      "sha256": "b6db7ff64d28794c2d833d3b6bc598c9b319591a69617ce1248fcf7f5d3803df",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Grundyta_omdrev2_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "biomass_3": {
+      "name": "Skogliga grunddata · Omdrev 3 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Biomassa_omdrev3_25.zip",
+      "sha256": "317d16b9e11e0aaaf16d0fd82438d99300cd9f09ff89100ad2e634a0db35e3ba",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Biomassa_omdrev3_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "biomass_2": {
+      "name": "Skogliga grunddata · Omdrev 2 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_Biomassa_omdrev2_25.zip",
+      "sha256": "522024cdf815e5c9171fd1d1edaf2dcb534a1e19ab72f5f0331d6a72a1748f73",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_Biomassa_omdrev2_25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": "Aufnahmejahr variiert räumlich; ZIP-Datum ist kein Aufnahmejahr."
+    },
+    "age_pine": {
+      "name": "Skogliga grunddata – Beståndsmedelålder 2025 · SLU / Skogsstyrelsen",
+      "year": 2025,
+      "product_year": null,
+      "file": "sks_AlderTall25.zip",
+      "sha256": "fdc95e92904ddcf5492d1cb8ee65560efb85d27720bc030001f1ca78754301d4",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_AlderTall25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "age_spruce": {
+      "name": "Skogliga grunddata – Beståndsmedelålder 2025 · SLU / Skogsstyrelsen",
+      "year": 2025,
+      "product_year": null,
+      "file": "sks_AlderGran25.zip",
+      "sha256": "629842434624863f234a7265d43446871a6964b6307b5139831d8ebd34a136ca",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_AlderGran25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "age_birch": {
+      "name": "Skogliga grunddata – Beståndsmedelålder 2025 · SLU / Skogsstyrelsen",
+      "year": 2025,
+      "product_year": null,
+      "file": "sks_AlderBjork25.zip",
+      "sha256": "47bb966ec599fc70b3db6bf3f2119be023f08a67da9ecaeb01326189bbd73b8e",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_AlderBjork25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "age_mixed": {
+      "name": "Skogliga grunddata – Beståndsmedelålder 2025 · SLU / Skogsstyrelsen",
+      "year": 2025,
+      "product_year": null,
+      "file": "sks_AlderBlandskog25.zip",
+      "sha256": "ec7cb3e7f53b0c817dfa428c34abc0bdc5932ccd3132c0ff33dec64bcf49f742",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_AlderBlandskog25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "age_other": {
+      "name": "Skogliga grunddata – Beståndsmedelålder 2025 · SLU / Skogsstyrelsen",
+      "year": 2025,
+      "product_year": null,
+      "file": "sks_AlderOvrigtLov25.zip",
+      "sha256": "fe17eabf89b01b593a493fd3c36b66fa5d1c0fc81586bdf72ed79c7f876aa4cb",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_AlderOvrigtLov25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "site_pine": {
+      "name": "Skogliga grunddata – Ståndortsindex SIS · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_SISTall25.zip",
+      "sha256": "b95bf11091ff74413e2faec5c15fafde6e9784543ebae184f6e1f3dd38b899da",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_SISTall25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "site_spruce": {
+      "name": "Skogliga grunddata – Ståndortsindex SIS · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": null,
+      "file": "sks_SISGran25.zip",
+      "sha256": "89e46edc7b02e1424c868bfdc85466c63cc739e9fdd5a50174a81c5b9af1c02a",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sks_SISGran25.zip",
+      "scale": 1,
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "note": ""
+    },
+    "species_pine": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaTallVolym25.zip",
+      "sha256": "76e90c15f16ed71e056e1fb143388e518d21e54ebac0034a27701863b4d3aa7e",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaTallVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_spruce": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaGranVolym25.zip",
+      "sha256": "191e435a6611ffbce539718edaa4e0f5fd316222c75d16d9eb1111a69ee83059",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaGranVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_birch": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaBjörkVolym25.zip",
+      "sha256": "60f598905757c5345635ec5506aae834e553e86acb76839058bd39dd151a2a37",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaBj%C3%B6rkVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_broadleaf": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaÖvrigtVolym25.zip",
+      "sha256": "82cd17bf6556f27cd62949de0b31e27aff5fb49c053fb3c830034423d8aa4502",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskarta%C3%96vrigtVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_contorta": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaContortaVolym25.zip",
+      "sha256": "36009a961d21c820d177bd7f3a1af29f2f776141294e2a6fafa4971c7ede8bc8",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaContortaVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_oak": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaEkVolym25.zip",
+      "sha256": "f8212ecd2810b25528448084309cd99a54c1fdaa06e14388611cca326442e49b",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaEkVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_beech": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaBokVolym25.zip",
+      "sha256": "33fda2f6799a037076d5cc98e09e72ea7564f714bf8c6790db1dd291484d0687",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaBokVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species_total": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaVolym25.zip",
+      "sha256": "bd8a52473082af62499fa9707150a5ff1b8c317fd53a8adc0d89d792a13f6cad",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaVolym25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "slu_height": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaMedelhöjd25.zip",
+      "sha256": "d440049977c0ecb4213e9abd669715cd4b1d1f50ab95ae513135de282b479453",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaMedelh%C3%B6jd25.zip",
+      "scale": 0.1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "slu_diameter": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaMedeldiameter25.zip",
+      "sha256": "172a7e5288ad7bbe2d94ebbd7e1f743fee4d17f2a4da7cb773eeef420c59de32",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaMedeldiameter25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "slu_basal_area": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaGrundyta25.zip",
+      "sha256": "dade6883d82d8d9fc911fd874529beaf1fdf62f95edd1af4fae6a21cf408715b",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaGrundyta25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "slu_biomass": {
+      "name": "SLU Skogskarta 2015 · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2015,
+      "file": "sksSLUskogskartaBiomassa25.zip",
+      "sha256": "0b6670ecdc1f764a3ba08b8c2f9186985c30581d8a35489c4ebbe20899e0bf27",
+      "url": "https://geodpags.skogsstyrelsen.se/geodataport/data/sksSLUskogskartaBiomassa25.zip",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_pine": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_pine_Sarvisvaara.tif",
+      "sha256": "92f665e550628f0c80c591e3e62e578ea524eb907facf37b1e83d0944ce60ef3",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Tall_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_spruce": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_spruce_Sarvisvaara.tif",
+      "sha256": "088a634921dcc69724dfb5c4d5249454f80093213f80ff4c77efae8eceb114ba",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Gran_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_birch": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_birch_Sarvisvaara.tif",
+      "sha256": "1ebb4cc4dd1f00bd56dcc8435bf24f907c6470b96bb3db91e440c07a1b3cb36d",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Bjork_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_contorta": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_contorta_Sarvisvaara.tif",
+      "sha256": "7faaa1bac45fcd38a233098a6e059b9fe0c77d7a13a3924e9affe682993d9f4e",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Contorta_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_oak": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_oak_Sarvisvaara.tif",
+      "sha256": "6a4d9224cdf2a1924d8ee21b25bc5cb1ca5bc77b5135d64a55946725609a4d52",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Ek_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_beech": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_beech_Sarvisvaara.tif",
+      "sha256": "6a4d9224cdf2a1924d8ee21b25bc5cb1ca5bc77b5135d64a55946725609a4d52",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Bok_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    },
+    "species2018_broadleaf": {
+      "name": "SLU Skogskarta · Trädslag 2018 (Bilder 2017–2019) · SLU / Skogsstyrelsen",
+      "year": null,
+      "product_year": 2018,
+      "file": "SLU_2018_broadleaf_Sarvisvaara.tif",
+      "sha256": "039a9d09f0533c6b81497d3a0d2beefe44f1aab3a5591fe5dd7dd7a302609e52",
+      "url": "https://gis.slu.se/data/slu_forest_map/2018/data/OvrLov_andel.tif",
+      "scale": 1,
+      "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
+      "note": ""
+    }
+  },
+  "tiles": [
+    {
+      "file": "784000_7413000-83c385296579.json",
+      "bounds": [
+        784000,
+        7413000,
+        785000,
+        7414000
+      ],
+      "sha256": "83c385296579934901dbfb410db03983edfdcfcd272a057d5040b1b8b2116142",
+      "bytes": 597216
+    },
+    {
+      "file": "784000_7414000-07ac99498746.json",
+      "bounds": [
+        784000,
+        7414000,
+        785000,
+        7415000
+      ],
+      "sha256": "07ac994987462959ba783398604bf55a1a60abfb2a73de8ac8073e83f263e1d3",
+      "bytes": 722399
+    },
+    {
+      "file": "784000_7415000-6f442b7543d4.json",
+      "bounds": [
+        784000,
+        7415000,
+        785000,
+        7416000
+      ],
+      "sha256": "6f442b7543d472257953af889817ef3ce419b660e13094177e119997c0293573",
+      "bytes": 779555
+    },
+    {
+      "file": "784000_7416000-1efca2d5c2a6.json",
+      "bounds": [
+        784000,
+        7416000,
+        785000,
+        7417000
+      ],
+      "sha256": "1efca2d5c2a6f5ba1f4e2cf4fc4dbbe4615fa95969ad1e9f38fc02da1e423468",
+      "bytes": 653053
+    },
+    {
+      "file": "784000_7417000-707ad05eec32.json",
+      "bounds": [
+        784000,
+        7417000,
+        785000,
+        7418000
+      ],
+      "sha256": "707ad05eec321d53f98a30d9653a1cb3b436f950b4a15c49c67aef0c960f1bad",
+      "bytes": 727486
+    },
+    {
+      "file": "784000_7418000-cd70ca7f917d.json",
+      "bounds": [
+        784000,
+        7418000,
+        785000,
+        7419000
+      ],
+      "sha256": "cd70ca7f917dc66451f1c7d7723f215cf294427769eb963f71bfeb1515cb573f",
+      "bytes": 847241
+    },
+    {
+      "file": "785000_7413000-8bb544c06315.json",
+      "bounds": [
+        785000,
+        7413000,
+        786000,
+        7414000
+      ],
+      "sha256": "8bb544c06315b2d956d8573c387ccffae78f6fcbfb2946ad060f780978ee7dd3",
+      "bytes": 797333
+    },
+    {
+      "file": "785000_7414000-8b0e4437c3b0.json",
+      "bounds": [
+        785000,
+        7414000,
+        786000,
+        7415000
+      ],
+      "sha256": "8b0e4437c3b0eb1e16f6db83075e96f756b283dba27082d0a2cfada96389534c",
+      "bytes": 704764
+    },
+    {
+      "file": "785000_7415000-08c339c7a4d9.json",
+      "bounds": [
+        785000,
+        7415000,
+        786000,
+        7416000
+      ],
+      "sha256": "08c339c7a4d972a50a87db4f0cf8ed2982a3e724a145a2f819e223739f4d8cbf",
+      "bytes": 676950
+    },
+    {
+      "file": "785000_7416000-3b41229a263f.json",
+      "bounds": [
+        785000,
+        7416000,
+        786000,
+        7417000
+      ],
+      "sha256": "3b41229a263fdba0ba69f49936b4a9c0fd65d4e04fe2df0a51a00b15224eb7c5",
+      "bytes": 638973
+    },
+    {
+      "file": "785000_7417000-58f5170026bd.json",
+      "bounds": [
+        785000,
+        7417000,
+        786000,
+        7418000
+      ],
+      "sha256": "58f5170026bd6e63d4ed28c93c01fa0a9acc5dccf15d807086751068b6865d11",
+      "bytes": 823278
+    },
+    {
+      "file": "785000_7418000-386cc0873c8e.json",
+      "bounds": [
+        785000,
+        7418000,
+        786000,
+        7419000
+      ],
+      "sha256": "386cc0873c8e07b67cf057069c5c9da9cbe252106eee3a700ce896d2757ab84e",
+      "bytes": 771093
+    },
+    {
+      "file": "786000_7413000-0c58d58e06be.json",
+      "bounds": [
+        786000,
+        7413000,
+        787000,
+        7414000
+      ],
+      "sha256": "0c58d58e06be9c2663ee40b0c901f0f2281527b2ddb0ed6c39b312ae6f000571",
+      "bytes": 761872
+    },
+    {
+      "file": "786000_7414000-4dcec994cbe4.json",
+      "bounds": [
+        786000,
+        7414000,
+        787000,
+        7415000
+      ],
+      "sha256": "4dcec994cbe428db9081dccdde287e52b0b4cc744d6f447401e5331ce4b07a49",
+      "bytes": 837104
+    },
+    {
+      "file": "786000_7415000-daa519d9c300.json",
+      "bounds": [
+        786000,
+        7415000,
+        787000,
+        7416000
+      ],
+      "sha256": "daa519d9c30045d9e4b8a43aeff659f15b5302b0b5cc7861cac769e0c43b6a7a",
+      "bytes": 793953
+    },
+    {
+      "file": "786000_7416000-0bf72afee638.json",
+      "bounds": [
+        786000,
+        7416000,
+        787000,
+        7417000
+      ],
+      "sha256": "0bf72afee638ebb8a9bc8be804c001c42c4c02ea7ba7bb30c6d51a0c90e8f762",
+      "bytes": 714287
+    },
+    {
+      "file": "786000_7417000-dfee443d9e47.json",
+      "bounds": [
+        786000,
+        7417000,
+        787000,
+        7418000
+      ],
+      "sha256": "dfee443d9e47aca85a3586ae70392f68df2f0870d49b826f2e4a238d6a097fe6",
+      "bytes": 833756
+    },
+    {
+      "file": "786000_7418000-14b52d39594f.json",
+      "bounds": [
+        786000,
+        7418000,
+        787000,
+        7419000
+      ],
+      "sha256": "14b52d39594fac4148b6b61d341bee76458c911ce70ccd5c311888da99dfcfce",
+      "bytes": 759792
+    },
+    {
+      "file": "787000_7413000-f5727feef8bd.json",
+      "bounds": [
+        787000,
+        7413000,
+        788000,
+        7414000
+      ],
+      "sha256": "f5727feef8bd0ec2e6db6b9920eb93b63d9fcd7f19fb7a4310cb1dc3b4ab24b7",
+      "bytes": 778712
+    },
+    {
+      "file": "787000_7414000-f407c55fce3b.json",
+      "bounds": [
+        787000,
+        7414000,
+        788000,
+        7415000
+      ],
+      "sha256": "f407c55fce3b6d4da2619b422d651cddeff906cd10e8bd26d548078f97dd3e4a",
+      "bytes": 743046
+    },
+    {
+      "file": "787000_7415000-71b7990cfe07.json",
+      "bounds": [
+        787000,
+        7415000,
+        788000,
+        7416000
+      ],
+      "sha256": "71b7990cfe07f0d7b2003ca98cd42345ee4de73db91f794fb5c3c1d02940528c",
+      "bytes": 891904
+    },
+    {
+      "file": "787000_7416000-dda79fcec23e.json",
+      "bounds": [
+        787000,
+        7416000,
+        788000,
+        7417000
+      ],
+      "sha256": "dda79fcec23ea17c4288ce30ab2347e0654225ebdc95719b8d9a57e74bad982e",
+      "bytes": 905827
+    },
+    {
+      "file": "787000_7417000-c435e738d52b.json",
+      "bounds": [
+        787000,
+        7417000,
+        788000,
+        7418000
+      ],
+      "sha256": "c435e738d52bd671420a5042f82de3cdfcf016c0ca4510edead05346df6d6408",
+      "bytes": 830995
+    },
+    {
+      "file": "787000_7418000-c4036a183508.json",
+      "bounds": [
+        787000,
+        7418000,
+        788000,
+        7419000
+      ],
+      "sha256": "c4036a1835081b1d69c864170be9fc0f3089bc4f7816b09587552d688a10e7d1",
+      "bytes": 452230
+    },
+    {
+      "file": "788000_7413000-2104092b1091.json",
+      "bounds": [
+        788000,
+        7413000,
+        789000,
+        7414000
+      ],
+      "sha256": "2104092b109193f3474253d099a53b430916e3d34b333997505104ca910629c3",
+      "bytes": 804198
+    },
+    {
+      "file": "788000_7414000-3e8a7d118714.json",
+      "bounds": [
+        788000,
+        7414000,
+        789000,
+        7415000
+      ],
+      "sha256": "3e8a7d11871443c2ecf77ba2b35c266d4bda49e917b9fb25e7c8393be060659b",
+      "bytes": 726191
+    },
+    {
+      "file": "788000_7415000-6c7d385f3ddf.json",
+      "bounds": [
+        788000,
+        7415000,
+        789000,
+        7416000
+      ],
+      "sha256": "6c7d385f3ddff28d7ec58284edfeb878fb9110acc40a6f0fe4429a1daad0d52f",
+      "bytes": 825348
+    },
+    {
+      "file": "788000_7416000-0d55b6924adb.json",
+      "bounds": [
+        788000,
+        7416000,
+        789000,
+        7417000
+      ],
+      "sha256": "0d55b6924adba79fd8fcc6af3e799140c2406a34f86f1da28a37d5aea32d2dd9",
+      "bytes": 827651
+    },
+    {
+      "file": "788000_7417000-b1b63f19eb28.json",
+      "bounds": [
+        788000,
+        7417000,
+        789000,
+        7418000
+      ],
+      "sha256": "b1b63f19eb2851091b415f123fdcb6e47e73e42e641ad7a6af95c5ad9c1432f0",
+      "bytes": 777879
+    },
+    {
+      "file": "788000_7418000-a3e91c865207.json",
+      "bounds": [
+        788000,
+        7418000,
+        789000,
+        7419000
+      ],
+      "sha256": "a3e91c865207c67834494c1f0b2b2ffafee55d161027f67b2e7aee0b4d72ca63",
+      "bytes": 768614
+    },
+    {
+      "file": "789000_7413000-125d68f0301e.json",
+      "bounds": [
+        789000,
+        7413000,
+        790000,
+        7414000
+      ],
+      "sha256": "125d68f0301e1a33302c9bfc838cb94bef6a9c2855fd44def1f390a3480c07bf",
+      "bytes": 791014
+    },
+    {
+      "file": "789000_7414000-8df29c851a02.json",
+      "bounds": [
+        789000,
+        7414000,
+        790000,
+        7415000
+      ],
+      "sha256": "8df29c851a02442ea53c99cbced985b1eabac6988efc2287070141f08098e2cd",
+      "bytes": 781460
+    },
+    {
+      "file": "789000_7415000-9977224201ed.json",
+      "bounds": [
+        789000,
+        7415000,
+        790000,
+        7416000
+      ],
+      "sha256": "9977224201ed6c86e87f73b7b37bb81a47fac55642f8088d20c3b57661ea5f04",
+      "bytes": 856542
+    },
+    {
+      "file": "789000_7416000-6fce30f4cde5.json",
+      "bounds": [
+        789000,
+        7416000,
+        790000,
+        7417000
+      ],
+      "sha256": "6fce30f4cde5b163eeba9ee6e1a6f18de57e03b1b689bfe24c4aaae7d6859087",
+      "bytes": 776892
+    },
+    {
+      "file": "789000_7417000-53536ea695e1.json",
+      "bounds": [
+        789000,
+        7417000,
+        790000,
+        7418000
+      ],
+      "sha256": "53536ea695e18c233ecb279f9449c857500dbbe1d1e8b345e357f545561b1a85",
+      "bytes": 764093
+    },
+    {
+      "file": "789000_7418000-a104e9cf8871.json",
+      "bounds": [
+        789000,
+        7418000,
+        790000,
+        7419000
+      ],
+      "sha256": "a104e9cf887198b273ad8e679103586cde30fba672b99807eae34f6e2d91c90d",
+      "bytes": 838106
+    }
+  ],
+  "attribution": "Bearbeitet aus Skogsstyrelsen / SLU: native Rasterzellen regional ausgeschnitten und verlustfrei gepackt.",
+  "licences": {
+    "age_and_site": "https://creativecommons.org/licenses/by/4.0/",
+    "other_sources": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/"
+  },
+  "notes": [
+    "Aufnahmejahre variieren. Download- und Produktjahr sind keine Aufnahmejahre.",
+    "Baumarten bevorzugt SLU Trädslag 2018 (Bilder 2017–2019); SLU 2015 ist im nördlichen Norrbotten lückenhaft.",
+    "Alterskarte nach tatsächlichem Waldtyp wählen (65 % Grundflächenanteil); SIS nach standortanzeigender Baumart wählen.",
+    "Bestandsalter 2025 unterschätzt ältere Bestände; Eingriffe nach der Aufnahme sind nicht berücksichtigt."
+  ]
+}

@@ -1,5 +1,10 @@
 # Forstplanung · ab Lignum 13.44
 
+**Ab 13.45 ist Dateibetrieb aktiv.** Einrichtung und Downloadwerkzeug stehen in
+[ZIP-DATEN.md](ZIP-DATEN.md). Die unten beschriebene API-Anbindung bleibt vorbereitet,
+wird aber in der Oberfläche nicht mehr verwendet. „ZIP-Daten auswerten“ arbeitet
+mit den lokal vorbereiteten Rasterausschnitten.
+
 Die Kachel **Forstplanung** öffnet Grundstücke, Bestände und Maßnahmen. Admins können
 bearbeiten; Mitarbeiter desselben Betriebs können die Planung ansehen. Die bestehenden
 Polter-, Maschinen- und Auftragsfunktionen bleiben eigenständige Arbeitsansichten.

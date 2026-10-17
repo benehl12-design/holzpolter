@@ -30,7 +30,7 @@ function fixture(t,{role='admin',props=[],stands=[]}={}){
     if(method==='PATCH'){const row=data.find(match);Object.assign(row,structuredClone(options.body));return [structuredClone(row)];}
     if(method==='DELETE'){tables[table]=data.filter(x=>!match(x));return data.filter(match);}
   };
-  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-model.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
+  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
   t.after(()=>{for(const m of maps)m.remove();dom.window.close();});
   const click=sel=>{const b=d.querySelector(sel);assert.ok(b,'button exists: '+sel);b.click();};
   const set=(name,value)=>{const input=d.querySelector(`[name="${name}"]`);assert.ok(input,'input exists '+name);input.value=value;};
@@ -93,4 +93,26 @@ test('import preview creates new stands and explicitly updates existing inventor
 test('inventory import refuses a mismatched stand area',async t=>{
   const h=fixture(t,{props:[prop],stands:[stand]});await h.w.ForestPlanning.open();await importText(h,'daten.csv','number;name;area_ha;volume_m3sk_ha\n1;Andere Fläche;5;240');
   assert.match(h.d.getElementById('fp-message').textContent,/weicht/);assert.equal(h.d.querySelector('.fp-dialog'),null);assert.equal(h.writes.length,0);
+});
+test('file mode opens online without contacting the Skogsstyrelsen API',async t=>{
+  const h=fixture(t,{props:[prop],stands:[stand]});Object.defineProperty(h.w.navigator,'onLine',{value:true,configurable:true});let requests=0;
+  h.w.fetch=async()=>{requests++;throw Error('Unexpected source API call');};await h.w.ForestPlanning.open();h.click('[data-act="select"]');await tick();
+  assert.equal(requests,0);assert.match(h.d.querySelector('[data-act="fetch-data"]').textContent,/ZIP-Daten/);
+  assert.match(h.d.getElementById('fp-content').textContent,/kein Skogsstyrelsen-API-Zugang benötigt/);
+});
+test('ZIP inventory is calculated offline from native cells, reviewed and saved without a source API',async t=>{
+  const h=fixture(t,{props:[prop],stands:[{...stand,geometry:null}]});
+  const b=[780000,7410000,780020,7410010],geometry=h.w.ForestModel.geometry({type:'Polygon',coordinates:[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]},'EPSG:3006');
+  Object.assign(h.tables.forest_stands[0],{geometry,area_ha:h.w.ForestModel.area(geometry),inventory:{volume_m3sk_ha:700,reference_year:2026,age_years:80}});
+  const layers={},sources={};for(const [id,values] of Object.entries({volume_2:[100,300],height_2:[170,190],age_pine:[40,60],site_pine:[18,20]})){
+    layers[id]={x:b[0],y:b[3],step:10,width:2,height:1,runs:values.map(v=>[v,1])};sources[id]={name:id,year:id==='age_pine'?2025:null,scale:id==='height_2'?.1:1};
+  }
+  const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'test.json',bounds:b}]},tile={schema:'lignum-raster-tile-v1',bounds:b,layers},requests=[];
+  h.w.fetch=async url=>{requests.push(url);assert.match(url,/\/data\/forest-rasters\//);const value=url.endsWith('index.json')?index:tile;return {ok:true,json:async()=>value,clone(){return this;}};};
+  h.w.AbortSignal={timeout:()=>undefined};
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');h.click('[data-act="fetch-data"]');
+  h.d.getElementById('fp-age-type').value='pine';h.d.getElementById('fp-site-species').value='T';h.click('[data-act="calculate-zip"]');
+  await until(()=>h.d.querySelector('[data-act="apply-zip"]'));assert.equal(h.writes.length,0);h.click('[data-act="apply-zip"]');await until(()=>!h.d.querySelector('.fp-dialog'));
+  const i=h.tables.forest_stands[0].inventory;assert.ok(Math.abs(i.volume_m3sk_ha-200)<.001);assert.ok(Math.abs(i.mean_height_m-18)<.001);assert.equal(i.age_years,50);assert.equal(i.site_index,'T19');assert.equal(i.reference_year,undefined);assert.equal(requests.length,2);
+  assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Zugang noch einzurichten/);assert.deepEqual(h.errors,[]);
 });
