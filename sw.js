@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.46';
+const APP_VERSION  = '13.47';
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -93,7 +93,9 @@ async function limitCache(name, max) {
 async function fetchTileWithTimeout(req, ms=8000) {
   const ctl = new AbortController();
   const tm = setTimeout(() => ctl.abort(), ms);
-  try { return await fetch(req, { mode:'cors', signal:ctl.signal }); }
+  // Image requests can carry credentials:'include'. Public tile servers use
+  // Access-Control-Allow-Origin: *, which only permits credential-free CORS.
+  try { return await fetch(req, { mode:'cors', credentials:'omit', signal:ctl.signal }); }
   finally { clearTimeout(tm); }
 }
 

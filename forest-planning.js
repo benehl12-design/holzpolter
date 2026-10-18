@@ -52,7 +52,7 @@
     if(!map||!basemaps[mode])return;
     clearTimeout(mapTimer);clearTimeout(mapRetry);if(basemap)map.removeLayer(basemap);
     baseMode=mode;el('fp-basemap').value=mode;
-    const [url,options]=basemaps[mode],layer=L.tileLayer(url,options);
+    const [url,options]=basemaps[mode],layer=L.tileLayer(url,{...options,crossOrigin:'anonymous'});
     let loaded=0,failed=0,retried=false;
     const current=()=>basemap===layer&&visible();
     const failure=()=>{

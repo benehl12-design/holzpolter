@@ -129,12 +129,12 @@ test('a map first opened with zero size recovers when its layout becomes visible
 test('tile failures expose retry and street-map controls, and successful tiles clear the error',async t=>{
   const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();
   const layer=()=>{let found;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.TileLayer)found=l;});return found;};
-  const first=layer();first.fire('loading');first.fire('tileerror');first.fire('load');
+  const first=layer();assert.equal(first.options.crossOrigin,'anonymous');first.fire('loading');first.fire('tileerror');first.fire('load');
   assert.equal(h.d.getElementById('fp-map-status').hidden,false);assert.match(h.d.getElementById('fp-map-status').textContent,/Offline/);
   h.click('[data-act="retry-map"]');assert.notEqual(layer(),first);
   layer().fire('tileload');layer().fire('load');assert.equal(h.d.getElementById('fp-map-status').hidden,true);
   layer().fire('tileerror');layer().fire('load');h.click('[data-act="street-map"]');
-  assert.equal(h.d.getElementById('fp-basemap').value,'streets');assert.match(layer().getTileUrl({x:1,y:1}),/tile\.openstreetmap\.org/);
+  assert.equal(layer().options.crossOrigin,'anonymous');assert.equal(h.d.getElementById('fp-basemap').value,'streets');assert.match(layer().getTileUrl({x:1,y:1}),/tile\.openstreetmap\.org/);
   assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
 });
 test('ZIP coverage and download errors are visible inside the open dialog',async t=>{
