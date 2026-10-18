@@ -3,13 +3,13 @@
   "name": "Sarvisvaara und Umgebung",
   "region": "Norrbottens län",
   "bounds": [
-    784000,
+    780000,
     7413000,
     790000,
-    7419000
+    7423000
   ],
   "crs": "EPSG:3006",
-  "built_on": "2026-10-17",
+  "built_on": "2026-10-19",
   "sources": {
     "volume_3": {
       "name": "Skogliga grunddata · Omdrev 3 · SLU / Skogsstyrelsen",
@@ -335,7 +335,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_pine_Sarvisvaara.tif",
-      "sha256": "92f665e550628f0c80c591e3e62e578ea524eb907facf37b1e83d0944ce60ef3",
+      "sha256": "815aa7dd1ce689159ca1fe6d8b8c250cfa78ace8a9d8e2ec3b82b8409c2c93f1",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Tall_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -346,7 +346,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_spruce_Sarvisvaara.tif",
-      "sha256": "088a634921dcc69724dfb5c4d5249454f80093213f80ff4c77efae8eceb114ba",
+      "sha256": "d7c0b2da3d999c978f510b4f72319c07f77ec9cd3facd56b92024232360cc744",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Gran_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -357,7 +357,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_birch_Sarvisvaara.tif",
-      "sha256": "1ebb4cc4dd1f00bd56dcc8435bf24f907c6470b96bb3db91e440c07a1b3cb36d",
+      "sha256": "fb9db5be9fa5e41380e0d8ec4dc818c1d35a9a8350720bcb30380adaf491614b",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Bjork_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -368,7 +368,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_contorta_Sarvisvaara.tif",
-      "sha256": "7faaa1bac45fcd38a233098a6e059b9fe0c77d7a13a3924e9affe682993d9f4e",
+      "sha256": "4b335f3c072928881a17523b37a0c568d69d6386b47165728f9dca44dc421161",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Contorta_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -379,7 +379,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_oak_Sarvisvaara.tif",
-      "sha256": "6a4d9224cdf2a1924d8ee21b25bc5cb1ca5bc77b5135d64a55946725609a4d52",
+      "sha256": "05c7f973d54f9a0bd40d96a71fa426bfa2944bb2087ca8f52d158456b1d213e5",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Ek_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -390,7 +390,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_beech_Sarvisvaara.tif",
-      "sha256": "6a4d9224cdf2a1924d8ee21b25bc5cb1ca5bc77b5135d64a55946725609a4d52",
+      "sha256": "05c7f973d54f9a0bd40d96a71fa426bfa2944bb2087ca8f52d158456b1d213e5",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/Bok_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -401,7 +401,7 @@
       "year": null,
       "product_year": 2018,
       "file": "SLU_2018_broadleaf_Sarvisvaara.tif",
-      "sha256": "039a9d09f0533c6b81497d3a0d2beefe44f1aab3a5591fe5dd7dd7a302609e52",
+      "sha256": "ece067af22352bd97bd56217140270a84be7c82f7ba61e09dae07cd1af715036",
       "url": "https://gis.slu.se/data/slu_forest_map/2018/data/OvrLov_andel.tif",
       "scale": 1,
       "licence_url": "https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/",
@@ -409,6 +409,446 @@
     }
   },
   "tiles": [
+    {
+      "file": "780000_7413000-4dbda19f4b4c.json",
+      "bounds": [
+        780000,
+        7413000,
+        781000,
+        7414000
+      ],
+      "sha256": "4dbda19f4b4c50f14d98c75cc47aee6b8bea190e731b3558db5f87082709e899",
+      "bytes": 598291
+    },
+    {
+      "file": "780000_7414000-428ed48899e3.json",
+      "bounds": [
+        780000,
+        7414000,
+        781000,
+        7415000
+      ],
+      "sha256": "428ed48899e31326c23ba72036d2fa4b33e96dec84c5dcc2831b479aa4aa61ca",
+      "bytes": 808858
+    },
+    {
+      "file": "780000_7415000-822164d72cf8.json",
+      "bounds": [
+        780000,
+        7415000,
+        781000,
+        7416000
+      ],
+      "sha256": "822164d72cf89ca77a1c447f0974a50cbca9147aec4f3dcd3292c2a242308e48",
+      "bytes": 730656
+    },
+    {
+      "file": "780000_7416000-c14c54b62979.json",
+      "bounds": [
+        780000,
+        7416000,
+        781000,
+        7417000
+      ],
+      "sha256": "c14c54b6297939d5008248cede399227d9f3069d8f869ce57edcd00bbd2eb0e3",
+      "bytes": 704082
+    },
+    {
+      "file": "780000_7417000-6b77d5da4093.json",
+      "bounds": [
+        780000,
+        7417000,
+        781000,
+        7418000
+      ],
+      "sha256": "6b77d5da4093150fb00dc422505e78230a83743c52c39aede3e9cfee4b0126cd",
+      "bytes": 833167
+    },
+    {
+      "file": "780000_7418000-a636f2d2a6fd.json",
+      "bounds": [
+        780000,
+        7418000,
+        781000,
+        7419000
+      ],
+      "sha256": "a636f2d2a6fd1f36e2c29bba4bb497f6a209c44b5b327db8c7c38173277132a1",
+      "bytes": 826755
+    },
+    {
+      "file": "780000_7419000-d2ca3522a080.json",
+      "bounds": [
+        780000,
+        7419000,
+        781000,
+        7420000
+      ],
+      "sha256": "d2ca3522a08019560bc0012620ea4e7ddfd8afd202eba988ebb2a292a121ce07",
+      "bytes": 809380
+    },
+    {
+      "file": "780000_7420000-475c4d4e519e.json",
+      "bounds": [
+        780000,
+        7420000,
+        781000,
+        7421000
+      ],
+      "sha256": "475c4d4e519e032b9cbe078141f5c8872288ded90c223da64fd94a7b6289bee1",
+      "bytes": 836835
+    },
+    {
+      "file": "780000_7421000-f4c6b481b61a.json",
+      "bounds": [
+        780000,
+        7421000,
+        781000,
+        7422000
+      ],
+      "sha256": "f4c6b481b61a123400b8304a56775eabb618d1dcaecdeda3b08eac576ddc8892",
+      "bytes": 633151
+    },
+    {
+      "file": "780000_7422000-93d8de98801c.json",
+      "bounds": [
+        780000,
+        7422000,
+        781000,
+        7423000
+      ],
+      "sha256": "93d8de98801ca094d1c5c633278cbd33f7dbcdd97bd30aaa01b5c7b208c35e7e",
+      "bytes": 873406
+    },
+    {
+      "file": "781000_7413000-f9f1f1563d21.json",
+      "bounds": [
+        781000,
+        7413000,
+        782000,
+        7414000
+      ],
+      "sha256": "f9f1f1563d219737f94e95ec74ee3e122bd4a24134cd2d8deec30861182c6b61",
+      "bytes": 848154
+    },
+    {
+      "file": "781000_7414000-ec9285d229ea.json",
+      "bounds": [
+        781000,
+        7414000,
+        782000,
+        7415000
+      ],
+      "sha256": "ec9285d229ea71b9b61876fca8b304d5849c4171efb9ec92a60d264a070480f2",
+      "bytes": 879854
+    },
+    {
+      "file": "781000_7415000-ce052fd53d63.json",
+      "bounds": [
+        781000,
+        7415000,
+        782000,
+        7416000
+      ],
+      "sha256": "ce052fd53d63d64b23d2b03b0db00b428c6f16f70d9b8228319fcdb71235d461",
+      "bytes": 793207
+    },
+    {
+      "file": "781000_7416000-1095611b7806.json",
+      "bounds": [
+        781000,
+        7416000,
+        782000,
+        7417000
+      ],
+      "sha256": "1095611b78069fd74a69d5d66811b3e599b6194178cbc77877c6fbc4c4ed2d38",
+      "bytes": 803099
+    },
+    {
+      "file": "781000_7417000-317e33d90ef0.json",
+      "bounds": [
+        781000,
+        7417000,
+        782000,
+        7418000
+      ],
+      "sha256": "317e33d90ef0fbed20d0ce3d509da7835043ce138d246ca44eabfc768e091b5a",
+      "bytes": 769680
+    },
+    {
+      "file": "781000_7418000-cf7e350a9046.json",
+      "bounds": [
+        781000,
+        7418000,
+        782000,
+        7419000
+      ],
+      "sha256": "cf7e350a9046dbfd24eb435f276fe257d8841830fa412ba13dd89a1107fc11cc",
+      "bytes": 827897
+    },
+    {
+      "file": "781000_7419000-a393c64e914e.json",
+      "bounds": [
+        781000,
+        7419000,
+        782000,
+        7420000
+      ],
+      "sha256": "a393c64e914ec00e7f69c8d4c481abd811f61f1911ea3e551272868876adf3de",
+      "bytes": 846499
+    },
+    {
+      "file": "781000_7420000-03db2df17453.json",
+      "bounds": [
+        781000,
+        7420000,
+        782000,
+        7421000
+      ],
+      "sha256": "03db2df17453cbb94b83d4372f7c81baf0b6eb7ddb5832c101e280588bea2a6f",
+      "bytes": 826488
+    },
+    {
+      "file": "781000_7421000-d0a25f3c9c94.json",
+      "bounds": [
+        781000,
+        7421000,
+        782000,
+        7422000
+      ],
+      "sha256": "d0a25f3c9c9489b4228d697de607a2e74a6c68e416dcc216fa0f6933a846f53d",
+      "bytes": 846987
+    },
+    {
+      "file": "781000_7422000-c597e9a0712d.json",
+      "bounds": [
+        781000,
+        7422000,
+        782000,
+        7423000
+      ],
+      "sha256": "c597e9a0712d2d097746ca23e5e9d9e302c781121d0ee53d490f0dc893e77908",
+      "bytes": 841168
+    },
+    {
+      "file": "782000_7413000-07a56de5078b.json",
+      "bounds": [
+        782000,
+        7413000,
+        783000,
+        7414000
+      ],
+      "sha256": "07a56de5078bbfc526ada0e4e624090a8ddca56f3e4570511492447a69be5329",
+      "bytes": 667332
+    },
+    {
+      "file": "782000_7414000-d9a510c03916.json",
+      "bounds": [
+        782000,
+        7414000,
+        783000,
+        7415000
+      ],
+      "sha256": "d9a510c03916ab9381f2b35b2ad256d2edb330f9247ac01c001941ba853b7b52",
+      "bytes": 712269
+    },
+    {
+      "file": "782000_7415000-d10fa2691432.json",
+      "bounds": [
+        782000,
+        7415000,
+        783000,
+        7416000
+      ],
+      "sha256": "d10fa2691432a4c1751fbb98a318292af151319d029402aaba5a225983da1eaa",
+      "bytes": 709840
+    },
+    {
+      "file": "782000_7416000-a22832571893.json",
+      "bounds": [
+        782000,
+        7416000,
+        783000,
+        7417000
+      ],
+      "sha256": "a228325718931bfaa63232ec645df522f439ae3f2ae5f4019cd4313cce3e6571",
+      "bytes": 746871
+    },
+    {
+      "file": "782000_7417000-7a80464bf4ab.json",
+      "bounds": [
+        782000,
+        7417000,
+        783000,
+        7418000
+      ],
+      "sha256": "7a80464bf4ab280f0be78b240ced37f50eb2fc269bc3676dc5123aa545a2f6cf",
+      "bytes": 657494
+    },
+    {
+      "file": "782000_7418000-8a694ce364ce.json",
+      "bounds": [
+        782000,
+        7418000,
+        783000,
+        7419000
+      ],
+      "sha256": "8a694ce364cef00300a18b7835c3b30ceb010e72c804ce2221cff5f26f5ee6cb",
+      "bytes": 821241
+    },
+    {
+      "file": "782000_7419000-cb9d8d81ee0a.json",
+      "bounds": [
+        782000,
+        7419000,
+        783000,
+        7420000
+      ],
+      "sha256": "cb9d8d81ee0a5df21e3556144087320cbaa312b959b9f8b9f6f15f4a20545530",
+      "bytes": 871527
+    },
+    {
+      "file": "782000_7420000-74803173c060.json",
+      "bounds": [
+        782000,
+        7420000,
+        783000,
+        7421000
+      ],
+      "sha256": "74803173c0602d9ce33c6dd5fa21722eeb5d308bbbeda77cf676ab0776d77923",
+      "bytes": 827344
+    },
+    {
+      "file": "782000_7421000-16f349c434ce.json",
+      "bounds": [
+        782000,
+        7421000,
+        783000,
+        7422000
+      ],
+      "sha256": "16f349c434ce45a4aca1025aae4e22984960cd1ed16776321e8411939e423c46",
+      "bytes": 831611
+    },
+    {
+      "file": "782000_7422000-80eace6149c3.json",
+      "bounds": [
+        782000,
+        7422000,
+        783000,
+        7423000
+      ],
+      "sha256": "80eace6149c318cc4a1803a1a4f2f76d7cd02a817759c99d19c7c6a91549462f",
+      "bytes": 746044
+    },
+    {
+      "file": "783000_7413000-bc233cc4ad46.json",
+      "bounds": [
+        783000,
+        7413000,
+        784000,
+        7414000
+      ],
+      "sha256": "bc233cc4ad4611abde227259c480b0ca2031522f91508b7b26ee874432a60337",
+      "bytes": 694904
+    },
+    {
+      "file": "783000_7414000-4921729295b4.json",
+      "bounds": [
+        783000,
+        7414000,
+        784000,
+        7415000
+      ],
+      "sha256": "4921729295b486486b5880bc03ff6924201f7ddcae0879d909fc0c94a1c9f208",
+      "bytes": 436008
+    },
+    {
+      "file": "783000_7415000-bfb5166a6bc2.json",
+      "bounds": [
+        783000,
+        7415000,
+        784000,
+        7416000
+      ],
+      "sha256": "bfb5166a6bc2dc1774981f35d531ebd3a4290c76ebb949780cc5a05d85443aa1",
+      "bytes": 748753
+    },
+    {
+      "file": "783000_7416000-111436e1ba16.json",
+      "bounds": [
+        783000,
+        7416000,
+        784000,
+        7417000
+      ],
+      "sha256": "111436e1ba1682c1a56f9033e5156b1e2be58e45eb44d3fc510a966c007614db",
+      "bytes": 675456
+    },
+    {
+      "file": "783000_7417000-cc70b3c1b58f.json",
+      "bounds": [
+        783000,
+        7417000,
+        784000,
+        7418000
+      ],
+      "sha256": "cc70b3c1b58fedc6d8646350c6310340daa24d6f1eeb20428f1bdb84cb37c522",
+      "bytes": 819528
+    },
+    {
+      "file": "783000_7418000-f41a4fe13f01.json",
+      "bounds": [
+        783000,
+        7418000,
+        784000,
+        7419000
+      ],
+      "sha256": "f41a4fe13f0161369f16169645f90459863bc1c09bdbd12643cffa8a6b98afb1",
+      "bytes": 853934
+    },
+    {
+      "file": "783000_7419000-a3eac32f09a8.json",
+      "bounds": [
+        783000,
+        7419000,
+        784000,
+        7420000
+      ],
+      "sha256": "a3eac32f09a88a50d98158df68c7e48392b4cb94275c13d4dec31b45602183ba",
+      "bytes": 805794
+    },
+    {
+      "file": "783000_7420000-3ea78498bc98.json",
+      "bounds": [
+        783000,
+        7420000,
+        784000,
+        7421000
+      ],
+      "sha256": "3ea78498bc9805464ace26fea7e3cd82c9ec1bfd6479ed5d2972e7a64eef3b90",
+      "bytes": 848260
+    },
+    {
+      "file": "783000_7421000-2ea0e531f947.json",
+      "bounds": [
+        783000,
+        7421000,
+        784000,
+        7422000
+      ],
+      "sha256": "2ea0e531f947d8ea930634319734eedda430d7c8d173dab8461c5cbc44844003",
+      "bytes": 798238
+    },
+    {
+      "file": "783000_7422000-dc7f236588ab.json",
+      "bounds": [
+        783000,
+        7422000,
+        784000,
+        7423000
+      ],
+      "sha256": "dc7f236588ab80c5ecb3cff12810e8d5d2d62283a688c97c81e7eb1eb4382c6f",
+      "bytes": 647700
+    },
     {
       "file": "784000_7413000-83c385296579.json",
       "bounds": [
@@ -474,6 +914,50 @@
       ],
       "sha256": "cd70ca7f917dc66451f1c7d7723f215cf294427769eb963f71bfeb1515cb573f",
       "bytes": 847241
+    },
+    {
+      "file": "784000_7419000-d5c7b9ac72a4.json",
+      "bounds": [
+        784000,
+        7419000,
+        785000,
+        7420000
+      ],
+      "sha256": "d5c7b9ac72a40e7a98656cf1b82db06cb41339f4b9c0efd85e922c326fc26b85",
+      "bytes": 838196
+    },
+    {
+      "file": "784000_7420000-aca748a42d27.json",
+      "bounds": [
+        784000,
+        7420000,
+        785000,
+        7421000
+      ],
+      "sha256": "aca748a42d27d4cc381fc0dcc39ef2d219adc0de9a2bae6c2d9dbded2e95cb30",
+      "bytes": 766830
+    },
+    {
+      "file": "784000_7421000-222c44c88792.json",
+      "bounds": [
+        784000,
+        7421000,
+        785000,
+        7422000
+      ],
+      "sha256": "222c44c88792fa718dcf278c106ead90b98e391431da40c529bc3352b05ed353",
+      "bytes": 812809
+    },
+    {
+      "file": "784000_7422000-bb916c9b7c43.json",
+      "bounds": [
+        784000,
+        7422000,
+        785000,
+        7423000
+      ],
+      "sha256": "bb916c9b7c43ede58b2cc7dc30d9283cd7bfb81e0e3e82c8b9766e1aafb08354",
+      "bytes": 858615
     },
     {
       "file": "785000_7413000-8bb544c06315.json",
@@ -542,6 +1026,50 @@
       "bytes": 771093
     },
     {
+      "file": "785000_7419000-b866433f5620.json",
+      "bounds": [
+        785000,
+        7419000,
+        786000,
+        7420000
+      ],
+      "sha256": "b866433f562049d103a0feb8dec78f5b22b5a6d92c79ab77e82209c06e39004f",
+      "bytes": 856321
+    },
+    {
+      "file": "785000_7420000-65b16f15816f.json",
+      "bounds": [
+        785000,
+        7420000,
+        786000,
+        7421000
+      ],
+      "sha256": "65b16f15816f00573b543fed60c320d6909d699835de1c984c479f15dc19204e",
+      "bytes": 763488
+    },
+    {
+      "file": "785000_7421000-84bf0e80a3bd.json",
+      "bounds": [
+        785000,
+        7421000,
+        786000,
+        7422000
+      ],
+      "sha256": "84bf0e80a3bd59de019ce07e20dcaf089c07bcc46bbbe4a0d7eab7fcfd351283",
+      "bytes": 720582
+    },
+    {
+      "file": "785000_7422000-0a8ce203abf9.json",
+      "bounds": [
+        785000,
+        7422000,
+        786000,
+        7423000
+      ],
+      "sha256": "0a8ce203abf9fe83daa3e41d3c0f8375c30c75f981c3e4399bb2dad9718bcecb",
+      "bytes": 823831
+    },
+    {
       "file": "786000_7413000-0c58d58e06be.json",
       "bounds": [
         786000,
@@ -606,6 +1134,50 @@
       ],
       "sha256": "14b52d39594fac4148b6b61d341bee76458c911ce70ccd5c311888da99dfcfce",
       "bytes": 759792
+    },
+    {
+      "file": "786000_7419000-342af89bf251.json",
+      "bounds": [
+        786000,
+        7419000,
+        787000,
+        7420000
+      ],
+      "sha256": "342af89bf25193654c576abe7660948788f46c499af07cac94adf4f595b1668d",
+      "bytes": 738415
+    },
+    {
+      "file": "786000_7420000-c32886accd65.json",
+      "bounds": [
+        786000,
+        7420000,
+        787000,
+        7421000
+      ],
+      "sha256": "c32886accd65353dbb4cca1eafea88052547a8ee3d231e4e49c70441f4e9be8e",
+      "bytes": 615819
+    },
+    {
+      "file": "786000_7421000-de4ef71dc3b1.json",
+      "bounds": [
+        786000,
+        7421000,
+        787000,
+        7422000
+      ],
+      "sha256": "de4ef71dc3b1c608792c988e8f4b558cbd537ad0e7e0e3059d9156c055f38915",
+      "bytes": 826999
+    },
+    {
+      "file": "786000_7422000-d4dc7d7dab7e.json",
+      "bounds": [
+        786000,
+        7422000,
+        787000,
+        7423000
+      ],
+      "sha256": "d4dc7d7dab7e20e65fa9feb16ddf58dd26c553cca486d0b8561efa83e10a067f",
+      "bytes": 815765
     },
     {
       "file": "787000_7413000-f5727feef8bd.json",
@@ -674,6 +1246,50 @@
       "bytes": 452230
     },
     {
+      "file": "787000_7419000-1e031de4e41e.json",
+      "bounds": [
+        787000,
+        7419000,
+        788000,
+        7420000
+      ],
+      "sha256": "1e031de4e41e4473e45cc58c935c93e56ade386b75b6125021c6abb2260f1323",
+      "bytes": 751197
+    },
+    {
+      "file": "787000_7420000-57a15007bc45.json",
+      "bounds": [
+        787000,
+        7420000,
+        788000,
+        7421000
+      ],
+      "sha256": "57a15007bc45222f28638f2009af2d1a784bf3ff6bd5869eab6896ae591263ee",
+      "bytes": 702878
+    },
+    {
+      "file": "787000_7421000-621a7b3321ab.json",
+      "bounds": [
+        787000,
+        7421000,
+        788000,
+        7422000
+      ],
+      "sha256": "621a7b3321ab4d561e09e10c811c71eb5a5daefed538ec196dab39f43b897fa5",
+      "bytes": 750446
+    },
+    {
+      "file": "787000_7422000-c79dc8f4dc6f.json",
+      "bounds": [
+        787000,
+        7422000,
+        788000,
+        7423000
+      ],
+      "sha256": "c79dc8f4dc6f0d68c6f33a1859dfc000eb1efe6374ce533b562e4b38da6fc20a",
+      "bytes": 523599
+    },
+    {
       "file": "788000_7413000-2104092b1091.json",
       "bounds": [
         788000,
@@ -740,6 +1356,50 @@
       "bytes": 768614
     },
     {
+      "file": "788000_7419000-2859b2fcdf62.json",
+      "bounds": [
+        788000,
+        7419000,
+        789000,
+        7420000
+      ],
+      "sha256": "2859b2fcdf62b7a382bb5ed71c1a9257cb530567a525dae07c2e2e204d6069b4",
+      "bytes": 618047
+    },
+    {
+      "file": "788000_7420000-14b4ed9d9d69.json",
+      "bounds": [
+        788000,
+        7420000,
+        789000,
+        7421000
+      ],
+      "sha256": "14b4ed9d9d69901ff779ea06f270b2906b2211c8bfd5e11b3a15ac8cfa288021",
+      "bytes": 643786
+    },
+    {
+      "file": "788000_7421000-68efb6bc76da.json",
+      "bounds": [
+        788000,
+        7421000,
+        789000,
+        7422000
+      ],
+      "sha256": "68efb6bc76da56e7aa0d1a22074d85bd8b7e8da1f73db02e7621f0f7e833dc35",
+      "bytes": 754527
+    },
+    {
+      "file": "788000_7422000-8b0d42a2c3ad.json",
+      "bounds": [
+        788000,
+        7422000,
+        789000,
+        7423000
+      ],
+      "sha256": "8b0d42a2c3adc397d10add073312a4acfad9615292be37a994b58191e1e60659",
+      "bytes": 673056
+    },
+    {
       "file": "789000_7413000-125d68f0301e.json",
       "bounds": [
         789000,
@@ -804,6 +1464,50 @@
       ],
       "sha256": "a104e9cf887198b273ad8e679103586cde30fba672b99807eae34f6e2d91c90d",
       "bytes": 838106
+    },
+    {
+      "file": "789000_7419000-c03ecd172a89.json",
+      "bounds": [
+        789000,
+        7419000,
+        790000,
+        7420000
+      ],
+      "sha256": "c03ecd172a89ff141e22c8f9fc80e949a3c1c67f83d720f7b6a9dbf8ce7989b7",
+      "bytes": 788396
+    },
+    {
+      "file": "789000_7420000-ec3adf3fee03.json",
+      "bounds": [
+        789000,
+        7420000,
+        790000,
+        7421000
+      ],
+      "sha256": "ec3adf3fee03e8e35a718daceacfbe3280d2036bb6f2a21ad9147db9b7864ab6",
+      "bytes": 665438
+    },
+    {
+      "file": "789000_7421000-d8d897101c22.json",
+      "bounds": [
+        789000,
+        7421000,
+        790000,
+        7422000
+      ],
+      "sha256": "d8d897101c22951ce83517de054a5fec9ebbdfb9b9cd63f2e24017ce25f4ac0f",
+      "bytes": 588011
+    },
+    {
+      "file": "789000_7422000-d51e8aafebe6.json",
+      "bounds": [
+        789000,
+        7422000,
+        790000,
+        7423000
+      ],
+      "sha256": "d51e8aafebe607b0fb8266272000762962a0d738ea60f692ac4e1c6f94cd8988",
+      "bytes": 496421
     }
   ],
   "attribution": "Bearbeitet aus Skogsstyrelsen / SLU: native Rasterzellen regional ausgeschnitten und verlustfrei gepackt.",

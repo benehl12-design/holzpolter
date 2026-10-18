@@ -73,7 +73,7 @@ Aggregation verschiedener Zusatzarten. Die Ausgabe anschließend unter **Daten i
 bzw. **Rasterauswertung importieren** prüfen und übernehmen.
 
 
-## Direkt in der App auswerten · 13.45
+## Direkt in der App auswerten · 13.46
 
 Der geprüfte Katalog `data/forest-sources-norrbotten.json` umfasst 30 ZIPs
 (ca. 10,01 GB) für Norrbotten: Grunddaten aus Omdrev 2/3, fünf Altersmodelle,
@@ -88,15 +88,15 @@ python tools/download_forest_data.py \
   --destination /daten/lignum/norrbotten --workers 4
 python tools/pack_forest_rasters.py \
   --downloads /daten/lignum/norrbotten \
-  --bounds 784000 7413000 790000 7419000 \
+  --bounds 780000 7413000 790000 7423000 \
   --output data/forest-rasters
 ```
 
 `download-report.json` hält je ZIP Dateigröße, SHA-256, Rastermitglieder und
 CRC-Werte fest. Die regionalen JSON-Kacheln enthalten unveränderte native
-Rasterzellen, Quelle, Einheit und Datenstand. Der erste Ausschnitt umfasst
-6 × 6 km um die bekannte Kartenposition bei Sarvisvaara, keine erfundene
-Grundstücksgrenze. Andere Gebiete benötigen ein entsprechend vorbereitetes
+Rasterzellen, Quelle, Einheit und Datenstand. Der erweiterte Ausschnitt umfasst
+10 × 10 km (100 Kacheln) um Sarvisvaara einschließlich des westlichen und
+nördlichen Umfelds. Dieser Datenausschnitt ist keine Grundstücksgrenze. Andere Gebiete benötigen ein entsprechend vorbereitetes
 und ausgeliefertes regionales Paket. Die großen ZIPs werden nicht in Git oder
 auf das Handy geladen.
 
@@ -156,7 +156,7 @@ Volumenanteile überwiegend auf Sentinel-2-Bildern von 2018, stellenweise 2017/2
 ```sh
 python tools/clip_slu_species.py \
   --destination /daten/lignum/norrbotten/species2018 \
-  --bounds 784000 7413000 790000 7419000
+  --bounds 780000 7413000 790000 7423000
 ```
 
 Das Werkzeug liest native Zellen der sieben öffentlich herunterladbaren GeoTIFFs
@@ -173,3 +173,22 @@ Damit werden Flächenanteile nicht fälschlich als Volumenanteile interpretiert.
 Quelle, Bildzeitraum 2017–2019 und die Gewichtung bleiben am Ergebnis sichtbar.
 Die Werte sind Modellschätzungen mit unterschiedlichen Datenständen, keine aktuelle
 Inventur nach euren letzten Eingriffen.
+
+
+## Korrekturen in 13.46
+
+Der Datenindex wird online frisch geladen; bei einem Netzausfall wird der zuletzt
+geprüfte Offline-Index verwendet. Ein alter App-Cache darf ein neu ausgeliefertes
+Regionalpaket nicht verdecken. Fehlgeschlagene Cache-Zugriffe verhindern die
+Online-Auswertung nicht. Der ZIP-Dialog zeigt die regionale Abdeckung und
+Fehlermeldungen direkt an. Außerhalb des Regionalpakets sind weitere Ausschnitte
+vorzubereiten; die landesweiten Originalarchive werden nicht auf das Handy geladen.
+
+Die Karte reagiert auf die tatsächliche Containergröße, auch nach zunächst
+verdecktem Start, erneutem Öffnen oder einem Wechsel der Ausrichtung. Fehlgeschlagene
+Hintergrundkacheln erhalten einen begrenzten automatischen Wiederholungsversuch;
+zusätzlich gibt es Erneut laden und eine Straßenkarte.
+
+Raster-Schnittflächen werden in lokalen, an den Kacheln ausgerichteten Koordinaten
+berechnet. Das vermeidet numerische Polygonfehler bei Grenzen genau auf Rasterlinien.
+Die originalen Zellwerte und die exakten Grenzflächen bleiben erhalten.
