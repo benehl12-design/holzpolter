@@ -4,7 +4,7 @@ const dir=path.join(__dirname,'..');let leaflet;
 test.before(async()=>{leaflet=process.env.LIGNUM_TEST_LEAFLET?fs.readFileSync(process.env.LIGNUM_TEST_LEAFLET,'utf8'):await(await fetch('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')).text();});
 const tick=()=>new Promise(r=>setTimeout(r,5));
 async function until(check){for(let i=0;i<100;i++){if(check())return;await tick();}assert.ok(check(),'expected UI transition completed');}
-function fixture(t,{role='admin',props=[],stands=[],mapSize=[500,400]}={}){
+function fixture(t,{role='admin',props=[],stands=[],areas=[],mapSize=[500,400]}={}){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
   const dom=new JSDOM(fs.readFileSync(path.join(dir,'index.html'),'utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://lignum.test/',virtualConsole:vc});
   const w=dom.window,d=w.document;
@@ -17,7 +17,7 @@ function fixture(t,{role='admin',props=[],stands=[],mapSize=[500,400]}={}){
   w.HTMLElement.prototype.getBoundingClientRect=function(){return {left:0,top:0,right:500,bottom:400,width:500,height:400,x:0,y:0};};
   Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});
   w.eval(leaflet);const maps=[];w.L.Map.addInitHook(function(){maps.push(this);});
-  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:[]},writes=[];
+  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas)},writes=[];
   w.newRecordId=()=>webcrypto.randomUUID();w.confirm=()=>true;
   w.currentUser={id:'admin-a'};w.currentProfile={id:'admin-a',company_id:'company-a',role,is_admin:role==='admin'};
   w.isAdminUser=()=>w.currentProfile.is_admin;w.OfflineQueue={size:()=>0};
@@ -156,4 +156,61 @@ test('a partly loaded map retries automatically once and keeps manual recovery a
   layer.fire('loading');layer.fire('tileload');layer.fire('tileerror');layer.fire('load');
   await new Promise(r=>setTimeout(r,1300));assert.equal(retries,1);
   assert.ok(h.d.querySelector('#fp-map-status [data-act="retry-map"]'));
+});
+
+function directRaster(h){
+  const b=[780000,7410000,780020,7410010],geometry=h.w.ForestModel.geometry({type:'Polygon',coordinates:[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]]]},'EPSG:3006');
+  const index={schema:'lignum-raster-index-v1',sources:{volume_2:{name:'Test raster',year:2024,scale:1}},tiles:[{file:'direct.json',bounds:b}]};
+  const tile={schema:'lignum-raster-tile-v1',bounds:b,layers:{volume_2:{x:b[0],y:b[3],step:10,width:2,height:1,runs:[[100,1],[300,1]]}}};
+  h.w.fetch=async url=>{const value=url.endsWith('index.json')?index:tile;return {ok:true,json:async()=>value,clone(){return this;}};};
+  return geometry;
+}
+async function drawDirect(h){
+  const geometry=directRaster(h);await h.w.ForestPlanning.open();h.click('[data-act="draw-quick"]');
+  for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
+  h.click('[data-act="finish-draw"]');h.click('[data-act="calculate-zip"]');
+  await until(()=>h.d.getElementById('fp-content').textContent.includes('200'));
+  return geometry;
+}
+test('draw and inspect real raster values without any property or database writes',async t=>{
+  const h=fixture(t);await drawDirect(h);
+  assert.equal(h.tables.forest_properties.length,0);assert.equal(h.tables.forest_stands.length,0);assert.equal(h.writes.length,0);
+  assert.match(h.d.getElementById('fp-content').textContent,/Freie Fläche/);assert.ok(h.d.querySelector('[data-act="save-quick"]'));assert.deepEqual(h.errors,[]);
+});
+test('main-map boundaries are visible, clickable and refresh without duplicate records',async t=>{
+  const h=fixture(t);const geometry=directRaster(h),boundary=geometry.coordinates[0].slice(0,-1).map(([lng,lat])=>[lat,lng]);
+  h.tables.areas.push({id:'shared-a',company_id:'company-a',name:'Gemeinsame Fläche',boundary});
+  await h.w.ForestPlanning.open();let polygon;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.dashArray)polygon=l;});assert.ok(polygon,'shared boundary rendered');
+  polygon.fire('click',{originalEvent:{stopPropagation(){}}});assert.match(h.d.getElementById('fp-content').textContent,/Gemeinsame Fläche/);
+  h.click('[data-act="quick-data"]');h.click('[data-act="calculate-zip"]');await until(()=>h.d.getElementById('fp-content').textContent.includes('200'));
+  h.tables.areas[0].boundary=boundary.map(([lat,lng])=>[lat+.001,lng]);await h.w.ForestPlanning.refresh();
+  assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Diese Auswertung ist noch nicht/);
+  let count=0;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.dashArray)count++;});assert.equal(count,1);assert.equal(h.writes.length,0);
+});
+test('optional save can create a property after evaluation and retain inventory in its stand',async t=>{
+  const h=fixture(t);await drawDirect(h);h.click('[data-act="save-quick"]');assert.equal(h.writes.length,0);
+  h.click('[data-act="quick-new-property"]');h.set('name','Mein Wald');h.submit();await until(()=>h.tables.forest_properties.length===1&&h.d.querySelector('[name="number"]'));
+  assert.equal(h.tables.forest_stands.length,0);h.set('name','Ausgewertete Fläche');h.submit();await until(()=>h.tables.forest_stands.length===1&&!h.d.getElementById('fp-form'));
+  assert.ok(Math.abs(h.tables.forest_stands[0].inventory.volume_m3sk_ha-200)<.001);
+  assert.equal(h.tables.forest_stands[0].property_id,h.tables.forest_properties[0].id);assert.deepEqual(h.writes.map(x=>x.options.method),['POST','POST']);assert.deepEqual(h.errors,[]);
+});
+test('optional save to an existing property retains its area link and allows cancellation',async t=>{
+  const h=fixture(t,{props:[prop]});const geometry=directRaster(h);h.tables.areas.push({id:'area-a',company_id:'company-a',name:'Arbeitsfläche',boundary:geometry.coordinates[0].slice(0,-1).map(([lng,lat])=>[lat,lng])});
+  await h.w.ForestPlanning.open();h.click('[data-act="shared-areas"]');h.click('[data-act="select-area"]');h.click('[data-act="quick-data"]');h.click('[data-act="calculate-zip"]');await until(()=>h.d.querySelector('[data-act="save-quick"]'));
+  h.click('[data-act="save-quick"]');h.click('[data-act="cancel"]');assert.equal(h.writes.length,0);
+  h.click('[data-act="save-quick"]');h.click('[data-act="quick-save-property"]');h.submit();await until(()=>h.tables.forest_stands.length===1);
+  assert.equal(h.tables.forest_properties.length,1);assert.equal(h.tables.forest_stands[0].area_id,'area-a');assert.equal(h.tables.forest_stands[0].property_id,prop.id);
+});
+test('drivers can inspect a free area but cannot save it',async t=>{
+  const h=fixture(t,{role:'forwarder'});await drawDirect(h);assert.equal(h.d.querySelector('[data-act="save-quick"]'),null);assert.equal(h.writes.length,0);
+});
+test('a company switch clears shared boundaries and unsaved analysis',async t=>{
+  const h=fixture(t);await drawDirect(h);h.tables.areas.push({id:'private-a',company_id:'company-a',name:'Private A',boundary:[[67,22],[67,22.001],[67.001,22]]});await h.w.ForestPlanning.refresh();
+  h.w.currentUser={id:'user-b'};h.w.currentProfile={id:'user-b',company_id:'company-b',role:'admin',is_admin:true};await h.w.ForestPlanning.open();
+  assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Private A|Freie Fläche|Optional speichern/);assert.equal(h.writes.length,0);
+});
+test('invalid shared geometry and area loading errors do not prevent free analysis',async t=>{
+  const h=fixture(t,{areas:[{id:'bad',company_id:'company-a',name:'Bad',boundary:[[1,1],[1,1],[1,1]]}]});await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-message').textContent,/ungültig/);
+  const db=h.w.dbFetch;h.w.dbFetch=async(...args)=>{if(args[0].startsWith('areas?'))throw Error('Unavailable');return db(...args);};
+  await drawDirect(h);assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
 });

@@ -9,7 +9,27 @@ Die Kachel **Forstplanung** öffnet Grundstücke, Bestände und Maßnahmen. Admi
 bearbeiten; Mitarbeiter desselben Betriebs können die Planung ansehen. Die bestehenden
 Polter-, Maschinen- und Auftragsfunktionen bleiben eigenständige Arbeitsansichten.
 
-## Benutzung
+## Direkt auswerten · ab 13.48
+
+- **Fläche auswerten**: Grenzpunkte setzen, **Walddaten anzeigen** wählen,
+  bei Bedarf Alterskarte und Standortbaumart festlegen und **Auswerten** drücken.
+  Dafür muss kein Grundstück oder Bestand angelegt werden.
+- Bestehende Grenzen aus der normalen Polterkarte erscheinen gelb gestrichelt.
+  Grenze anklicken oder **Vorhandene Flächen** öffnen, dann **Walddaten anzeigen**.
+  Es werden dieselben betriebseigenen `areas` gelesen, keine Grundstücke automatisch
+  kopiert. Beim Öffnen und Aktualisieren werden die Grenzen neu geladen.
+- Die Ergebnisse enthalten Kennzahlen, Baumarten, Quellen und Abdeckung. Eine
+  geänderte Grenze verwirft das bisherige temporäre Ergebnis. Außerhalb des
+  regionalen Datenpakets stehen weiterhin keine Rasterwerte zur Verfügung.
+- **Optional speichern** öffnet für Admins die Zuordnung zu einem Grundstück.
+  Bei einem neuen Grundstück folgt nach dessen Speicherung das Bestandsformular
+  mit vorausgefüllter Grenze und Auswertung. Erst das jeweilige **Speichern**
+  schreibt Daten. Abbrechen der Auswertung legt keine Datensätze an.
+- Mitarbeiter können freie Flächen auswerten; dauerhaft speichern dürfen Admins.
+  Ungespeicherte Auswertungen sind temporär und überleben keinen App-Neustart.
+  Die vorhandene Offline-Datenversorgung gilt auch für die direkte Auswertung.
+
+## Dauerhafte Planung (optional)
 
 1. Grundstück anlegen, Name/Grundstücksbezeichnung und Fläche angeben. Grenze zeichnen
    oder eine einzelne Polygon-/MultiPolygon-Fläche als GeoJSON hochladen.
