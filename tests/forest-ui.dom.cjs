@@ -4,7 +4,7 @@ const dir=path.join(__dirname,'..');let leaflet;
 test.before(async()=>{leaflet=process.env.LIGNUM_TEST_LEAFLET?fs.readFileSync(process.env.LIGNUM_TEST_LEAFLET,'utf8'):await(await fetch('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')).text();});
 const tick=()=>new Promise(r=>setTimeout(r,5));
 async function until(check){for(let i=0;i<100;i++){if(check())return;await tick();}assert.ok(check(),'expected UI transition completed');}
-function fixture(t,{role='admin',props=[],stands=[],areas=[],mapSize=[500,400]}={}){
+function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],mapSize=[500,400]}={}){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
   const dom=new JSDOM(fs.readFileSync(path.join(dir,'index.html'),'utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://lignum.test/',virtualConsole:vc});
   const w=dom.window,d=w.document;
@@ -17,7 +17,7 @@ function fixture(t,{role='admin',props=[],stands=[],areas=[],mapSize=[500,400]}=
   w.HTMLElement.prototype.getBoundingClientRect=function(){return {left:0,top:0,right:500,bottom:400,width:500,height:400,x:0,y:0};};
   Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});
   w.eval(leaflet);const maps=[];w.L.Map.addInitHook(function(){maps.push(this);});
-  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas)},writes=[];
+  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas),geojson_layers:structuredClone(geojson)},writes=[];
   w.newRecordId=()=>webcrypto.randomUUID();w.confirm=()=>true;
   w.currentUser={id:'admin-a'};w.currentProfile={id:'admin-a',company_id:'company-a',role,is_admin:role==='admin'};
   w.isAdminUser=()=>w.currentProfile.is_admin;w.OfflineQueue={size:()=>0};
@@ -213,4 +213,23 @@ test('invalid shared geometry and area loading errors do not prevent free analys
   const h=fixture(t,{areas:[{id:'bad',company_id:'company-a',name:'Bad',boundary:[[1,1],[1,1],[1,1]]}]});await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-message').textContent,/ungültig/);
   const db=h.w.dbFetch;h.w.dbFetch=async(...args)=>{if(args[0].startsWith('areas?'))throw Error('Unavailable');return db(...args);};
   await drawDirect(h);assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
+});
+
+test('imported parcels display automatically with names, colors and no database writes; deletion refreshes',async t=>{
+  const h=fixture(t),geometry=directRaster(h);
+  h.tables.geojson_layers.push({id:'cadastre',company_id:'company-a',name:'Datei',color:'#c0392b',geojson:{type:'FeatureCollection',features:[{type:'Feature',properties:{fastighetsbeteckning:'Sarvisvaara 2:6'},geometry},{type:'Feature',properties:{name:'Zweites Flurstück'},geometry:{type:'MultiPolygon',coordinates:[geometry.coordinates]}}]}});
+  h.tables.geojson_layers.push({id:'private',company_id:'company-b',geojson:{type:'Feature',properties:{name:'Fremd'},geometry}});
+  await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-content').textContent,/Sarvisvaara 2:6/);assert.match(h.d.getElementById('fp-content').textContent,/Zweites Flurstück/);assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Fremd/);
+  let count=0;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.color==='#c0392b')count++;});assert.equal(count,2);
+  h.click('[data-act="select-area"]');h.click('[data-act="quick-data"]');h.click('[data-act="calculate-zip"]');await until(()=>h.d.querySelector('[data-act="save-quick"]'));
+  h.click('[data-act="save-quick"]');h.click('[data-act="quick-new-property"]');h.submit();await until(()=>h.d.querySelector('[name="number"]'));h.submit();await until(()=>h.tables.forest_stands.length===1&&!h.d.getElementById('fp-form'));
+  assert.ok(!h.tables.forest_stands[0].area_id,'cadastral feature must never become an areas foreign key');
+  h.click('[data-act="shared-areas"]');h.click('[data-act="select-area"]');h.tables.geojson_layers=[];await h.w.ForestPlanning.refresh();assert.equal(h.d.querySelector('[data-act="quick-data"]'),null);
+});
+test('local-only cadastral imports are included and detailed polygons with holes remain visible',async t=>{
+  const h=fixture(t),ring=[];for(let i=0;i<=2600;i++){const a=i/2600*2*Math.PI;ring.push([22+Math.cos(a)*.01,67+Math.sin(a)*.01]);}ring[2600]=ring[0];
+  const geometry={type:'Polygon',coordinates:[ring,[[21.999,66.999],[22.001,66.999],[22.001,67.001],[21.999,67.001],[21.999,66.999]]]};
+  h.w.getLocalPlanningBoundaries=()=>[{id:'local-test',company_id:'company-a',name:'Lokale Grenze',color:'#ffff00',geojson:geometry},{id:'other',company_id:'company-b',name:'Fremd',geojson:geometry}];
+  await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-content').textContent,/Lokale Grenze/);assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Fremd/);
+  let polygon;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon)polygon=l;});assert.equal(polygon.getLatLngs().length,2);assert.ok(polygon.getLatLngs()[0].length>2500);assert.equal(h.writes.length,0);
 });

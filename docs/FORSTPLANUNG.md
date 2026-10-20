@@ -16,7 +16,8 @@ Polter-, Maschinen- und Auftragsfunktionen bleiben eigenständige Arbeitsansicht
   Dafür muss kein Grundstück oder Bestand angelegt werden.
 - Bestehende Grenzen aus der normalen Polterkarte erscheinen gelb gestrichelt.
   Grenze anklicken oder **Vorhandene Flächen** öffnen, dann **Walddaten anzeigen**.
-  Es werden dieselben betriebseigenen `areas` gelesen, keine Grundstücke automatisch
+  Ab 13.49 erscheinen zusätzlich alle importierten Grundstückspolygone aus `geojson_layers` mit ihren Originalfarben und Flurstücksnamen. Lokal noch nicht gespeicherte Importe desselben Benutzers und Betriebs werden ebenfalls angezeigt. Polygonlöcher und MultiPolygone bleiben erhalten.
+  Es werden dieselben betriebseigenen `areas` und `geojson_layers` gelesen, keine Grundstücke automatisch
   kopiert. Beim Öffnen und Aktualisieren werden die Grenzen neu geladen.
 - Die Ergebnisse enthalten Kennzahlen, Baumarten, Quellen und Abdeckung. Eine
   geänderte Grenze verwirft das bisherige temporäre Ergebnis. Außerhalb des

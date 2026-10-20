@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.48">
+  <meta name="app-version" content="13.49">
   <link rel="stylesheet" href="forest-planning.css">
   <script id="app-version-display">
     document.addEventListener('DOMContentLoaded', function() {
@@ -13945,9 +13945,15 @@ function addGeoJSONLayer(geojson,name,color,dbId){
   }).addTo(map);
   hits.forEach(h=>layer.addLayer(h));   // in dieselbe Gruppe → wird beim Entfernen mit gelöscht
   try{map.fitBounds(layer.getBounds(),{padding:[20,20]});}catch{}
-  grenzenLayers.push({name:name,color:color,count:count,layer:layer,dbId:dbId});
+  grenzenLayers.push({name:name,color:color,count:count,layer:layer,dbId:dbId,geojson:geojson,company_id:currentProfile?.company_id,owner_id:currentUser?.id,localId:newRecordId()});
   updateLayerList();
 }
+
+// Share original GeoJSON, never Leaflet hit-target lines, with forest planning.
+window.getLocalPlanningBoundaries = function(){
+  return grenzenLayers.filter(l=>!l.dbId && l.company_id===currentProfile?.company_id && l.owner_id===currentUser?.id)
+    .map(l=>({id:'local-'+l.localId,name:l.name,color:l.color,company_id:l.company_id,geojson:l.geojson}));
+};
 
 // Liste der geladenen Ebenen im Grenzen-Panel rendern
 function updateLayerList(){
