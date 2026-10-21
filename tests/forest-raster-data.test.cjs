@@ -151,10 +151,31 @@ test('large continuous treatment stands are retained with real clipped geometrie
  assert.equal(result.parts.length,2,JSON.stringify(result.parts.map(p=>[p.action,p.area_ha])));
  assert.deepEqual(new Set(result.parts.map(p=>p.action)),new Set(['thinning','tending']));
  assert.ok(result.parts.every(p=>p.area_ha>=2&&['Polygon','MultiPolygon'].includes(p.geometry.type)));
+ assert.ok(result.parts.every(p=>p.structure&&p.structure.variation.age<.3));
+ assert.equal(result.diagnostics.rejectedHeterogeneous,0);
 });
 test('stock-only data produces no treatment polygons',()=>{
  const fx=fixture({volume_2:[100,300]},{includeSubareas:true});
  const r=fx.result().subareas;
  assert.equal(r.parts.length,0);
  assert.ok(r.unshown_ha>0);
+});
+
+test('heterogeneous age within one action is not a validated forest stand',()=>{
+ const width=30,height=20,bounds=[780000,7410000,780300,7410200];
+ const layers={},sources={};
+ const values={volume_2:[],basal_area_2:[],height_2:[],age_mixed:[]};
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  values.volume_2.push(160);values.basal_area_2.push(27);values.height_2.push(160);
+  values.age_mixed.push(x<15?25:95);
+ }
+ for(const [id,v] of Object.entries(values)){
+  sources[id]={name:id,scale:id.startsWith('height')?.1:1};
+  layers[id]={x:bounds[0],y:bounds[3],step:10,width,height,runs:v.map(n=>[n,1])};
+ }
+ const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'tile.json',bounds}]};
+ const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds,layers}}];
+ const result=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
+ assert.equal(result.parts.length,0);
+ assert.ok(result.diagnostics.rejectedHeterogeneous>0);
 });
