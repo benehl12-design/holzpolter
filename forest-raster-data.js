@@ -60,7 +60,7 @@
         }});
       }
       if(options.ageType){const id='age_'+options.ageType,layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('age_years',v,w,id);});}
-      if(options.siteSpecies){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
+      if(['T','G'].includes(options.siteSpecies)){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
       const recent=!!layers.species2018_pine,prefix=recent?'species2018_':'species_';
       const ids=['pine','spruce','birch','broadleaf','contorta','oak','beech'].map(k=>prefix+k),base=layers[prefix+'pine'];
       if(base&&ids.every(id=>layers[id])){
@@ -235,14 +235,7 @@
       if(!merged.length)continue;
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
       result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,
-        harvestReference:component.action==='regeneration'?harvestRules.harvestReview({
-          age:stats.age.mean,basal:stats.basal.mean,height:stats.height.mean,
-          diameter:stats.diameter?.mean,volume:stats.volume?.mean,
-          site_index:component.cells[0]?.siteIndex,
-          pine_pct:component.cells[0]?.harvest?.coniferShare,
-          spruce_pct:0,
-          allowSiteReference:!options.siteTypeInferred
-        }).reference:null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+        harvestReference:component.action==='regeneration'?component.cells[0]?.harvest?.reference??null:null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
     // A missing treatment recommendation must not erase measured forest structure.
     // These are descriptive stock zones only; no silvicultural intervention is inferred.
