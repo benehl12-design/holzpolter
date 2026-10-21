@@ -23,7 +23,7 @@ const APP_SHELL = [
   '/',
   '/index.html',
   '/offline.js',
-  '/forest-planning.css', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
+  '/forest-planning.css', '/forest-harvest-rules.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
