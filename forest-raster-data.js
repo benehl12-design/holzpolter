@@ -129,18 +129,20 @@
       cells(base,part,(_,w,x,y)=>{
         if(++inspected>6000)throw Error('Zu viele Rasterzellen für die Teilflächenanalyse. Bitte eine kleinere Fläche auswählen.');
         const sample=(key)=>{for(const suffix of ['_3','_2']){const layer=layers[key+suffix],v=valueAt(layer,x,y);if(v>=0)return v>0?v*(index.sources[key+suffix]?.scale??1):null;}return null;};
-        const basal=sample('basal_area'),height=sample('height'),volume=sample('volume');
+        const basal=sample('basal_area'),height=sample('height'),volume=sample('volume'),diameter=sample('diameter');
         const ageLayer=layers['age_'+ageType],rawAge=valueAt(ageLayer,x,y);
         const age=rawAge>0?rawAge*(index.sources['age_'+ageType]?.scale??1):null;
         // Do not infer a silvicultural class from stock volume alone.
         let action='unknown';
-        if(age!=null&&age<20)action='tending';
+        if(age!=null&&age>=100&&basal!=null&&basal>=16&&height!=null&&height>=12&&
+           diameter!=null&&diameter>=18&&volume!=null&&volume>=120)action='regeneration';
+        else if(age!=null&&age<20)action='tending';
         else if(basal!=null&&basal<12)action='review';
         else if(age!=null&&basal!=null&&height!=null&&age>=20&&basal>=22&&height>=10)action='thinning';
         else if(age!=null&&height!=null&&age>=20&&height<10)action='tending';
         const step=base.step,x0=x-step/2,y0=y-step/2;
         const key=[Math.round((x0+origin[0])*100),Math.round((y0+origin[1])*100),Math.round(step*100)].join(':');
-        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume});
+        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume,diameter});
       });
     }
     const all=[...classified.values()];
@@ -193,9 +195,9 @@
       // Spatial coherence: action equality alone is insufficient to call this a stand.
       // Age, height and basal area must be measured over most of the patch and
       // reasonably homogeneous. Mixed structures remain unclassified.
-      const stats={age:weighted(component.cells,'age'),height:weighted(component.cells,'height'),basal:weighted(component.cells,'basal')};
-      if(Object.values(stats).some(v=>!v||v.coverage<.75)){diagnostics.rejectedSparse++;continue;}
-      if(stats.age.cv>.30||stats.height.cv>.30||stats.basal.cv>.35){diagnostics.rejectedHeterogeneous++;continue;}
+      const stats={age:weighted(component.cells,'age'),height:weighted(component.cells,'height'),basal:weighted(component.cells,'basal'),volume:weighted(component.cells,'volume'),diameter:weighted(component.cells,'diameter')};
+      if([stats.age,stats.height,stats.basal].some(v=>!v||v.coverage<.75)||(component.action==='regeneration'&&[stats.volume,stats.diameter].some(v=>!v||v.coverage<.75))){diagnostics.rejectedSparse++;continue;}
+      if(stats.age.cv>.30||stats.height.cv>.30||stats.basal.cv>.35||(component.action==='regeneration'&&(stats.volume.cv>.40||stats.diameter.cv>.30))){diagnostics.rejectedHeterogeneous++;continue;}
       let merged=[];
       for(const c of component.cells){
         const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
@@ -204,7 +206,7 @@
       }
       if(!merged.length)continue;
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
-      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
     // A missing treatment recommendation must not erase measured forest structure.
     // These are descriptive stock zones only; no silvicultural intervention is inferred.
