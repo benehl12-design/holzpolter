@@ -124,6 +124,10 @@
   function renderMap(fit=false){
     if(!map)return;shapes.clearLayers();const p=property();
     for(const a of sharedAreas){const layer=L.geoJSON(a.geometry,{style:{color:a.color||'#efc86d',weight:2,dashArray:a.color?null:'7 5',fillOpacity:.04,bubblingMouseEvents:false}});layer.eachLayer(l=>{l.bindTooltip(esc(a.name||'Fläche'),{className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);selectArea(a.id);});});layer.addTo(shapes);}
+    if(quick?.result?.subareas?.parts)for(const part of quick.result.subareas.parts){
+      const colors={thinning:'#e5a44a',tending:'#7dbb77',review:'#b7a0cb',unknown:'#999999'};
+      L.geoJSON(part.geometry,{interactive:false,style:{color:colors[part.action]||'#999',weight:2,fillColor:colors[part.action]||'#999',fillOpacity:.3}}).addTo(shapes);
+    }
     if(quick?.geometry)L.geoJSON(quick.geometry,{interactive:false,style:{color:'#fff',weight:3,fillColor:'#8dbd74',fillOpacity:.18}}).addTo(shapes);
     if(p?.geometry)L.geoJSON(p.geometry,{interactive:false,style:{color:'#f2f3d5',weight:3,fillOpacity:0}}).addTo(shapes);
     for(const s of rows())if(s.geometry){
@@ -151,7 +155,7 @@
     const r=quick.result,i=r?.inventory||{};
     c.innerHTML=`${button('overview','← Übersicht')}<h2 style="margin-top:16px">${esc(quick.name)}</h2><p class="fp-muted">${quick.source_id?'Grenze aus der normalen Karte':'Frei gewählte Fläche'} · ${fmt(quick.area_ha,2)} ha</p>
       <div class="fp-actions">${button('quick-data',r?'Neu auswerten':'Walddaten anzeigen','','primary')}${r&&admin()?button('save-quick','Optional speichern'):''}${button('draw-quick','Andere Fläche zeichnen')}</div>
-      ${r?`<div class="fp-grid">${Object.entries(i).filter(([k,v])=>M.FIELDS[k]&&typeof v==='number').map(([k,v])=>stat(M.FIELDS[k][0],v,M.FIELDS[k][1],1)).join('')}${i.site_index?`<div class="fp-stat"><small>Standortindex</small><strong>${esc(i.site_index)}</strong></div>`:''}</div><h3>Baumarten</h3>${i.species_pct?bars(i.species_pct,M.SPECIES,'%'):'<p class="fp-muted">Keine Baumartenwerte für diese Fläche verfügbar.</p>'}<p class="fp-muted">Datengebiet: ${fmt(r.coverage_ha,2)} von ${fmt(r.area_ha,2)} ha. ${esc(r.note||'')} Fehlende Flächen werden nicht hochgerechnet.</p><details class="fp-source"><summary>Quellen je Kennzahl</summary>${Object.entries(i.sources||{}).map(([k,v])=>`<p>${esc(M.FIELDS[k]?.[0]||k)}: ${esc(v.name||v.source||'Quelle')} · ${esc(v.year||v.scan_date||'Jahr nicht angegeben')}${v.area_ha!=null?' · '+fmt(v.area_ha,2)+' ha':''}</p>`).join('')}</details><p class="fp-muted">Diese Auswertung ist noch nicht als Bestand gespeichert.</p>`:'<p class="fp-muted">Die Fläche ist ausgewählt. Mit „Walddaten anzeigen“ erhältst du die Kennzahlen, ohne ein Grundstück oder einen Bestand anzulegen.</p>'}${r?recommendationView({land_type:'forest',inventory:i,area_ha:quick.area_ha}):''}${r?.age_selection?`<p class="fp-muted">Alterskarte: ${esc(r.age_selection.type)} · ${esc(r.age_selection.method)}</p>`:''}${sources()}`;
+      ${r?`<div class="fp-grid">${Object.entries(i).filter(([k,v])=>M.FIELDS[k]&&typeof v==='number').map(([k,v])=>stat(M.FIELDS[k][0],v,M.FIELDS[k][1],1)).join('')}${i.site_index?`<div class="fp-stat"><small>Standortindex</small><strong>${esc(i.site_index)}</strong></div>`:''}</div><h3>Baumarten</h3>${i.species_pct?bars(i.species_pct,M.SPECIES,'%'):'<p class="fp-muted">Keine Baumartenwerte für diese Fläche verfügbar.</p>'}<p class="fp-muted">Datengebiet: ${fmt(r.coverage_ha,2)} von ${fmt(r.area_ha,2)} ha. ${esc(r.note||'')} Fehlende Flächen werden nicht hochgerechnet.</p><details class="fp-source"><summary>Quellen je Kennzahl</summary>${Object.entries(i.sources||{}).map(([k,v])=>`<p>${esc(M.FIELDS[k]?.[0]||k)}: ${esc(v.name||v.source||'Quelle')} · ${esc(v.year||v.scan_date||'Jahr nicht angegeben')}${v.area_ha!=null?' · '+fmt(v.area_ha,2)+' ha':''}</p>`).join('')}</details><p class="fp-muted">Diese Auswertung ist noch nicht als Bestand gespeichert.</p>`:'<p class="fp-muted">Die Fläche ist ausgewählt. Mit „Walddaten anzeigen“ erhältst du die Kennzahlen, ohne ein Grundstück oder einen Bestand anzulegen.</p>'}${r?recommendationView({land_type:'forest',inventory:i,area_ha:quick.area_ha}):''}${r?.subareas?`<section class="fp-scenario"><h3>Automatisch erkannte Teilflächen</h3><p class="fp-muted">${esc(r.subareas.method)} ${fmt(r.subareas.analyzed_ha,2)} ha Rasterfläche untersucht; ${fmt(r.subareas.unshown_ha,2)} ha nicht einzeln dargestellt. Farben erscheinen auf der Karte.</p>${r.subareas.parts.length?r.subareas.parts.map((p,n)=>`<p><strong>Teilfläche ${n+1} · ${fmt(p.area_ha,2)} ha</strong> – ${esc({thinning:'Durchforstung prüfen',tending:'Jungbestandspflege prüfen',review:'Keine weitere Entnahme ohne Prüfung',unknown:'Daten unzureichend'}[p.action]||'Prüfen')}</p>`).join(''):'<p>Keine ausreichend große, zusammenhängende Teilfläche sicher klassifizierbar.</p>'}</section>`:''}${r?.age_selection?`<p class="fp-muted">Alterskarte: ${esc(r.age_selection.type)} · ${esc(r.age_selection.method)}</p>`:''}${sources()}`;
   }
   function saveQuick(){
     if(!quick?.result)return;
@@ -272,7 +276,7 @@
   }
   async function calculateZIP(){
     if(draft?.kind!=='zip-options')return;const job=draft,who=job.who,s=job.stand;
-    const options={ageType:el('fp-age-type').value,siteSpecies:el('fp-site-species').value};
+    const options={ageType:el('fp-age-type').value,siteSpecies:el('fp-site-species').value,includeSubareas:true};
     busy=true;el('fp-modal-root').querySelectorAll('button').forEach(b=>b.disabled=true);
     el('fp-zip-error').textContent='';
     try{
