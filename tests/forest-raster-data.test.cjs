@@ -192,3 +192,37 @@ test('stock-only forest data shows descriptive zones, never a treatment recommen
  assert.ok(result.structureZones.length>0);
  assert.ok(result.structureZones.every(z=>['low','mid','high'].includes(z.zone)));
 });
+
+test('mature spatial stand maps harvest review while younger neighbor remains thinning',()=>{
+ const width=30,height=20,bounds=[780000,7410000,780300,7410200];
+ const vals={volume_2:[],basal_area_2:[],height_2:[],diameter_2:[],age_mixed:[]};
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  vals.volume_2.push(180);vals.basal_area_2.push(26);
+  vals.height_2.push(170);vals.diameter_2.push(24);
+  vals.age_mixed.push(y<10?110:45);
+ }
+ const layers={},sources={};
+ for(const [id,v] of Object.entries(vals)){
+  sources[id]={name:id,scale:id.startsWith('height_')?.1:1};
+  layers[id]={x:bounds[0],y:bounds[3],step:10,width,height,runs:v.map(n=>[n,1])};
+ }
+ const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'tile.json',bounds}]};
+ const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds,layers}}];
+ const r=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
+ assert.deepEqual(new Set(r.parts.map(p=>p.action)),new Set(['regeneration','thinning']));
+ assert.ok(r.parts.every(p=>p.area_ha>=2&&p.geometry&&p.structure));
+ assert.ok(r.parts.find(p=>p.action==='regeneration').structure.diameter_cm>=18);
+});
+test('unknown diameter never creates a mapped harvest review area',()=>{
+ const width=30,height=20,bounds=[780000,7410000,780300,7410200];
+ const vals={volume_2:Array(width*height).fill(180),basal_area_2:Array(width*height).fill(26),height_2:Array(width*height).fill(170),age_mixed:Array(width*height).fill(110)};
+ const layers={},sources={};
+ for(const [id,v] of Object.entries(vals)){
+  sources[id]={name:id,scale:id.startsWith('height_')?.1:1};
+  layers[id]={x:bounds[0],y:bounds[3],step:10,width,height,runs:v.map(n=>[n,1])};
+ }
+ const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'tile.json',bounds}]};
+ const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds,layers}}];
+ const r=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
+ assert.equal(r.parts.some(p=>p.action==='regeneration'),false);
+});
