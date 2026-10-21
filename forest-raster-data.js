@@ -107,7 +107,74 @@
       selected.note+=' Alterskarte automatisch als Näherung gewählt; vor Ort überprüfen.';
       return selected;
     }
-    return {inventory,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+    return {inventory,subareas:options.includeSubareas?subareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+  }
+  // Spatial raster analysis: classify native volume cells, group adjacent cells,
+  // and clip every resulting polygon to the selected boundary. Never invent coverage.
+  function subareas(geometry,index,tiles,options={}){
+    const {poly,needed,origin}=selection(geometry,index);
+    const byFile=new Map(tiles.map(t=>[t.file,t.data])),classified=new Map();
+    const ageType=options.ageType==='auto'?'mixed':options.ageType;
+    let inspected=0;
+    for(const entry of needed){
+      const tile=byFile.get(entry.file);if(!tile)continue;
+      const part=clip.intersection(poly,localRectangle(tile.bounds,origin));
+      const layers=Object.fromEntries(Object.entries(tile.layers).map(([id,l])=>[id,{...decode(l),x:l.x-origin[0],y:l.y-origin[1]}]));
+      const base=layers.volume_3||layers.volume_2||layers.basal_area_3||layers.basal_area_2;
+      if(!base)continue;
+      cells(base,part,(_,w,x,y)=>{
+        if(++inspected>6000)throw Error('Zu viele Rasterzellen für die Teilflächenanalyse. Bitte eine kleinere Fläche auswählen.');
+        const sample=(key)=>{for(const suffix of ['_3','_2']){const layer=layers[key+suffix],v=valueAt(layer,x,y);if(v>=0)return v>0?v*(index.sources[key+suffix]?.scale??1):null;}return null;};
+        const basal=sample('basal_area'),height=sample('height'),volume=sample('volume');
+        const ageLayer=layers['age_'+ageType],rawAge=valueAt(ageLayer,x,y);
+        const age=rawAge>0?rawAge*(index.sources['age_'+ageType]?.scale??1):null;
+        // Do not infer a silvicultural class from stock volume alone.
+        let action='unknown';
+        if(age!=null&&age<20)action='tending';
+        else if(basal!=null&&basal<12)action='review';
+        else if(age!=null&&basal!=null&&height!=null&&age>=20&&basal>=22&&height>=10)action='thinning';
+        else if(age!=null&&height!=null&&age>=20&&height<10)action='tending';
+        const step=base.step,x0=x-step/2,y0=y-step/2;
+        const key=[Math.round((x0+origin[0])*100),Math.round((y0+origin[1])*100),Math.round(step*100)].join(':');
+        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume});
+      });
+    }
+    const cellsByAction=new Map(),seen=new Set(),all=[...classified.values()];
+    for(const c of all){if(!cellsByAction.has(c.action))cellsByAction.set(c.action,[]);cellsByAction.get(c.action).push(c);}
+    const components=[];
+    for(const [action,group] of cellsByAction){
+      const lookup=new Map(group.map(c=>[c.key,c]));
+      const keyAt=(x,y,step)=>[Math.round((x+origin[0])*100),Math.round((y+origin[1])*100),Math.round(step*100)].join(':');
+      for(const first of group){
+        if(seen.has(first.key))continue;
+        const queue=[first],component=[];seen.add(first.key);
+        for(let pos=0;pos<queue.length;pos++){
+          const c=queue[pos];component.push(c);
+          for(const [dx,dy] of [[c.step,0],[-c.step,0],[0,c.step],[0,-c.step]]){
+            const n=lookup.get(keyAt(c.x+dx,c.y+dy,c.step));
+            if(n&&!seen.has(n.key)){seen.add(n.key);queue.push(n);}
+          }
+        }
+        components.push({action,cells:component,area:component.reduce((a,c)=>a+c.w,0)});
+      }
+    }
+    components.sort((a,b)=>b.area-a.area);
+    const result=[],minArea=500; // Avoid presenting individual tiny cells as operational stands.
+    for(const component of components.slice(0,40)){
+      if(component.area<minArea)continue;
+      let merged=[];
+      for(const c of component.cells){
+        const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
+        if(!shape.length)continue;
+        merged=merged.length?clip.union(merged,shape):shape;
+      }
+      if(!merged.length)continue;
+      const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
+      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+    }
+    const totalArea=all.reduce((a,c)=>a+c.w,0);
+    const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
+    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Zusammenhängende native Rasterzellen, auf Auswahlgrenze zugeschnitten; kleine Teilflächen unter 0,05 ha nicht einzeln dargestellt.',ageType,limited:components.length>40};
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
   let indexPromise;
@@ -161,5 +228,5 @@
     for(const key of result.fields){delete out[key];delete out.sources[key];}
     return {...out,...result.inventory,sources:{...out.sources,...result.inventory.sources}};
   }
-  return {inventory,index,coverage,evaluate,decode,merge};
+  return {inventory,index,coverage,evaluate,subareas,decode,merge};
 });
