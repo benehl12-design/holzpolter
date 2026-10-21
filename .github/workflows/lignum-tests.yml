@@ -1,0 +1,29 @@
+name: Lignum 13.50 checks
+on:
+  push:
+    branches: [main, lignum-harvester, lignum-13-50-release]
+  pull_request:
+    branches: [main, lignum-harvester]
+  workflow_dispatch:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test dependencies
+        run: npm install --no-save --no-package-lock jsdom@26.1.0
+      - name: JavaScript syntax checks
+        run: |
+          node --check forest-model.js
+          node --check forest-planning.js
+          node --check forest-raster-data.js
+          node --check offline.js
+          node --check sw.js
+      - name: Model, raster and offline regression tests
+        run: node --test tests/*.test.cjs
+      - name: DOM integration tests
+        run: node --test tests/*.dom.cjs
