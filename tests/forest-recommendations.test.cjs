@@ -18,3 +18,34 @@ test('does not extrapolate from sparse raster coverage',()=>{
 test('unknown age with stock volume alone cannot imply thinning',()=>{
  assert.equal(M.recommend({land_type:'forest',inventory:{volume_m3sk_ha:180}}).action,'none');
 });
+
+test('mature well-stocked forest is only flagged for a harvest review',()=>{
+ const r=M.recommend({land_type:'forest',area_ha:6,inventory:{
+ age_years:115,basal_area_m2_ha:25,mean_height_m:18,mean_diameter_cm:24,volume_m3sk_ha:190}});
+ assert.equal(r.action,'regeneration');
+ assert.equal(r.confidence,'low');
+ assert.equal(r.review,true);
+ assert.match(r.reason,/KEINE Fällfreigabe/);
+});
+test('forest with immature age cannot be automatically marked as regeneration',()=>{
+ const r=M.recommend({land_type:'forest',area_ha:6,inventory:{
+ age_years:65,basal_area_m2_ha:25,mean_height_m:18,mean_diameter_cm:24,volume_m3sk_ha:190}});
+ assert.notEqual(r.action,'regeneration');
+});
+test('missing diameter or low stock does not qualify harvest review',()=>{
+ for(const inventory of [
+ {age_years:115,basal_area_m2_ha:25,mean_height_m:18,volume_m3sk_ha:190},
+ {age_years:115,basal_area_m2_ha:25,mean_height_m:18,mean_diameter_cm:24,volume_m3sk_ha:60}
+ ])assert.notEqual(M.recommend({land_type:'forest',inventory}).action,'regeneration');
+});
+test('protected stand never receives an automatic harvest flag',()=>{
+ const r=M.recommend({land_type:'forest',hk_class:'NO',inventory:{
+ age_years:150,basal_area_m2_ha:30,mean_height_m:22,mean_diameter_cm:27,volume_m3sk_ha:300}});
+ assert.equal(r.action,'nature');
+});
+test('sparse raster coverage prevents a whole-area harvest recommendation',()=>{
+ const r=M.recommend({land_type:'forest',area_ha:10,inventory:{
+ age_years:115,basal_area_m2_ha:25,mean_height_m:18,mean_diameter_cm:24,volume_m3sk_ha:190,
+ sources:{age_years:{area_ha:2}}}});
+ assert.notEqual(r.action,'regeneration');
+});
