@@ -1,7 +1,7 @@
 name: Lignum 13.50 checks
 on:
   push:
-    branches: [main, lignum-harvester, lignum-13-50-release]
+    branches: [main, lignum-harvester, lignum-13-50-release, lignum-13-51-smart-planning]
   pull_request:
     branches: [main, lignum-harvester]
   workflow_dispatch:
