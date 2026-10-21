@@ -107,7 +107,11 @@
       selected.note+=' Alterskarte automatisch als Näherung gewählt; vor Ort überprüfen.';
       return selected;
     }
-    return {inventory,subareas:options.includeSubareas?subareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+    return {inventory,subareas:options.includeSubareas?safeSubareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+  }
+  function safeSubareas(geometry,index,tiles,options){
+    try{return subareas(geometry,index,tiles,options);}
+    catch(e){return {parts:[],analyzed_ha:0,unshown_ha:0,error:String(e.message||e),method:'Teilflächenanalyse nicht verfügbar; die übrigen Kennzahlen bleiben nutzbar.'};}
   }
   // Spatial raster analysis: classify native volume cells, group adjacent cells,
   // and clip every resulting polygon to the selected boundary. Never invent coverage.
