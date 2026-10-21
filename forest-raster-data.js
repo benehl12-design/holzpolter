@@ -185,9 +185,9 @@
     const totalArea=all.reduce((a,c)=>a+c.w,0);
     // Practical mapping units: at least 0.5 ha and at least 3% of evaluated raster area.
     // Smaller patches remain unclassified on the map, not reassigned to harvest.
-    const minArea=Math.max(5000,totalArea*.03),result=[];
+    const selectedArea=area(poly),minArea=Math.max(20000,selectedArea*.08),result=[];
     for(const component of components){
-      if(component.area<minArea)continue;
+      if(component.area<minArea||result.length>=6)continue;
       let merged=[];
       for(const c of component.cells){
         const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
@@ -199,7 +199,7 @@
       result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Zusammenhängende, geglättete Rasterbereiche ab mindestens '+(minArea/10000).toFixed(2)+' ha. Kleinere und unsichere Bereiche bleiben neutral und werden nicht einer Maßnahme zugeschlagen.',ageType,limited:false};
+    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
 
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);

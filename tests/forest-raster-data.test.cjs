@@ -134,7 +134,7 @@ test('small isolated cells are not presented as operational treatment stands',()
  assert.ok(Math.abs(r.subareas.unshown_ha-.02)<1e-5);
 });
 test('large continuous treatment stands are retained with real clipped geometries',()=>{
- const width=10,height=20,bounds=[780000,7410000,780100,7410200];
+ const width=30,height=20,bounds=[780000,7410000,780300,7410200];
  const vals={volume_2:[],basal_area_2:[],height_2:[],age_mixed:[]};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   vals.volume_2.push(150);vals.basal_area_2.push(27);vals.height_2.push(160);
@@ -150,7 +150,7 @@ test('large continuous treatment stands are retained with real clipped geometrie
  const result=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
  assert.equal(result.parts.length,2,JSON.stringify(result.parts.map(p=>[p.action,p.area_ha])));
  assert.deepEqual(new Set(result.parts.map(p=>p.action)),new Set(['thinning','tending']));
- assert.ok(result.parts.every(p=>p.area_ha>=.5&&['Polygon','MultiPolygon'].includes(p.geometry.type)));
+ assert.ok(result.parts.every(p=>p.area_ha>=2&&['Polygon','MultiPolygon'].includes(p.geometry.type)));
 });
 test('stock-only data produces no treatment polygons',()=>{
  const fx=fixture({volume_2:[100,300]},{includeSubareas:true});
