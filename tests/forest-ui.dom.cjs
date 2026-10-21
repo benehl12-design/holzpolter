@@ -233,3 +233,26 @@ test('local-only cadastral imports are included and detailed polygons with holes
   await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-content').textContent,/Lokale Grenze/);assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Fremd/);
   let polygon;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon)polygon=l;});assert.equal(polygon.getLatLngs().length,2);assert.ok(polygon.getLatLngs()[0].length>2500);assert.equal(h.writes.length,0);
 });
+
+test('a spatial harvest-review candidate appears both on map and in the legend',async t=>{
+ const h=fixture(t),geometry=directRaster(h);
+ h.w.ForestRasterData.coverage=async()=>({name:'Testgebiet',coverage_ha:6,area_ha:6});
+ h.w.ForestRasterData.inventory=async()=>({
+   inventory:{age_years:115,basal_area_m2_ha:26,mean_height_m:18,mean_diameter_cm:24,
+     volume_m3sk_ha:190,sources:{}},coverage_ha:6,area_ha:6,note:'Testdaten',
+   subareas:{parts:[{action:'regeneration',area_ha:3,geometry,
+     structure:{age_years:115,height_m:18,basal_area_m2_ha:26}}],
+     analyzed_ha:6,unshown_ha:3,method:'Räumliche Testanalyse'}
+ });
+ await h.w.ForestPlanning.open();h.click('[data-act="draw-quick"]');
+ for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))
+   h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
+ h.click('[data-act="finish-draw"]');h.click('[data-act="calculate-zip"]');
+ await until(()=>h.d.getElementById('fp-legend').textContent.includes('Ernte / Verjüngung'));
+ assert.match(h.d.getElementById('fp-content').textContent,/Räumlich geprüfter Maßnahmenhinweis/);
+ assert.match(h.d.getElementById('fp-content').textContent,/KEINE Fällfreigabe/);
+ let colored=false;
+ h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.color==='#ba7064')colored=true;});
+ assert.ok(colored,'harvest-review polygon must have the matching map color');
+ assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
+});
