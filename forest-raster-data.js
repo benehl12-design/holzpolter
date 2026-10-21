@@ -186,8 +186,16 @@
     // Practical mapping units: at least 0.5 ha and at least 3% of evaluated raster area.
     // Smaller patches remain unclassified on the map, not reassigned to harvest.
     const selectedArea=area(poly),minArea=Math.max(20000,selectedArea*.08),result=[];
+    const diagnostics={rejectedSmall:0,rejectedHeterogeneous:0,rejectedSparse:0};
+    const weighted=(items,key)=>{const valid=items.filter(c=>Number.isFinite(c[key])&&c[key]>0),w=valid.reduce((n,c)=>n+c.w,0);if(!w)return null;const mean=valid.reduce((n,c)=>n+c[key]*c.w,0)/w;return {mean,cv:Math.sqrt(valid.reduce((n,c)=>n+c.w*(c[key]-mean)**2,0)/w)/mean,coverage:w/items.reduce((n,c)=>n+c.w,0)};};
     for(const component of components){
-      if(component.area<minArea||result.length>=6)continue;
+      if(component.area<minArea||result.length>=6){diagnostics.rejectedSmall++;continue;}
+      // Spatial coherence: action equality alone is insufficient to call this a stand.
+      // Age, height and basal area must be measured over most of the patch and
+      // reasonably homogeneous. Mixed structures remain unclassified.
+      const stats={age:weighted(component.cells,'age'),height:weighted(component.cells,'height'),basal:weighted(component.cells,'basal')};
+      if(Object.values(stats).some(v=>!v||v.coverage<.75)){diagnostics.rejectedSparse++;continue;}
+      if(stats.age.cv>.30||stats.height.cv>.30||stats.basal.cv>.35){diagnostics.rejectedHeterogeneous++;continue;}
       let merged=[];
       for(const c of component.cells){
         const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
@@ -196,10 +204,10 @@
       }
       if(!merged.length)continue;
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
-      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
+    return {parts:result,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
 
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
