@@ -127,18 +127,34 @@ test('the western and northern village area is covered, including grid-aligned b
   }
 });
 
-test('spatial subareas use actual adjacent native cells and preserve clipped geometry',()=>{
+test('small isolated cells are not presented as operational treatment stands',()=>{
  const fx=fixture({volume_2:[100,100],basal_area_2:[26,26],height_2:[150,150],age_mixed:[42,12]},{ageType:'mixed',includeSubareas:true});
  const r=fx.result();
- assert.ok(r.subareas);
- assert.equal(r.subareas.parts.length,2,JSON.stringify({parts:r.subareas.parts.map(p=>({action:p.action,area:p.area_ha})),unshown:r.subareas.unshown_ha}));
- assert.deepEqual(new Set(r.subareas.parts.map(p=>p.action)),new Set(['thinning','tending']));
- assert.ok(r.subareas.parts.every(p=>p.geometry.type==='Polygon'||p.geometry.type==='MultiPolygon'));
- assert.ok(Math.abs(r.subareas.parts.reduce((a,p)=>a+p.area_ha,0)-.02)<1e-5);
+ assert.equal(r.subareas.parts.length,0);
+ assert.ok(Math.abs(r.subareas.unshown_ha-.02)<1e-5);
 });
-test('spatial subareas do not infer interventions from stock alone',()=>{
+test('large continuous treatment stands are retained with real clipped geometries',()=>{
+ const width=10,height=20,bounds=[780000,7410000,780100,7410200];
+ const vals={volume_2:[],basal_area_2:[],height_2:[],age_mixed:[]};
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  vals.volume_2.push(150);vals.basal_area_2.push(27);vals.height_2.push(160);
+  vals.age_mixed.push(y<10?45:12);
+ }
+ const sources={},layers={};
+ for(const [id,v] of Object.entries(vals)){
+  sources[id]={name:id,scale:id.startsWith('height')?.1:1};
+  layers[id]={x:bounds[0],y:bounds[3],step:10,width,height,runs:v.map(n=>[n,1])};
+ }
+ const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'tile.json',bounds}]};
+ const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds,layers}}];
+ const result=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
+ assert.equal(result.parts.length,2,JSON.stringify(result.parts.map(p=>[p.action,p.area_ha])));
+ assert.deepEqual(new Set(result.parts.map(p=>p.action)),new Set(['thinning','tending']));
+ assert.ok(result.parts.every(p=>p.area_ha>=.5&&['Polygon','MultiPolygon'].includes(p.geometry.type)));
+});
+test('stock-only data produces no treatment polygons',()=>{
  const fx=fixture({volume_2:[100,300]},{includeSubareas:true});
- assert.equal(fx.result().subareas.parts.length,1); 
- assert.equal(fx.result().subareas.parts[0].action,'unknown');
- assert.ok(fx.result().subareas.analyzed_ha>0);
+ const r=fx.result().subareas;
+ assert.equal(r.parts.length,0);
+ assert.ok(r.unshown_ha>0);
 });

@@ -143,19 +143,38 @@
         if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume});
       });
     }
-    const cellsByAction=new Map(),seen=new Set(),all=[...classified.values()];
+    const all=[...classified.values()];
+    // Smooth isolated positive labels only when at least five of the eight surrounding
+    // cells agree. Unknown and review cells must never be turned into harvest advice.
+    const lookup=new Map(all.map(c=>[c.key,c]));
+    const keyAt=(x,y,step)=>[Math.round((x+origin[0])*100),Math.round((y+origin[1])*100),Math.round(step*100)].join(':');
+    const revised=new Map();
+    for(const c of all){
+      if(c.action!=='thinning'&&c.action!=='tending')continue;
+      const votes={thinning:0,tending:0};
+      for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+        if(dx===0&&dy===0)continue;
+        const n=lookup.get(keyAt(c.x+dx*c.step,c.y+dy*c.step,c.step));
+        if(n&&votes[n.action]!==undefined)votes[n.action]++;
+      }
+      const other=c.action==='thinning'?'tending':'thinning';
+      if(votes[other]>=5&&votes[other]>votes[c.action])revised.set(c.key,other);
+    }
+    for(const c of all)if(revised.has(c.key))c.action=revised.get(c.key);
+    const cellsByAction=new Map(),seen=new Set();
     for(const c of all){if(!cellsByAction.has(c.action))cellsByAction.set(c.action,[]);cellsByAction.get(c.action).push(c);}
     const components=[];
     for(const [action,group] of cellsByAction){
-      const lookup=new Map(group.map(c=>[c.key,c]));
-      const keyAt=(x,y,step)=>[Math.round((x+origin[0])*100),Math.round((y+origin[1])*100),Math.round(step*100)].join(':');
+      // Unclassified cells remain a neutral background, not hundreds of polygons.
+      if(action==='unknown'||action==='review')continue;
+      const groupLookup=new Map(group.map(c=>[c.key,c]));
       for(const first of group){
         if(seen.has(first.key))continue;
         const queue=[first],component=[];seen.add(first.key);
         for(let pos=0;pos<queue.length;pos++){
           const c=queue[pos];component.push(c);
           for(const [dx,dy] of [[c.step,0],[-c.step,0],[0,c.step],[0,-c.step]]){
-            const n=lookup.get(keyAt(c.x+dx,c.y+dy,c.step));
+            const n=groupLookup.get(keyAt(c.x+dx,c.y+dy,c.step));
             if(n&&!seen.has(n.key)){seen.add(n.key);queue.push(n);}
           }
         }
@@ -163,8 +182,11 @@
       }
     }
     components.sort((a,b)=>b.area-a.area);
-    const result=[],minArea=50; // Show native 10m cells; label these as analysis units, not operational stands.
-    for(const component of components.slice(0,40)){
+    const totalArea=all.reduce((a,c)=>a+c.w,0);
+    // Practical mapping units: at least 0.5 ha and at least 3% of evaluated raster area.
+    // Smaller patches remain unclassified on the map, not reassigned to harvest.
+    const minArea=Math.max(5000,totalArea*.03),result=[];
+    for(const component of components){
       if(component.area<minArea)continue;
       let merged=[];
       for(const c of component.cells){
@@ -176,9 +198,9 @@
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
       result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
-    const totalArea=all.reduce((a,c)=>a+c.w,0);
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Zusammenhängende native Rasterzellen, auf Auswahlgrenze zugeschnitten; kleine Teilflächen unter 0,005 ha nicht einzeln dargestellt.',ageType,limited:components.length>40};
+    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Zusammenhängende, geglättete Rasterbereiche ab mindestens '+(minArea/10000).toFixed(2)+' ha. Kleinere und unsichere Bereiche bleiben neutral und werden nicht einer Maßnahme zugeschlagen.',ageType,limited:false};
+
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
   let indexPromise;
