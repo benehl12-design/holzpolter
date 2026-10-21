@@ -117,6 +117,29 @@
     }
     return {land,classes,species,ageBands,ageKnown,total:known>0?total:null,knownArea:known,unknownArea:unknown,speciesKnown,removal:known>0?removal:null,remaining:known>0?total-removal:null,registeredArea:stands.reduce((a,s)=>a+s.area_ha,0),propertyArea:property.area_ha||null,density:known>0?total/known:null};
   }
+  // Conservative planning hints: never replace a field inspection or regulatory review.
+  function recommend(s){
+    const i=s.inventory||{},age=i.age_years,basal=i.basal_area_m2_ha;
+    const unknown={action:'none',confidence:'low',reason:'Datenlage unzureichend; vor Ort prüfen.',review:true};
+    if(s.land_type==='wetland'||s.land_type==='water')return {action:'none',confidence:'high',reason:'Keine automatische Holzernteempfehlung für Wasser oder Feuchtgebiet.',review:true};
+    if(!['forest','unproductive'].includes(s.land_type))return unknown;
+    if(s.hk_class==='NO'||s.hk_class==='NS')return {action:'nature',confidence:'medium',reason:'Naturschutzklasse: Maßnahmen nur nach fachlicher Prüfung.',review:true};
+    if(s.hk_class==='K')return {action:'planting',confidence:'medium',reason:'Kahlfläche: Verjüngungsbedarf und natürliche Ansamung prüfen.',review:true};
+    if(s.hk_class==='R')return {action:'tending',confidence:'medium',reason:'Jungbestand: Pflegebedarf vor Ort kontrollieren.',review:true};
+    if(s.hk_class==='G1'||s.hk_class==='G2'){
+      if(basal!=null&&basal<12)return {action:'none',confidence:'low',reason:'Geringe Grundfläche; Durchforstung nicht ohne Bestandsprüfung empfehlen.',review:true};
+      return {action:'thinning',confidence:basal!=null?'medium':'low',reason:'Durchforstungsklasse; Stabilität, Dichte und Standort prüfen.',review:true};
+    }
+    if(s.hk_class==='S2')return {action:'regeneration',confidence:'low',reason:'Verjüngungsreifer Bestand; Dauerwaldoption, Naturwerte und Verjüngung prüfen.',review:true};
+    if(s.hk_class==='E')return {action:'none',confidence:'low',reason:'Ungleichaltriger Bestand: einzelstammweise Eingriffe nur nach örtlicher Beurteilung.',review:true};
+    if(age!=null&&age<20)return {action:'tending',confidence:'low',reason:'Junger Bestand; Pflegebedarf prüfen.',review:true};
+    return unknown;
+  }
+  function recommendParts(stands){
+    const parts=stands.map(s=>({id:s.id??null,name:s.name,area_ha:s.area_ha,...recommend(s)}));
+    const actions=[...new Set(parts.map(p=>p.action))];
+    return {uniform:parts.length>0&&actions.length===1,action:actions.length===1?actions[0]:null,parts,requiresReview:true};
+  }
   function color(s,theme='class'){
     if(s.land_type==='water')return '#58b5d6';if(s.land_type==='wetland')return '#967aaf';if(!['forest','unproductive'].includes(s.land_type))return '#a29375';
     const i=s.inventory||{};
@@ -161,5 +184,5 @@
     });
   }
   function featureCollection(stands){return {type:'FeatureCollection',lignum_schema:'forest-stands-v1',features:stands.map(s=>({type:'Feature',geometry:s.geometry,properties:{...stand(s),geometry:undefined}}))};}
-  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,stand,validateLayout,stock,referenceYear,scenario,summary,color,wkt,parseGeoJSON,parseCSV,featureCollection};
+  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,color,wkt,parseGeoJSON,parseCSV,featureCollection};
 });
