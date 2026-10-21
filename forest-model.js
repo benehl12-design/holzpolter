@@ -133,6 +133,16 @@
     if(basal!=null&&basal<12)return result('none','Niedrige Grundfläche: vor weiterer Entnahme Bestockung und Stabilität prüfen.','medium',missing);
     if(s.hk_class==='G1'||s.hk_class==='G2')return result('thinning','Durchforstungsklasse: Dichte, Kronen und Stabilität vor Eingriff prüfen.',basal!=null?'medium':'low',missing);
     if(s.hk_class==='S2')return result('regeneration','Verjüngungsreifer Bestand: Naturverjüngung, Dauerwaldoptionen und Schutzwerte prüfen.','low',missing);
+    // A *review flag*, NOT legal harvest eligibility. Actual Swedish minimum
+    // final-felling age depends on species and site productivity, and environmental
+    // constraints cannot be established from these stand-average raster estimates.
+    const matureCoverageOk=['volume_m3sk_ha','mean_diameter_cm'].every(k=>
+      i.sources?.[k]?.area_ha==null||s.area_ha==null||i.sources[k].area_ha>=s.area_ha*.7);
+    if(matureCoverageOk&&age!=null&&age>=100&&basal!=null&&basal>=16&&height!=null&&height>=12&&
+       diameter!=null&&diameter>=18&&i.volume_m3sk_ha!=null&&number(i.volume_m3sk_ha)>=120)
+      return result('regeneration',
+        'Älterer, ausreichend bestockter Bestand: einzelstammweise Erntenutzung oder Verjüngung prüfen. Dies ist KEINE Fällfreigabe. Standortindex, rechtliches Mindestalter, Nachwuchs, Naturwerte und Gelände vor Ort prüfen.',
+        'low',['site_index']);
     if(age!=null&&age<20)return result('tending','Junger Bestand nach Altersraster: Pflegebedarf vor Ort kontrollieren.',height!=null?'medium':'low',missing);
     if(age!=null&&age>=20&&age<65&&basal!=null&&basal>=22&&height!=null&&height>=10)return result('thinning','Alter, Grundfläche und Höhe sprechen für die Prüfung einer Durchforstung; keine automatische Entnahmefreigabe.','medium',missing);
     if(age!=null&&age>=65&&basal!=null&&basal>=22&&height!=null&&height>=14)return result('thinning','Älterer dichter Bestand: vorsichtige Durchforstung oder einzelstammweise Nutzung prüfen, nicht pauschal kahlschlagen.','low',missing);
