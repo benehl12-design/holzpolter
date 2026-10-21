@@ -43,7 +43,7 @@ test('the app shell and offline module are cached with the same version', async 
   assert.ok(await h.cache('lignum-app-v13.52').match('/offline.js')); assert.equal(h.activated(), 1);
   assert.ok(await h.cache('lignum-app-v13.52').match('/forwarder-icon.png'));
   for(const url of ['/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js'])assert.ok(await h.cache('lignum-app-v13.52').match(url));
-  assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.51"/);
+  assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.52"/);
 });
 test('a failed required module or machine-icon download keeps the previous worker active', async () => {
   for (const url of ['/offline.js','/forwarder-icon.png','/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js']) {
