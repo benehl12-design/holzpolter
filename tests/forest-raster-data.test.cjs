@@ -131,7 +131,7 @@ test('spatial subareas use actual adjacent native cells and preserve clipped geo
  const fx=fixture({volume_2:[100,100],basal_area_2:[26,26],height_2:[15,15],age_mixed:[42,12]},{ageType:'mixed',includeSubareas:true});
  const r=fx.result();
  assert.ok(r.subareas);
- assert.equal(r.subareas.parts.length,2);
+ assert.equal(r.subareas.parts.length,2,JSON.stringify({parts:r.subareas.parts.map(p=>({action:p.action,area:p.area_ha})),unshown:r.subareas.unshown_ha}));
  assert.deepEqual(new Set(r.subareas.parts.map(p=>p.action)),new Set(['thinning','tending']));
  assert.ok(r.subareas.parts.every(p=>p.geometry.type==='Polygon'||p.geometry.type==='MultiPolygon'));
  assert.ok(Math.abs(r.subareas.parts.reduce((a,p)=>a+p.area_ha,0)-.02)<1e-5);
