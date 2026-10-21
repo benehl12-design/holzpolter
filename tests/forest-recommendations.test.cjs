@@ -49,3 +49,12 @@ test('sparse raster coverage prevents a whole-area harvest recommendation',()=>{
  sources:{age_years:{area_ha:2}}}});
  assert.notEqual(r.action,'regeneration');
 });
+
+test('sparse diameter or volume coverage cannot trigger parcel-wide harvest review',()=>{
+ for(const key of ['volume_m3sk_ha','mean_diameter_cm']){
+  const i={age_years:110,basal_area_m2_ha:25,mean_height_m:17,mean_diameter_cm:24,volume_m3sk_ha:180,
+    sources:{[key]:{area_ha:2}}};
+  const r=M.recommend({land_type:'forest',area_ha:10,inventory:i});
+  assert.notEqual(r.action,'regeneration');
+ }
+});
