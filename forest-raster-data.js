@@ -96,6 +96,17 @@
     const speciesTotal=Object.values(species).reduce((a,b)=>a+b,0);
     if(speciesTotal>0){const recent=[...speciesFiles].some(id=>id.startsWith('species2018_'));inventory.species_pct=Object.fromEntries(Object.entries(species).map(([k,v])=>[k,v/speciesTotal*100]));inventory.sources.species_pct={name:recent?'SLU Trädslag 2018 · Bilder 2017–2019 · mit Grunddatenvorrat gewichtet':'SLU Skogskarta 2015 · alle sieben Baumartengruppen',year:null,product_year:recent?2018:2015,area_ha:speciesArea/10000,method:recent?'2017-2019 cell volume percentages weighted by available Omdrev volume on exact common native cell intersections':'volume shares on common valid native cells',datasets:[...speciesFiles].map(id=>index.sources[id])};}
     fields.push('species_pct');
+    // Automatic age-map selection uses species volume only as a proxy, never as measured basal-area dominance.
+    if(options.ageType==='auto'){
+      const share=inventory.species_pct,known=inventory.sources.species_pct?.area_ha||0;
+      const ranked=share?Object.entries(share).sort((a,b)=>b[1]-a[1]):[];
+      const dominant=ranked[0],ageType=dominant&&dominant[1]>=75&&known>=fullArea/10000*.7
+        ? ({pine:'pine',spruce:'spruce',birch:'birch',other:'other'}[dominant[0]]||'mixed'):'mixed';
+      const selected=evaluate(geometry,index,tiles,{...options,ageType});
+      selected.age_selection={type:ageType,method:'Automatische Näherung aus Baumarten-Volumenanteilen; kein Nachweis der 65-%-Grundflächenregel.',reliable:false};
+      selected.note+=' Alterskarte automatisch als Näherung gewählt; vor Ort überprüfen.';
+      return selected;
+    }
     return {inventory,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
