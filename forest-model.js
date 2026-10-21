@@ -117,23 +117,27 @@
     }
     return {land,classes,species,ageBands,ageKnown,total:known>0?total:null,knownArea:known,unknownArea:unknown,speciesKnown,removal:known>0?removal:null,remaining:known>0?total-removal:null,registeredArea:stands.reduce((a,s)=>a+s.area_ha,0),propertyArea:property.area_ha||null,density:known>0?total/known:null};
   }
-  // Conservative planning hints: never replace a field inspection or regulatory review.
+  // Advisory rules based on observed stand structure; missing values never become zero.
   function recommend(s){
-    const i=s.inventory||{},age=i.age_years,basal=i.basal_area_m2_ha;
-    const unknown={action:'none',confidence:'low',reason:'Datenlage unzureichend; vor Ort prüfen.',review:true};
-    if(s.land_type==='wetland'||s.land_type==='water')return {action:'none',confidence:'high',reason:'Keine automatische Holzernteempfehlung für Wasser oder Feuchtgebiet.',review:true};
-    if(!['forest','unproductive'].includes(s.land_type))return unknown;
-    if(s.hk_class==='NO'||s.hk_class==='NS')return {action:'nature',confidence:'medium',reason:'Naturschutzklasse: Maßnahmen nur nach fachlicher Prüfung.',review:true};
-    if(s.hk_class==='K')return {action:'planting',confidence:'medium',reason:'Kahlfläche: Verjüngungsbedarf und natürliche Ansamung prüfen.',review:true};
-    if(s.hk_class==='R')return {action:'tending',confidence:'medium',reason:'Jungbestand: Pflegebedarf vor Ort kontrollieren.',review:true};
-    if(s.hk_class==='G1'||s.hk_class==='G2'){
-      if(basal!=null&&basal<12)return {action:'none',confidence:'low',reason:'Geringe Grundfläche; Durchforstung nicht ohne Bestandsprüfung empfehlen.',review:true};
-      return {action:'thinning',confidence:basal!=null?'medium':'low',reason:'Durchforstungsklasse; Stabilität, Dichte und Standort prüfen.',review:true};
-    }
-    if(s.hk_class==='S2')return {action:'regeneration',confidence:'low',reason:'Verjüngungsreifer Bestand; Dauerwaldoption, Naturwerte und Verjüngung prüfen.',review:true};
-    if(s.hk_class==='E')return {action:'none',confidence:'low',reason:'Ungleichaltriger Bestand: einzelstammweise Eingriffe nur nach örtlicher Beurteilung.',review:true};
-    if(age!=null&&age<20)return {action:'tending',confidence:'low',reason:'Junger Bestand; Pflegebedarf prüfen.',review:true};
-    return unknown;
+    const i=s.inventory||{},age=number(i.age_years),basal=number(i.basal_area_m2_ha),height=number(i.mean_height_m),diameter=number(i.mean_diameter_cm);
+    const result=(action,reason,confidence='low',missing=[])=>({action,reason,confidence,missing,review:true});
+    if(s.land_type==='wetland'||s.land_type==='water')return result('none','Wasser- oder Feuchtgebiet: keine automatische Holzerntemaßnahme.','high');
+    if(s.land_type!=='forest')return result('none','Keine bestätigte produktive Waldfläche; Flächentyp vor Ort prüfen.');
+    if(s.hk_class==='NO'||s.hk_class==='NS')return result('nature','Naturschutzklasse: Schutzvorgaben und Pflegebedarf fachlich prüfen.','medium');
+    if(s.hk_class==='K')return result('planting','Kahlfläche: natürliche Verjüngung und Pflanzbedarf prüfen.','medium');
+    if(s.hk_class==='R')return result('tending','Jungbestand: Kulturpflege oder Läuterung prüfen.','medium');
+    if(s.hk_class==='E')return result('none','Ungleichaltriger Bestand: einzelstammweise Maßnahmen gesondert beurteilen.');
+    const missing=['age_years','basal_area_m2_ha','mean_height_m'].filter(k=>i[k]==null);
+    const coverage=['age_years','basal_area_m2_ha','mean_height_m'].filter(k=>i[k]!=null&&i.sources?.[k]?.area_ha!=null&&s.area_ha!=null&&i.sources[k].area_ha<s.area_ha*.7);
+    if(coverage.length)return result('none','Wichtige Rasterwerte decken weniger als 70 % der Fläche ab; keine flächendeckende Empfehlung.', 'low',coverage);
+    if(basal!=null&&basal<12)return result('none','Niedrige Grundfläche: vor weiterer Entnahme Bestockung und Stabilität prüfen.','medium',missing);
+    if(s.hk_class==='G1'||s.hk_class==='G2')return result('thinning','Durchforstungsklasse: Dichte, Kronen und Stabilität vor Eingriff prüfen.',basal!=null?'medium':'low',missing);
+    if(s.hk_class==='S2')return result('regeneration','Verjüngungsreifer Bestand: Naturverjüngung, Dauerwaldoptionen und Schutzwerte prüfen.','low',missing);
+    if(age!=null&&age<20)return result('tending','Junger Bestand nach Altersraster: Pflegebedarf vor Ort kontrollieren.',height!=null?'medium':'low',missing);
+    if(age!=null&&age>=20&&age<65&&basal!=null&&basal>=22&&height!=null&&height>=10)return result('thinning','Alter, Grundfläche und Höhe sprechen für die Prüfung einer Durchforstung; keine automatische Entnahmefreigabe.','medium',missing);
+    if(age!=null&&age>=65&&basal!=null&&basal>=22&&height!=null&&height>=14)return result('thinning','Älterer dichter Bestand: vorsichtige Durchforstung oder einzelstammweise Nutzung prüfen, nicht pauschal kahlschlagen.','low',missing);
+    if(age!=null&&age>=20&&height!=null&&height<10)return result('tending','Geringe Bestandshöhe: Pflegebedarf und Altersdaten vor Ort abgleichen.','low',missing);
+    return result('none','Aus den vorhandenen Kennzahlen lässt sich noch keine belastbare Maßnahme ableiten. Fehlende Werte und Bestandsstruktur prüfen.','low',missing);
   }
   function recommendParts(stands){
     const parts=stands.map(s=>({id:s.id??null,name:s.name,area_ha:s.area_ha,...recommend(s)}));
