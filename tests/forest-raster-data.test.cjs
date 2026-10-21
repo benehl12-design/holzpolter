@@ -126,3 +126,18 @@ test('the western and northern village area is covered, including grid-aligned b
     assert.ok(Math.abs(Object.values(result.inventory.species_pct).reduce((a,b)=>a+b,0)-100)<1e-7);
   }
 });
+
+test('spatial subareas use actual adjacent native cells and preserve clipped geometry',()=>{
+ const fx=fixture({volume_2:[100,100],basal_area_2:[26,26],height_2:[15,15],age_mixed:[42,12]},{ageType:'mixed',includeSubareas:true});
+ const r=fx.result();
+ assert.ok(r.subareas);
+ assert.equal(r.subareas.parts.length,2);
+ assert.deepEqual(new Set(r.subareas.parts.map(p=>p.action)),new Set(['thinning','tending']));
+ assert.ok(r.subareas.parts.every(p=>p.geometry.type==='Polygon'||p.geometry.type==='MultiPolygon'));
+ assert.ok(Math.abs(r.subareas.parts.reduce((a,p)=>a+p.area_ha,0)-.02)<1e-5);
+});
+test('spatial subareas do not infer interventions from stock alone',()=>{
+ const fx=fixture({volume_2:[100,300]},{includeSubareas:true});
+ assert.equal(fx.result().subareas.parts.length,0);
+ assert.ok(fx.result().subareas.unshown_ha>0);
+});
