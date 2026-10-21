@@ -1,8 +1,8 @@
 /* LIGNUM · Native cells from public Skogsstyrelsen ZIPs, evaluated on the device. */
 (function(root,factory){
-  if(typeof module==='object'&&module.exports)module.exports=factory(require('./vendor/proj4-2.11.0.js'),require('./vendor/polygon-clipping-0.15.7.js'));
-  else root.ForestRasterData=factory(root.proj4,root.polygonClipping);
-})(typeof globalThis!=='undefined'?globalThis:this,function(proj4,clip){
+  if(typeof module==='object'&&module.exports)module.exports=factory(require('./vendor/proj4-2.11.0.js'),require('./vendor/polygon-clipping-0.15.7.js'),require('./forest-harvest-rules.js'));
+  else root.ForestRasterData=factory(root.proj4,root.polygonClipping,root.ForestHarvestRules);
+})(typeof globalThis!=='undefined'?globalThis:this,function(proj4,clip,harvestRules){
   'use strict';
   const SWEREF='+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs',CACHE='lignum-forest-rasters-v1';
   const rectangle=b=>[[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]];
@@ -60,7 +60,7 @@
         }});
       }
       if(options.ageType){const id='age_'+options.ageType,layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('age_years',v,w,id);});}
-      if(options.siteSpecies){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
+      if(['T','G'].includes(options.siteSpecies)){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
       const recent=!!layers.species2018_pine,prefix=recent?'species2018_':'species_';
       const ids=['pine','spruce','birch','broadleaf','contorta','oak','beech'].map(k=>prefix+k),base=layers[prefix+'pine'];
       if(base&&ids.every(id=>layers[id])){
@@ -96,6 +96,21 @@
     const speciesTotal=Object.values(species).reduce((a,b)=>a+b,0);
     if(speciesTotal>0){const recent=[...speciesFiles].some(id=>id.startsWith('species2018_'));inventory.species_pct=Object.fromEntries(Object.entries(species).map(([k,v])=>[k,v/speciesTotal*100]));inventory.sources.species_pct={name:recent?'SLU Trädslag 2018 · Bilder 2017–2019 · mit Grunddatenvorrat gewichtet':'SLU Skogskarta 2015 · alle sieben Baumartengruppen',year:null,product_year:recent?2018:2015,area_ha:speciesArea/10000,method:recent?'2017-2019 cell volume percentages weighted by available Omdrev volume on exact common native cell intersections':'volume shares on common valid native cells',datasets:[...speciesFiles].map(id=>index.sources[id])};}
     fields.push('species_pct');
+    // Site-index species can be suggested from a clearly dominant pine or spruce
+    // volume share. This is only a proxy: stand-site reference ages cannot be
+    // treated as confirmed when the site-indicating species was guessed.
+    if(options.siteSpecies==='auto'){
+      const share=inventory.species_pct,known=inventory.sources.species_pct?.area_ha||0,
+        sufficient=share&&known>=fullArea/10000*.7;
+      const type=sufficient&&share.pine>=75?'T':sufficient&&share.spruce>=75?'G':'';
+      const selected=evaluate(geometry,index,tiles,{...options,siteSpecies:type,siteTypeInferred:true});
+      selected.site_selection={
+        type:type||'unknown',reliable:false,
+        method:type?'Standortanzeigende Baumart aus Baumarten-Vorratsanteilen angenähert; für eine Ernteprüfung vor Ort bestätigen.':'Baumartenverteilung reicht für eine zuverlässige automatische Standortindex-Typwahl nicht aus.'
+      };
+      if(selected.inventory.sources?.site_index)selected.inventory.sources.site_index.site_species_inferred=true;
+      return selected;
+    }
     // Automatic age-map selection uses species volume only as a proxy, never as measured basal-area dominance.
     if(options.ageType==='auto'){
       const share=inventory.species_pct,known=inventory.sources.species_pct?.area_ha||0;
@@ -130,19 +145,32 @@
         if(++inspected>6000)throw Error('Zu viele Rasterzellen für die Teilflächenanalyse. Bitte eine kleinere Fläche auswählen.');
         const sample=(key)=>{for(const suffix of ['_3','_2']){const layer=layers[key+suffix],v=valueAt(layer,x,y);if(v>=0)return v>0?v*(index.sources[key+suffix]?.scale??1):null;}return null;};
         const basal=sample('basal_area'),height=sample('height'),volume=sample('volume'),diameter=sample('diameter');
+        const siteKey=options.siteSpecies==='T'?'site_pine':options.siteSpecies==='G'?'site_spruce':null;
+        const rawSite=siteKey?valueAt(layers[siteKey],x,y):-1;
+        const siteIndex=rawSite>0?options.siteSpecies+Math.round(rawSite*(index.sources[siteKey]?.scale??1)):null;
+        const speciesPrefix=layers.species2018_pine?'species2018_':layers.species_pine?'species_':null;
+        const speciesKeys=['pine','spruce','birch','broadleaf','contorta','oak','beech'];
+        const speciesValues=speciesPrefix?speciesKeys.map(k=>valueAt(layers[speciesPrefix+k],x,y)):[];
+        const speciesTotal=speciesValues.length===7&&speciesValues.every(v=>v>=0)
+          ?speciesValues.reduce((a,b)=>a+b,0):0;
+        const pinePct=speciesTotal>0?speciesValues[0]/speciesTotal*100:null;
+        const sprucePct=speciesTotal>0?speciesValues[1]/speciesTotal*100:null;
         const ageLayer=layers['age_'+ageType],rawAge=valueAt(ageLayer,x,y);
         const age=rawAge>0?rawAge*(index.sources['age_'+ageType]?.scale??1):null;
         // Do not infer a silvicultural class from stock volume alone.
         let action='unknown';
-        if(age!=null&&age>=100&&basal!=null&&basal>=16&&height!=null&&height>=12&&
-           diameter!=null&&diameter>=18&&volume!=null&&volume>=120)action='regeneration';
+        const harvest=harvestRules.harvestReview({
+          age,basal,height,diameter,volume,site_index:siteIndex,
+          pine_pct:pinePct,spruce_pct:sprucePct,allowSiteReference:!options.siteTypeInferred
+        });
+        if(harvest.candidate)action='regeneration';
         else if(age!=null&&age<20)action='tending';
         else if(basal!=null&&basal<12)action='review';
         else if(age!=null&&basal!=null&&height!=null&&age>=20&&basal>=22&&height>=10)action='thinning';
         else if(age!=null&&height!=null&&age>=20&&height<10)action='tending';
         const step=base.step,x0=x-step/2,y0=y-step/2;
         const key=[Math.round((x0+origin[0])*100),Math.round((y0+origin[1])*100),Math.round(step*100)].join(':');
-        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume,diameter});
+        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume,diameter,siteIndex,harvest});
       });
     }
     const all=[...classified.values()];
@@ -206,7 +234,8 @@
       }
       if(!merged.length)continue;
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
-      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,
+        harvestReference:component.action==='regeneration'?component.cells[0]?.harvest?.reference??null:null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
     // A missing treatment recommendation must not erase measured forest structure.
     // These are descriptive stock zones only; no silvicultural intervention is inferred.

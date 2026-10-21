@@ -32,7 +32,7 @@ function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],mapSize=
     if(method==='PATCH'){const row=data.find(match);Object.assign(row,structuredClone(options.body));return [structuredClone(row)];}
     if(method==='DELETE'){tables[table]=data.filter(x=>!match(x));return data.filter(match);}
   };
-  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
+  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-harvest-rules.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
   t.after(()=>{for(const m of maps)m.remove();dom.window.close();});
   const click=sel=>{const b=d.querySelector(sel);assert.ok(b,'button exists: '+sel);b.click();};
   const set=(name,value)=>{const input=d.querySelector(`[name="${name}"]`);assert.ok(input,'input exists '+name);input.value=value;};

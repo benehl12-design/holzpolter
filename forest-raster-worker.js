@@ -1,5 +1,5 @@
 /* Keep native-cell intersection calculations off the map/UI thread. */
-importScripts('vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-raster-data.js');
+importScripts('vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-harvest-rules.js','forest-raster-data.js');
 self.onmessage=event=>{
   try{
     const {geometry,index,tiles,options}=event.data;
