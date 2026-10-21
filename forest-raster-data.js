@@ -159,7 +159,7 @@
       }
     }
     components.sort((a,b)=>b.area-a.area);
-    const result=[],minArea=500; // Avoid presenting individual tiny cells as operational stands.
+    const result=[],minArea=50; // Show native 10m cells; label these as analysis units, not operational stands.
     for(const component of components.slice(0,40)){
       if(component.area<minArea)continue;
       let merged=[];
@@ -174,7 +174,7 @@
     }
     const totalArea=all.reduce((a,c)=>a+c.w,0);
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Zusammenhängende native Rasterzellen, auf Auswahlgrenze zugeschnitten; kleine Teilflächen unter 0,05 ha nicht einzeln dargestellt.',ageType,limited:components.length>40};
+    return {parts:result,analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Zusammenhängende native Rasterzellen, auf Auswahlgrenze zugeschnitten; kleine Teilflächen unter 0,005 ha nicht einzeln dargestellt.',ageType,limited:components.length>40};
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
   let indexPromise;
