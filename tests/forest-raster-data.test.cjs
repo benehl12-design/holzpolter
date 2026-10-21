@@ -138,6 +138,7 @@ test('spatial subareas use actual adjacent native cells and preserve clipped geo
 });
 test('spatial subareas do not infer interventions from stock alone',()=>{
  const fx=fixture({volume_2:[100,300]},{includeSubareas:true});
- assert.equal(fx.result().subareas.parts.length,1);\n assert.equal(fx.result().subareas.parts[0].action,'unknown');
+ assert.equal(fx.result().subareas.parts.length,1); 
+ assert.equal(fx.result().subareas.parts[0].action,'unknown');
  assert.ok(fx.result().subareas.analyzed_ha>0);
 });
