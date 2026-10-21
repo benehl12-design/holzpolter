@@ -226,3 +226,27 @@ test('unknown diameter never creates a mapped harvest review area',()=>{
  const r=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
  assert.equal(r.parts.some(p=>p.action==='regeneration'),false);
 });
+
+test('site-index assisted harvest candidates are mapped using the same northern age references',()=>{
+ const width=30,height=20,bounds=[780000,7410000,780300,7410200],size=width*height;
+ const vals={volume_2:Array(size).fill(180),basal_area_2:Array(size).fill(25),height_2:Array(size).fill(180),
+   diameter_2:Array(size).fill(24),age_mixed:Array(size).fill(75),site_pine:Array(size).fill(24)};
+ for(const [key,value] of Object.entries({pine:80,spruce:10,birch:10,broadleaf:0,contorta:0,oak:0,beech:0}))
+   vals['species_'+key]=Array(size).fill(value);
+ const sources={},layers={};
+ for(const [id,v] of Object.entries(vals)){
+  sources[id]={name:id,scale:id.startsWith('height_')?.1:1};
+  layers[id]={x:bounds[0],y:bounds[3],step:10,width,height,runs:v.map(n=>[n,1])};
+ }
+ const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'tile.json',bounds}]};
+ const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds,layers}}];
+ const geom=geo(...bounds);
+ const explicit=R.evaluate(geom,index,tiles,{ageType:'mixed',siteSpecies:'T',includeSubareas:true});
+ assert.equal(explicit.subareas.parts.length,1);
+ assert.equal(explicit.subareas.parts[0].action,'regeneration');
+ assert.equal(explicit.subareas.parts[0].structure.harvestReference?.years,70);
+ const inferred=R.evaluate(geom,index,tiles,{ageType:'mixed',siteSpecies:'auto',includeSubareas:true});
+ assert.equal(inferred.site_selection.type,'T');
+ assert.equal(inferred.inventory.sources.site_index.site_species_inferred,true);
+ assert.ok(inferred.subareas.parts.every(p=>p.action!=='regeneration'));
+});
