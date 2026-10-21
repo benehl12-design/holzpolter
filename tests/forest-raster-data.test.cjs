@@ -178,4 +178,17 @@ test('heterogeneous age within one action is not a validated forest stand',()=>{
  const result=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
  assert.equal(result.parts.length,0);
  assert.ok(result.diagnostics.rejectedHeterogeneous>0);
+ assert.ok(result.structureZones.length>0,'measured stock zones remain visible despite rejected treatment');
+ assert.ok(result.structureZones.every(z=>z.volume_m3sk_ha>0&&z.geometry));
+});
+
+test('stock-only forest data shows descriptive zones, never a treatment recommendation',()=>{
+ const width=30,height=20,bounds=[780000,7410000,780300,7410200];
+ const volume=Array.from({length:width*height},(_,i)=>i%width<15?100:250);
+ const index={schema:'lignum-raster-index-v1',sources:{volume_2:{name:'volume',scale:1}},tiles:[{file:'tile.json',bounds}]};
+ const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds,layers:{volume_2:{x:bounds[0],y:bounds[3],step:10,width,height,runs:volume.map(v=>[v,1])}}}}];
+ const result=R.evaluate(geo(...bounds),index,tiles,{ageType:'mixed',includeSubareas:true}).subareas;
+ assert.equal(result.parts.length,0);
+ assert.ok(result.structureZones.length>0);
+ assert.ok(result.structureZones.every(z=>['low','mid','high'].includes(z.zone)));
 });

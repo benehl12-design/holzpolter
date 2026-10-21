@@ -206,8 +206,58 @@
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
       result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
+    // A missing treatment recommendation must not erase measured forest structure.
+    // These are descriptive stock zones only; no silvicultural intervention is inferred.
+    const structureZones=[];
+    if(!result.length){
+      const measured=all.filter(c=>Number.isFinite(c.volume)&&c.volume>0);
+      const measuredArea=measured.reduce((n,c)=>n+c.w,0);
+      if(measuredArea>=selectedArea*.7){
+        const average=measured.reduce((n,c)=>n+c.volume*c.w,0)/measuredArea;
+        const zoneFor=c=>c.volume<average*.75?'low':c.volume>average*1.25?'high':'mid';
+        const zones=new Map(measured.map(c=>[c.key,{...c,zone:zoneFor(c)}]));
+        // Majority filter removes isolated pixel noise but never fills missing-data gaps.
+        for(const c of measured){
+          const votes={low:0,mid:0,high:0};
+          for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+            if(dx===0&&dy===0)continue;
+            const n=zones.get(keyAt(c.x+dx*c.step,c.y+dy*c.step,c.step));
+            if(n)votes[n.zone]++;
+          }
+          const winner=Object.keys(votes).sort((a,b)=>votes[b]-votes[a])[0];
+          if(votes[winner]>=5)zones.get(c.key).zone=winner;
+        }
+        const visited=new Set(),groups=[];
+        for(const first of zones.values()){
+          if(visited.has(first.key))continue;
+          const queue=[first],group=[];visited.add(first.key);
+          for(let k=0;k<queue.length;k++){
+            const c=queue[k];group.push(c);
+            for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+              const n=zones.get(keyAt(c.x+dx*c.step,c.y+dy*c.step,c.step));
+              if(n&&n.zone===first.zone&&!visited.has(n.key)){visited.add(n.key);queue.push(n);}
+            }
+          }
+          groups.push({zone:first.zone,cells:group,area:group.reduce((n,c)=>n+c.w,0)});
+        }
+        groups.sort((a,b)=>b.area-a.area);
+        const threshold=Math.max(5000,selectedArea*.02);
+        for(const group of groups){
+          if(structureZones.length>=4)break;
+          if(group.area<threshold)continue;
+          let merged=[];
+          for(const c of group.cells){
+            const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
+            if(shape.length)merged=merged.length?clip.union(merged,shape):shape;
+          }
+          if(!merged.length)continue;
+          const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
+          structureZones.push({zone:group.zone,area_ha:group.area/10000,volume_m3sk_ha:group.cells.reduce((n,c)=>n+c.volume*c.w,0)/group.area,geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+        }
+      }
+    }
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
+    return {parts:result,structureZones,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
 
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
