@@ -69,6 +69,24 @@
       const values={};let total=0;for(const k of Object.keys(SPECIES)){const n=number(raw.species_pct[k]);if(n==null)throw Error('Bitte alle vier Baumartenanteile eintragen, auch 0.');if(n<0||n>100)throw Error('Baumartenanteile müssen zwischen 0 und 100 liegen.');values[k]=n;total+=n;}
       if(Math.abs(total-100)>0.05)throw Error('Die Baumartenanteile müssen zusammen 100 % ergeben.');out.species_pct=values;
     }
+    // Derived per-species stock is distinct from total stand stock.
+    // Preserve it when an optional ZIP evaluation is saved as a stand.
+    if(raw.species_stock_area_ha!=null){
+      const a=number(raw.species_stock_area_ha);
+      if(a<=0||a>1e6)throw Error('Die Vergleichsfläche des Baumartenvorrats ist ungültig.');
+      out.species_stock_area_ha=a;
+    }
+    for(const [key,max] of [['species_volume_m3sk',1e8],['species_volume_m3sk_ha',3000]]){
+      if(raw[key]==null)continue;
+      if(typeof raw[key]!=='object'||Array.isArray(raw[key]))throw Error('Ungültige Baumartenvorratsdaten.');
+      const values={};
+      for(const kind of Object.keys(SPECIES)){
+        const value=number(raw[key][kind]);
+        if(value==null||value<0||value>max)throw Error('Ungültiger Vorrat für '+SPECIES[kind]+'.');
+        values[kind]=value;
+      }
+      out[key]=values;
+    }
     if(raw.source_label)out.source_label=String(raw.source_label).slice(0,300);
     if(raw.sources&&typeof raw.sources==='object'&&!Array.isArray(raw.sources))out.sources=JSON.parse(JSON.stringify(raw.sources));
     if(JSON.stringify(out).length>25000)throw Error('Zu viele Quellenangaben.');return out;
