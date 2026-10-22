@@ -1,7 +1,7 @@
 name: Lignum regression checks
 on:
   push:
-    branches: [main, lignum-harvester, lignum-13-50-release, lignum-13-51-smart-planning, lignum-13-52-stand-generalization, lignum-13-53-usable-stands, lignum-13-54-structure-validation, lignum-13-55-visible-structure, lignum-13-56-recommendation-map-consistency, lignum-13-57-harvest-screening, lignum-13-58-harvest-site-index]
+    branches: [main, lignum-harvester, lignum-13-50-release, lignum-13-51-smart-planning, lignum-13-52-stand-generalization, lignum-13-53-usable-stands, lignum-13-54-structure-validation, lignum-13-55-visible-structure, lignum-13-56-recommendation-map-consistency, lignum-13-57-harvest-screening, lignum-13-58-harvest-site-index, lignum-13-59-species-stock]
   pull_request:
     branches: [main, lignum-harvester]
   workflow_dispatch:
