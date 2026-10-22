@@ -256,3 +256,42 @@ test('a spatial harvest-review candidate appears both on map and in the legend',
  assert.ok(colored,'harvest-review polygon must have the matching map color');
  assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
 });
+
+test('switching pine to birch age model changes displayed species stock, not total inventory',async t=>{
+  const h=fixture(t),geometry=directRaster(h);
+  h.w.ForestRasterData.coverage=async()=>({name:'Testgebiet',area_ha:.02,coverage_ha:.02});
+  h.w.ForestRasterData.inventory=async(_geometry,options)=>({
+    inventory:{
+      volume_m3sk:4,volume_m3sk_ha:200,age_years:options.ageType==='birch'?45:85,
+      species_pct:{pine:25,spruce:0,birch:75,other:0},
+      species_volume_m3sk:{pine:1,spruce:0,birch:3,other:0},
+      species_volume_m3sk_ha:{pine:50,spruce:0,birch:150,other:0},
+      species_stock_area_ha:.02,sources:{}
+    },
+    area_ha:.02,coverage_ha:.02,species_focus:options.speciesFocus,
+    subareas:null,note:'Testdaten'
+  });
+  await h.w.ForestPlanning.open();
+  h.click('[data-act="draw-quick"]');
+  for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))
+    h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
+  h.click('[data-act="finish-draw"]');
+  h.d.getElementById('fp-age-type').value='pine';
+  h.click('[data-act="calculate-zip"]');
+  await until(()=>h.d.getElementById('fp-content').textContent.includes('Gewählte Baumart: Kiefer'));
+  let text=h.d.getElementById('fp-content').textContent;
+  assert.match(text,/Gewählte Baumart: Kiefer/);
+  assert.match(text,/Gesamtvorrat \(alle Arten\)/);
+  assert.match(text,/4 m³sk/);
+  assert.match(text,/50 m³sk\/ha/);
+  h.click('[data-act="quick-data"]');
+  h.d.getElementById('fp-age-type').value='birch';
+  h.click('[data-act="calculate-zip"]');
+  await until(()=>h.d.getElementById('fp-content').textContent.includes('Gewählte Baumart: Birke'));
+  text=h.d.getElementById('fp-content').textContent;
+  assert.match(text,/150 m³sk\/ha/);
+  assert.match(text,/3 m³sk/);
+  assert.match(text,/Gesamtvorrat \(alle Arten\)/);
+  assert.equal(h.writes.length,0);
+  assert.deepEqual(h.errors,[]);
+});

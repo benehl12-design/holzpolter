@@ -41,7 +41,7 @@
     const {poly:polygon,needed:expected,origin}=selection(geometry,index),fullArea=area(polygon);
     const byFile=new Map(tiles.map(t=>[t.file,t.data]));
     for(const t of expected)if(!byFile.has(t.file))throw Error('Ein benötigter Datenausschnitt fehlt. Bitte online vollständig laden.');
-    const totals={},provenance={},species={pine:0,spruce:0,birch:0,other:0},speciesFiles=new Set();let speciesArea=0,covered=0;
+    const totals={},provenance={},speciesRecent={pine:0,spruce:0,birch:0,other:0},speciesLegacy={pine:0,spruce:0,birch:0,other:0},speciesFilesRecent=new Set(),speciesFilesLegacy=new Set();let areaRecent=0,areaLegacy=0,covered=0;
     function accumulate(key,value,w,id){
       const source=index.sources[id];if(!source)throw Error('Quellenangabe fehlt.');
       const t=totals[key]||(totals[key]={sum:0,area:0});t.sum+=value*(source.scale??1)*w;t.area+=w;
@@ -75,7 +75,11 @@
             if(!weight)return;
             weight/=sum; // Normalize rounded per-cell percentages before volume weighting.
           }
-          species.pine+=v[0]*weight;species.spruce+=v[1]*weight;species.birch+=v[2]*weight;species.other+=(v[3]+v[4]+v[5]+v[6])*weight;speciesArea+=commonArea;ids.forEach(id=>speciesFiles.add(id));});
+          const target=recent?speciesRecent:speciesLegacy,files=recent?speciesFilesRecent:speciesFilesLegacy;
+          target.pine+=v[0]*weight;target.spruce+=v[1]*weight;target.birch+=v[2]*weight;
+          target.other+=(v[3]+v[4]+v[5]+v[6])*weight;
+          if(recent)areaRecent+=commonArea;else areaLegacy+=commonArea;
+          ids.forEach(id=>files.add(id));});
       }
     }
     const inventory={sources:{},source_label:'Skogsstyrelsen / SLU · ZIP-Daten, lokal ausgewertet'},fields=[];
@@ -93,9 +97,36 @@
     // A refreshed stock source with no valid cells clears obsolete stock values.
     for(const key of Object.values(metricKeys))if(!fields.includes(key))fields.push(key);
     if(!('volume_m3sk_ha' in inventory))fields.push('volume_m3sk','stock_area_ha','reference_year','scan_year','projected_to_year');
+    // 2018 percentages weighted by m³sk and 2015 area-weighted percentages
+    // must never be added together. Prefer 2018 where available and report
+    // only its actual common raster coverage; otherwise fall back to 2015.
+    const useRecent=Object.values(speciesRecent).some(v=>v>0);
+    const species=useRecent?speciesRecent:speciesLegacy,
+      speciesFiles=useRecent?speciesFilesRecent:speciesFilesLegacy,
+      speciesArea=useRecent?areaRecent:areaLegacy;
     const speciesTotal=Object.values(species).reduce((a,b)=>a+b,0);
+    // Species 2018 gives percentage shares, not species-specific LiDAR scans.
+    // Multiply those shares by *actual co-located* Omdrev volume cells.
+    // Never extrapolate missing cells or infer species volumes from the older
+    // 2015 maps, which were accumulated without matching stock weights.
     if(speciesTotal>0){const recent=[...speciesFiles].some(id=>id.startsWith('species2018_'));inventory.species_pct=Object.fromEntries(Object.entries(species).map(([k,v])=>[k,v/speciesTotal*100]));inventory.sources.species_pct={name:recent?'SLU Trädslag 2018 · Bilder 2017–2019 · mit Grunddatenvorrat gewichtet':'SLU Skogskarta 2015 · alle sieben Baumartengruppen',year:null,product_year:recent?2018:2015,area_ha:speciesArea/10000,method:recent?'2017-2019 cell volume percentages weighted by available Omdrev volume on exact common native cell intersections':'volume shares on common valid native cells',datasets:[...speciesFiles].map(id=>index.sources[id])};}
-    fields.push('species_pct');
+    if(useRecent&&speciesTotal>0&&speciesArea>0){
+      inventory.species_volume_m3sk=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/10000]));
+      inventory.species_volume_m3sk_ha=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/speciesArea]));
+      inventory.species_stock_area_ha=speciesArea/10000;
+      const source={
+        name:'SLU Trädslag 2018 (Baumartenanteil) × Omdrev 2/3 (Gesamtvorrat)',
+        product_year:2018,year:null,area_ha:speciesArea/10000,
+        method:'Cell-wise volume × normalized species proportion on common valid raster coverage; historical datasets, not a current species inventory',
+        note:'Schätzung aus unterschiedlichen Aufnahmezeitpunkten; nicht flächendeckend, fehlende Bereiche wurden nicht hochgerechnet.'
+      };
+      inventory.sources.species_volume_m3sk=source;
+      inventory.sources.species_volume_m3sk_ha=source;
+      fields.push('species_volume_m3sk','species_volume_m3sk_ha','species_stock_area_ha');
+    }
+    // Always remove old species-specific stock if refreshed datasets cannot
+    // support the same spatially matched estimate.
+    fields.push('species_pct','species_volume_m3sk','species_volume_m3sk_ha','species_stock_area_ha');
     // Site-index species can be suggested from a clearly dominant pine or spruce
     // volume share. This is only a proxy: stand-site reference ages cannot be
     // treated as confirmed when the site-indicating species was guessed.
@@ -122,7 +153,7 @@
       selected.note+=' Alterskarte automatisch als Näherung gewählt; vor Ort überprüfen.';
       return selected;
     }
-    return {inventory,subareas:options.includeSubareas?safeSubareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+    return {inventory,species_focus:options.speciesFocus||'all',subareas:options.includeSubareas?safeSubareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
   }
   function safeSubareas(geometry,index,tiles,options){
     try{return subareas(geometry,index,tiles,options);}
@@ -240,11 +271,13 @@
     // A missing treatment recommendation must not erase measured forest structure.
     // These are descriptive stock zones only; no silvicultural intervention is inferred.
     const structureZones=[];
+    let stockMean_m3sk_ha=null;
     if(!result.length){
       const measured=all.filter(c=>Number.isFinite(c.volume)&&c.volume>0);
       const measuredArea=measured.reduce((n,c)=>n+c.w,0);
       if(measuredArea>=selectedArea*.7){
         const average=measured.reduce((n,c)=>n+c.volume*c.w,0)/measuredArea;
+        stockMean_m3sk_ha=average;
         const zoneFor=c=>c.volume<average*.75?'low':c.volume>average*1.25?'high':'mid';
         const zones=new Map(measured.map(c=>[c.key,{...c,zone:zoneFor(c)}]));
         // Majority filter removes isolated pixel noise but never fills missing-data gaps.
@@ -288,7 +321,7 @@
       }
     }
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,structureZones,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
+    return {parts:result,structureZones,stockMean_m3sk_ha,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
 
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);

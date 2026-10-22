@@ -44,6 +44,79 @@ test('2018 percentage maps use exact 12.5m/10m intersections and volume weightin
   const f=fixture(values);for(const [id,layer] of Object.entries(f.tiles[0].data.layers))if(id.startsWith('species2018_'))Object.assign(layer,{step:12.5,y:7410012.5});
   const r=f.result().inventory;assert.ok(Math.abs(r.species_pct.pine-43.75)<1e-5);assert.ok(Math.abs(r.species_pct.spruce-56.25)<1e-5);assert.equal(r.sources.species_pct.product_year,2018);assert.ok(Math.abs(r.sources.species_pct.area_ha-.02)<1e-6);
 });
+test('species volumes are calculated from each species share × co-located stock, not the age-map choice',()=>{
+  const vals={volume_2:[100,300],age_pine:[90,90],age_birch:[40,40]};
+  for(const kind of ['pine','spruce','birch','broadleaf','contorta','oak','beech'])
+    vals['species2018_'+kind]=kind==='pine'?[100,0]:kind==='birch'?[0,100]:[0,0];
+  const fx=fixture(vals),pine=R.evaluate(geo(),fx.index,fx.tiles,{ageType:'pine',speciesFocus:'pine'}),
+    birch=R.evaluate(geo(),fx.index,fx.tiles,{ageType:'birch',speciesFocus:'birch'});
+  assert.ok(Math.abs(pine.inventory.volume_m3sk-4)<1e-6);
+  assert.equal(pine.inventory.volume_m3sk,birch.inventory.volume_m3sk,'the whole-stand stock is independent of age model');
+  assert.equal(pine.inventory.volume_m3sk_ha,birch.inventory.volume_m3sk_ha);
+  assert.equal(pine.inventory.mean_height_m,birch.inventory.mean_height_m);
+  assert.equal(pine.inventory.age_years,90);
+  assert.equal(birch.inventory.age_years,40);
+  assert.equal(pine.species_focus,'pine');
+  assert.equal(birch.species_focus,'birch');
+  assert.ok(Math.abs(pine.inventory.species_stock_area_ha-.02)<1e-8);
+  assert.ok(Math.abs(pine.inventory.species_volume_m3sk.pine-1)<1e-6);
+  assert.ok(Math.abs(pine.inventory.species_volume_m3sk.birch-3)<1e-6);
+  assert.ok(Math.abs(pine.inventory.species_volume_m3sk_ha.pine-50)<1e-6);
+  assert.ok(Math.abs(pine.inventory.species_volume_m3sk_ha.birch-150)<1e-6);
+  assert.ok(Math.abs(Object.values(pine.inventory.species_volume_m3sk).reduce((a,b)=>a+b,0)-pine.inventory.volume_m3sk)<1e-6);
+  assert.match(pine.inventory.sources.species_volume_m3sk.name,/2018/);
+});
+test('species stock is only counted on cells with matching valid total-volume data',()=>{
+  const vals={volume_2:[100,-1]};
+  for(const kind of ['pine','spruce','birch','broadleaf','contorta','oak','beech'])
+    vals['species2018_'+kind]=kind==='pine'?[100,0]:kind==='birch'?[0,100]:[0,0];
+  const result=fixture(vals).result(),i=result.inventory;
+  assert.ok(Math.abs(i.species_stock_area_ha-.01)<1e-6);
+  assert.ok(Math.abs(i.species_volume_m3sk.pine-1)<1e-6);
+  assert.equal(i.species_volume_m3sk.birch,0);
+  assert.ok(Math.abs(Object.values(i.species_volume_m3sk).reduce((a,b)=>a+b,0)-1)<1e-6);
+});
+test('mixed 2018 and 2015 tiles never add incompatible species fractions together',()=>{
+  const leftValues={volume_2:[100,100]},rightValues={volume_2:[300,300]};
+  for(const kind of ['pine','spruce','birch','broadleaf','contorta','oak','beech']){
+    leftValues['species2018_'+kind]=kind==='pine'?[100,100]:[0,0];
+    rightValues['species_'+kind]=kind==='birch'?[100,100]:[0,0];
+  }
+  const l=fixture(leftValues),r=fixture(rightValues);
+  const right=r.tiles[0].data;
+  const moved={...right,bounds:[780020,7410000,780040,7410010],
+    layers:Object.fromEntries(Object.entries(right.layers).map(([id,layer])=>[id,{...layer,x:layer.x+20}]))};
+  const index={schema:'lignum-raster-index-v1',
+    sources:{...l.index.sources,...r.index.sources},
+    tiles:[{file:'left.json',bounds:l.index.tiles[0].bounds},{file:'right.json',bounds:moved.bounds}]};
+  const tiles=[{file:'left.json',data:l.tiles[0].data},{file:'right.json',data:moved}];
+  const i=R.evaluate(geo(780000,7410000,780040,7410010),index,tiles).inventory;
+  assert.ok(Math.abs(i.volume_m3sk-8)<1e-6);
+  assert.ok(Math.abs(i.species_stock_area_ha-.02)<1e-6);
+  assert.ok(Math.abs(i.species_volume_m3sk.pine-2)<1e-6);
+  assert.equal(i.species_volume_m3sk.birch,0);
+  assert.ok(i.species_pct.pine>99.99);
+});
+test('old 2015 species layers do not produce ungrounded tree-specific volume',()=>{
+  const vals={volume_2:[100,300]};
+  for(const kind of ['pine','spruce','birch','broadleaf','contorta','oak','beech'])
+    vals['species_'+kind]=kind==='pine'?[50,50]:kind==='birch'?[50,50]:[0,0];
+  const i=fixture(vals).result().inventory;
+  assert.ok(i.species_pct);
+  assert.equal(i.species_volume_m3sk,undefined);
+  assert.equal(i.species_volume_m3sk_ha,undefined);
+});
+test('species-stock refresh removes older derived volumes when no matched species data exist',()=>{
+  const r=fixture({volume_2:[200,300]}).result();
+  const old={species_volume_m3sk:{pine:15,spruce:3,birch:2,other:0},
+    species_volume_m3sk_ha:{pine:150,spruce:30,birch:20,other:0},species_stock_area_ha:.1,
+    sources:{species_volume_m3sk:{name:'old'},species_volume_m3sk_ha:{name:'old'}}};
+  const merged=R.merge(old,r);
+  assert.equal(merged.species_volume_m3sk,undefined);
+  assert.equal(merged.species_volume_m3sk_ha,undefined);
+  assert.equal(merged.species_stock_area_ha,undefined);
+  assert.equal(merged.sources.species_volume_m3sk,undefined);
+});
 test('2018 species exclude missing current volume and normalize rounded cell percentages',()=>{
   const values={volume_2:[100,-1]};
   for(const key of ['pine','spruce','birch','broadleaf','contorta','oak','beech'])values['species2018_'+key]=key==='pine'?[67,0]:key==='spruce'?[34,100]:[0,0];
