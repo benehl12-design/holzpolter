@@ -41,7 +41,7 @@
     const {poly:polygon,needed:expected,origin}=selection(geometry,index),fullArea=area(polygon);
     const byFile=new Map(tiles.map(t=>[t.file,t.data]));
     for(const t of expected)if(!byFile.has(t.file))throw Error('Ein benötigter Datenausschnitt fehlt. Bitte online vollständig laden.');
-    const totals={},provenance={},species={pine:0,spruce:0,birch:0,other:0},speciesFiles=new Set();let speciesArea=0,covered=0;
+    const totals={},provenance={},speciesRecent={pine:0,spruce:0,birch:0,other:0},speciesLegacy={pine:0,spruce:0,birch:0,other:0},speciesFilesRecent=new Set(),speciesFilesLegacy=new Set();let areaRecent=0,areaLegacy=0,covered=0;
     function accumulate(key,value,w,id){
       const source=index.sources[id];if(!source)throw Error('Quellenangabe fehlt.');
       const t=totals[key]||(totals[key]={sum:0,area:0});t.sum+=value*(source.scale??1)*w;t.area+=w;
@@ -75,7 +75,11 @@
             if(!weight)return;
             weight/=sum; // Normalize rounded per-cell percentages before volume weighting.
           }
-          species.pine+=v[0]*weight;species.spruce+=v[1]*weight;species.birch+=v[2]*weight;species.other+=(v[3]+v[4]+v[5]+v[6])*weight;speciesArea+=commonArea;ids.forEach(id=>speciesFiles.add(id));});
+          const target=recent?speciesRecent:speciesLegacy,files=recent?speciesFilesRecent:speciesFilesLegacy;
+          target.pine+=v[0]*weight;target.spruce+=v[1]*weight;target.birch+=v[2]*weight;
+          target.other+=(v[3]+v[4]+v[5]+v[6])*weight;
+          if(recent)areaRecent+=commonArea;else areaLegacy+=commonArea;
+          ids.forEach(id=>files.add(id));});
       }
     }
     const inventory={sources:{},source_label:'Skogsstyrelsen / SLU · ZIP-Daten, lokal ausgewertet'},fields=[];
@@ -93,13 +97,20 @@
     // A refreshed stock source with no valid cells clears obsolete stock values.
     for(const key of Object.values(metricKeys))if(!fields.includes(key))fields.push(key);
     if(!('volume_m3sk_ha' in inventory))fields.push('volume_m3sk','stock_area_ha','reference_year','scan_year','projected_to_year');
+    // 2018 percentages weighted by m³sk and 2015 area-weighted percentages
+    // must never be added together. Prefer 2018 where available and report
+    // only its actual common raster coverage; otherwise fall back to 2015.
+    const useRecent=Object.values(speciesRecent).some(v=>v>0);
+    const species=useRecent?speciesRecent:speciesLegacy,
+      speciesFiles=useRecent?speciesFilesRecent:speciesFilesLegacy,
+      speciesArea=useRecent?areaRecent:areaLegacy;
     const speciesTotal=Object.values(species).reduce((a,b)=>a+b,0);
     // Species 2018 gives percentage shares, not species-specific LiDAR scans.
     // Multiply those shares by *actual co-located* Omdrev volume cells.
     // Never extrapolate missing cells or infer species volumes from the older
     // 2015 maps, which were accumulated without matching stock weights.
     if(speciesTotal>0){const recent=[...speciesFiles].some(id=>id.startsWith('species2018_'));inventory.species_pct=Object.fromEntries(Object.entries(species).map(([k,v])=>[k,v/speciesTotal*100]));inventory.sources.species_pct={name:recent?'SLU Trädslag 2018 · Bilder 2017–2019 · mit Grunddatenvorrat gewichtet':'SLU Skogskarta 2015 · alle sieben Baumartengruppen',year:null,product_year:recent?2018:2015,area_ha:speciesArea/10000,method:recent?'2017-2019 cell volume percentages weighted by available Omdrev volume on exact common native cell intersections':'volume shares on common valid native cells',datasets:[...speciesFiles].map(id=>index.sources[id])};}
-    if(speciesTotal>0&&speciesArea>0&&[...speciesFiles].some(id=>id.startsWith('species2018_'))){
+    if(useRecent&&speciesTotal>0&&speciesArea>0){
       inventory.species_volume_m3sk=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/10000]));
       inventory.species_volume_m3sk_ha=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/speciesArea]));
       inventory.species_stock_area_ha=speciesArea/10000;
