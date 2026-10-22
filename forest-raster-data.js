@@ -94,8 +94,28 @@
     for(const key of Object.values(metricKeys))if(!fields.includes(key))fields.push(key);
     if(!('volume_m3sk_ha' in inventory))fields.push('volume_m3sk','stock_area_ha','reference_year','scan_year','projected_to_year');
     const speciesTotal=Object.values(species).reduce((a,b)=>a+b,0);
+    // Species 2018 gives percentage shares, not species-specific LiDAR scans.
+    // Multiply those shares by *actual co-located* Omdrev volume cells.
+    // Never extrapolate missing cells or infer species volumes from the older
+    // 2015 maps, which were accumulated without matching stock weights.
     if(speciesTotal>0){const recent=[...speciesFiles].some(id=>id.startsWith('species2018_'));inventory.species_pct=Object.fromEntries(Object.entries(species).map(([k,v])=>[k,v/speciesTotal*100]));inventory.sources.species_pct={name:recent?'SLU Trädslag 2018 · Bilder 2017–2019 · mit Grunddatenvorrat gewichtet':'SLU Skogskarta 2015 · alle sieben Baumartengruppen',year:null,product_year:recent?2018:2015,area_ha:speciesArea/10000,method:recent?'2017-2019 cell volume percentages weighted by available Omdrev volume on exact common native cell intersections':'volume shares on common valid native cells',datasets:[...speciesFiles].map(id=>index.sources[id])};}
-    fields.push('species_pct');
+    if(speciesTotal>0&&speciesArea>0&&[...speciesFiles].some(id=>id.startsWith('species2018_'))){
+      inventory.species_volume_m3sk=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/10000]));
+      inventory.species_volume_m3sk_ha=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/speciesArea]));
+      inventory.species_stock_area_ha=speciesArea/10000;
+      const source={
+        name:'SLU Trädslag 2018 (Baumartenanteil) × Omdrev 2/3 (Gesamtvorrat)',
+        product_year:2018,year:null,area_ha:speciesArea/10000,
+        method:'Cell-wise volume × normalized species proportion on common valid raster coverage; historical datasets, not a current species inventory',
+        note:'Schätzung aus unterschiedlichen Aufnahmezeitpunkten; nicht flächendeckend, fehlende Bereiche wurden nicht hochgerechnet.'
+      };
+      inventory.sources.species_volume_m3sk=source;
+      inventory.sources.species_volume_m3sk_ha=source;
+      fields.push('species_volume_m3sk','species_volume_m3sk_ha','species_stock_area_ha');
+    }
+    // Always remove old species-specific stock if refreshed datasets cannot
+    // support the same spatially matched estimate.
+    fields.push('species_pct','species_volume_m3sk','species_volume_m3sk_ha','species_stock_area_ha');
     // Site-index species can be suggested from a clearly dominant pine or spruce
     // volume share. This is only a proxy: stand-site reference ages cannot be
     // treated as confirmed when the site-indicating species was guessed.
@@ -122,7 +142,7 @@
       selected.note+=' Alterskarte automatisch als Näherung gewählt; vor Ort überprüfen.';
       return selected;
     }
-    return {inventory,subareas:options.includeSubareas?safeSubareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+    return {inventory,species_focus:options.speciesFocus||'all',subareas:options.includeSubareas?safeSubareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
   }
   function safeSubareas(geometry,index,tiles,options){
     try{return subareas(geometry,index,tiles,options);}
