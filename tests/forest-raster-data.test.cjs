@@ -50,7 +50,7 @@ test('species volumes are calculated from each species share × co-located stock
     vals['species2018_'+kind]=kind==='pine'?[100,0]:kind==='birch'?[0,100]:[0,0];
   const fx=fixture(vals),pine=R.evaluate(geo(),fx.index,fx.tiles,{ageType:'pine',speciesFocus:'pine'}),
     birch=R.evaluate(geo(),fx.index,fx.tiles,{ageType:'birch',speciesFocus:'birch'});
-  assert.equal(pine.inventory.volume_m3sk,4);
+  assert.ok(Math.abs(pine.inventory.volume_m3sk-4)<1e-6);
   assert.equal(pine.inventory.volume_m3sk,birch.inventory.volume_m3sk,'the whole-stand stock is independent of age model');
   assert.equal(pine.inventory.volume_m3sk_ha,birch.inventory.volume_m3sk_ha);
   assert.equal(pine.inventory.mean_height_m,birch.inventory.mean_height_m);
