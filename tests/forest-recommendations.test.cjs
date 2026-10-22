@@ -58,3 +58,14 @@ test('sparse diameter or volume coverage cannot trigger parcel-wide harvest revi
   assert.notEqual(r.action,'regeneration');
  }
 });
+
+test('normalized saved stand retains the separate species-stock estimates',()=>{
+ const species_volume_m3sk={pine:12,spruce:4,birch:3,other:1};
+ const species_volume_m3sk_ha={pine:120,spruce:40,birch:30,other:10};
+ const normalized=M.inventory({volume_m3sk:30,volume_m3sk_ha:150,
+   species_volume_m3sk,species_volume_m3sk_ha,species_stock_area_ha:.1});
+ assert.deepEqual(normalized.species_volume_m3sk,species_volume_m3sk);
+ assert.deepEqual(normalized.species_volume_m3sk_ha,species_volume_m3sk_ha);
+ assert.equal(normalized.species_stock_area_ha,.1);
+ assert.throws(()=>M.inventory({species_volume_m3sk:{pine:-1,spruce:1,birch:0,other:0}}));
+});
