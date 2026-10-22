@@ -30,6 +30,36 @@ Polter-, Maschinen- und Auftragsfunktionen bleiben eigenständige Arbeitsansicht
   Ungespeicherte Auswertungen sind temporär und überleben keinen App-Neustart.
   Die vorhandene Offline-Datenversorgung gilt auch für die direkte Auswertung.
 
+## Baumartenbezogener Holzvorrat · ab 13.59
+
+Die Wahl **Altersmodell: Kiefer, Fichte oder Birke** wählt ausschließlich die
+passende Altersschätzkarte; sie ist **kein Filter** für den gesamten Vorrat,
+die mittlere Höhe, den mittleren Durchmesser oder die Grundfläche. Diese
+Kennzahlen gelten unverändert für den ausgewählten Bestand als Ganzes.
+
+Unter **Baumart für die Vorratsanzeige** lassen sich *Kiefer, Fichte, Birke
+und weitere Baumarten* vergleichen. Standardmäßig folgt die markierte Baumart
+der ausdrücklich gewählten Alterskarte. Die Anzeige enthält zwei getrennte
+Ebenen: den Gesamtvorrat aller Baumarten und den **geschätzten Vorrat je
+Baumart (m³sk und m³sk/ha)**.
+
+Die Schätzung entsteht aus den Anteilsrastern **SLU Trädslag 2018** (Aufnahmen
+2017–2019) und den überlappenden gültigen Omdrev-Gesamtvorratsrasterzellen.
+Je Zelle wird der Gesamtvorrat nach normalisierten Anteilen verteilt.
+Die **gemeinsam abgedeckte Rasterfläche** ist der Nenner für die Baumartenwerte
+je Hektar. Fehlende Rasterzellen werden weder ergänzt noch auf das ganze
+Grundstück hochgerechnet. Die älteren, nicht dazu räumlich/zeitlich
+verknüpften **SLU-2015-Baumartenraster** liefern weiterhin Anteilswerte,
+aber keine als zuverlässig ausgegebenen Baumartenvorräte. 2015-Flächenanteile
+werden nie mit 2018-vorratsgewichteten Anteilen zu einem einzigen Mittelwert
+vermischt. Ergebnisse sind historische **Schätzwerte**, keine Baumaufnahme
+und keine sichere Entscheidung über eine Erntemaßnahme.
+
+Die **Vorratsfarben** zeigen lediglich die relative Dichte gegenüber dem
+flächengewichteten Mittel der gültigen Zellen: weniger als 75 %,
+75–125 % oder mehr als 125 %. Lignum zeigt diesen Mittelwert in m³sk/ha
+an. Eine höhere Vorratsdichte ist keine automatische Ernteempfehlung.
+
 ## Dauerhafte Planung (optional)
 
 1. Grundstück anlegen, Name/Grundstücksbezeichnung und Fläche angeben. Grenze zeichnen
