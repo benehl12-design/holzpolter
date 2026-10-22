@@ -260,11 +260,13 @@
     // A missing treatment recommendation must not erase measured forest structure.
     // These are descriptive stock zones only; no silvicultural intervention is inferred.
     const structureZones=[];
+    let stockMean_m3sk_ha=null;
     if(!result.length){
       const measured=all.filter(c=>Number.isFinite(c.volume)&&c.volume>0);
       const measuredArea=measured.reduce((n,c)=>n+c.w,0);
       if(measuredArea>=selectedArea*.7){
         const average=measured.reduce((n,c)=>n+c.volume*c.w,0)/measuredArea;
+        stockMean_m3sk_ha=average;
         const zoneFor=c=>c.volume<average*.75?'low':c.volume>average*1.25?'high':'mid';
         const zones=new Map(measured.map(c=>[c.key,{...c,zone:zoneFor(c)}]));
         // Majority filter removes isolated pixel noise but never fills missing-data gaps.
@@ -308,7 +310,7 @@
       }
     }
     const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
-    return {parts:result,structureZones,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
+    return {parts:result,structureZones,stockMean_m3sk_ha,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
 
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
