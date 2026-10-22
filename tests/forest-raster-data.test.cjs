@@ -76,6 +76,27 @@ test('species stock is only counted on cells with matching valid total-volume da
   assert.equal(i.species_volume_m3sk.birch,0);
   assert.ok(Math.abs(Object.values(i.species_volume_m3sk).reduce((a,b)=>a+b,0)-1)<1e-6);
 });
+test('mixed 2018 and 2015 tiles never add incompatible species fractions together',()=>{
+  const leftValues={volume_2:[100,100]},rightValues={volume_2:[300,300]};
+  for(const kind of ['pine','spruce','birch','broadleaf','contorta','oak','beech']){
+    leftValues['species2018_'+kind]=kind==='pine'?[100,100]:[0,0];
+    rightValues['species_'+kind]=kind==='birch'?[100,100]:[0,0];
+  }
+  const l=fixture(leftValues),r=fixture(rightValues);
+  const right=r.tiles[0].data;
+  const moved={...right,bounds:[780020,7410000,780040,7410010],
+    layers:Object.fromEntries(Object.entries(right.layers).map(([id,layer])=>[id,{...layer,x:layer.x+20}]))};
+  const index={schema:'lignum-raster-index-v1',
+    sources:{...l.index.sources,...r.index.sources},
+    tiles:[{file:'left.json',bounds:l.index.tiles[0].bounds},{file:'right.json',bounds:moved.bounds}]};
+  const tiles=[{file:'left.json',data:l.tiles[0].data},{file:'right.json',data:moved}];
+  const i=R.evaluate(geo(780000,7410000,780040,7410010),index,tiles).inventory;
+  assert.ok(Math.abs(i.volume_m3sk-8)<1e-6);
+  assert.ok(Math.abs(i.species_stock_area_ha-.02)<1e-6);
+  assert.ok(Math.abs(i.species_volume_m3sk.pine-2)<1e-6);
+  assert.equal(i.species_volume_m3sk.birch,0);
+  assert.ok(i.species_pct.pine>99.99);
+});
 test('old 2015 species layers do not produce ungrounded tree-specific volume',()=>{
   const vals={volume_2:[100,300]};
   for(const kind of ['pine','spruce','birch','broadleaf','contorta','oak','beech'])
