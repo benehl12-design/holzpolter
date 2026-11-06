@@ -38,11 +38,16 @@ function harness(failedURL, scope = 'https://lignum.test/') {
   }
   return { context, caches, cache, deleted, fetched, event, activated: () => activated, goOffline: () => { offline = true; } };
 }
+test('raster worker loads the thinning model before spatial evaluation', () => {
+  const worker=fs.readFileSync(path.join(__dirname,'../forest-raster-worker.js'),'utf8');
+  assert.match(worker,/forest-thinning\\.js/);
+  assert.ok(worker.indexOf('forest-thinning.js')<worker.indexOf('forest-raster-data.js'));
+});
 test('the app shell and offline module are cached with the same version', async () => {
   const h = harness(); await h.event('install');
-  assert.ok(await h.cache('lignum-app-v13.61').match('/offline.js')); assert.equal(h.activated(), 1);
-  assert.ok(await h.cache('lignum-app-v13.61').match('/forwarder-icon.png'));
-  for(const url of ['/forest-thinning.js','/forest-harvest-rules.js','/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js'])assert.ok(await h.cache('lignum-app-v13.61').match(url));
+  assert.ok(await h.cache('lignum-app-v13.61-workerfix1').match('/offline.js')); assert.equal(h.activated(), 1);
+  assert.ok(await h.cache('lignum-app-v13.61-workerfix1').match('/forwarder-icon.png'));
+  for(const url of ['/forest-thinning.js','/forest-harvest-rules.js','/forest-model.js','/forest-raster-data.js', '/forest-raster-worker.js','/forest-planning.js','/forest-planning.css','/vendor/proj4-2.11.0.js','/vendor/polygon-clipping-0.15.7.js'])assert.ok(await h.cache('lignum-app-v13.61-workerfix1').match(url));
   assert.match(fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), /app-version" content="13\.61"/);
 });
 test('a failed required module or machine-icon download keeps the previous worker active', async () => {
@@ -54,7 +59,7 @@ test('a failed required module or machine-icon download keeps the previous worke
 test('GitHub Pages installs and launches the app within its repository directory', async () => {
   const scope = 'https://lignum.test/holzpolter/', h = harness(undefined, scope);
   await h.event('install');
-  const cache = h.cache('lignum-app-v13.61'), urls = await cache.keys();
+  const cache = h.cache('lignum-app-v13.61-workerfix1'), urls = await cache.keys();
   assert.ok(urls.some(url => url === scope + 'forest-raster-worker.js'));
   assert.ok(urls.filter(url => new URL(url).origin === new URL(scope).origin).every(url => url.startsWith(scope)));
   assert.ok(urls.includes('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'));
