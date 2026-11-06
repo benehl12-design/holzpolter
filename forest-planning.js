@@ -181,6 +181,17 @@
   function thinningView(s,recommendation){
     const t=recommendation?.thinning||M.thinningAdvice(s),i=s.inventory||{};
     if(t.status==='not-applicable')return '';
+    // The T/G SIS maps are independent reference surfaces: a missing
+    // confirmed site-indicating tree is not the same as missing source data.
+    const alternatives=!i.site_index&&window.ForestThinning?.siteAlternatives
+      ?window.ForestThinning.siteAlternatives(s):[];
+    if(alternatives.length){
+      return '<section class="fp-scenario"><h3>Schwedische Gallringsmall · INGVAR</h3>'+
+        '<strong>Standortreferenzen vorhanden – Standorttyp noch nicht bestätigt</strong>'+
+        '<p>Grundfläche und Höhenhinweise liegen vor. Die Kiefer- und Fichten-SIS-Karten wurden ausgewertet, aber bei diesem Bestand ist nicht bestätigt, welche Baumart für den Standortindex maßgeblich ist. Deshalb kein verbindlicher Entnahmeprozentsatz.</p>'+
+        alternativeSiteAdvice(s,alternatives)+
+        '<p class="fp-muted">Modellspannen beziehen sich auf entnommene Grundfläche (m²/ha), nicht auf m³sk oder die Anzahl der Bäume. Die 80-%-Zielgrundfläche sowie die 30/35-%-Kappen sind Lignum-Vorsichtsannahmen. Erst vor Ort Baumart, Oberhöhe, Kronen, Verjüngung und Schutzbelange prüfen.</p></section>';
+    }
     let headline='Noch keine belastbare Entnahmestärke',extra='';
     if(t.status==='recommended'){
       headline='Automatische Durchforstung: '+fmt(t.removal_pct,1)+' % der Grundfläche';
@@ -257,24 +268,44 @@
     return '<section class="fp-scenario"><h3>Amtliche Laserscan-Aufnahmejahre</h3>'+list+
       '<p class="fp-muted">Lantmäteriet/Skogsstyrelsen: räumlich verschnittene 2,5-km-Metadatengitter. Die neueste überwiegend abgedeckte Scan-Generation ist kein Beweis, dass jede Vorratskennzahl aus genau diesem Scan stammt. Diese Datierung ist nicht das Bezugsjahr des Altersmodells (2025).</p></section>';
   }
-  function alternativeSiteAdvice(s){
+  function alternativeSiteAdvice(s,alternatives=null){
     const i=s.inventory||{};
-    if(i.site_index||(!Number.isFinite(i.site_index_pine)&&!Number.isFinite(i.site_index_spruce)))return '';
-    const candidates=[['T',i.site_index_pine,'Kiefer'],['G',i.site_index_spruce,'Fichte']]
-      .filter(([,value])=>Number.isFinite(value))
-      .map(([type,value,label])=>{
-        const si=type+Math.round(value);
-        const a=window.ForestThinning.evaluate({...s,inventory:{...i,site_index:si},siteTypeInferred:true});
-        const outcome=a.status==='recommended'?`bedingt ${fmt(a.removal_pct,1)} %`:
-          a.removal_range_pct?`bedingt ${fmt(a.removal_range_pct[0],1)}–${fmt(a.removal_range_pct[1],1)} %`:
-          a.status==='none'?'kein Gallringsbedarf nach dieser Referenz':'keine belastbare Entnahmestärke';
-        return '<p><strong>'+label+' '+si+':</strong> '+esc(outcome)+' · '+esc(a.reason)+'</p>';
-      });
+    const candidates=alternatives||window.ForestThinning.siteAlternatives(s);
     if(!candidates.length)return '';
-    return '<section class="fp-scenario"><h3>Standortindex bei Mischwald – zwei Referenzkarten</h3>'+
-      '<p>Die offiziellen SIS-Raster liefern getrennte Werte für Kiefer und Fichte. Ohne bestätigte standortanzeigende Baumart wird <strong>kein einzelner Standortindex und kein verbindlicher Entnahmeprozentsatz</strong> festgelegt.</p>'+
-      candidates.join('')+
-      '<p class="fp-muted">Die Werte sind bedingte Modellvarianten. Für eine endgültige Entscheidung Oberhöhe vor Ort messen und standortanzeigende Baumart bestimmen.</p></section>';
+    const basal=Number(i.basal_area_m2_ha),p95=Number(i.p95_height_m);
+    const values=candidates.map(c=>{
+      const a=c.advice;
+      const coverage=c.coverage_pct==null?'Rasterabdeckung nicht angegeben':'Rasterabdeckung '+fmt(c.coverage_pct,0)+' %';
+      let outcome='';
+      if(c.status==='outside-table'){
+        outcome='Keine INGVAR-Berechnung: '+c.site_index+' ist außerhalb des abgedeckten '+c.species+'-Bereichs '+c.range+'.';
+      }else if(c.status==='insufficient-coverage'){
+        outcome='Nicht ausreichend abgedeckt: '+esc(c.note);
+      }else if(a?.status==='none'){
+        outcome='Unter dieser Annahme derzeit kein Durchforstungsbedarf aus dem INGVAR-Grundflächenband.';
+      }else if(a?.status==='uncertain'){
+        outcome='Durchforstungszeitpunkt unklar; Sensitivitätsbereich '+fmt(a.removal_range_pct[0],0)+'–'+fmt(a.removal_range_pct[1],0)+' % Grundflächenentnahme, <strong>keine feste Entnahmestärke</strong>.';
+      }else if(a?.status==='provisional'){
+        outcome='Vorläufiger Modellbereich '+fmt(a.removal_range_pct[0],0)+'–'+fmt(a.removal_range_pct[1],0)+' % Grundflächenentnahme, <strong>keine feste Entnahmestärke</strong>.';
+      }else if(a?.status==='recommended'){
+        outcome='Unter dieser unbestätigten Standortannahme rechnerisch '+fmt(a.removal_pct,1)+' % Grundflächenentnahme. Erst nach Bestätigung von Standorttyp und Oberhöhe als Maßnahmenvorschlag verwenden.';
+      }else{
+        outcome='Keine belastbare Berechnung für diese Standortannahme: '+esc(a?.reason||c.note||'Weitere Daten erforderlich.');
+      }
+      const limits=a?.upper_range_m2_ha
+        ?'<small>Obere INGVAR-Grundflächengrenze: '+fmt(a.upper_range_m2_ha[0],1)+'–'+fmt(a.upper_range_m2_ha[1],1)+' m²/ha · aktueller Bestand '+fmt(i.basal_area_m2_ha,1)+' m²/ha.</small>'
+        :'';
+      return '<div class="fp-row" style="display:block;padding:12px 10px"><strong>'+esc(c.species)+' · '+esc(c.site_index)+'</strong>'+
+        '<p class="fp-muted">'+esc(coverage)+'</p><p>'+outcome+'</p>'+limits+'</div>';
+    }).join('');
+    const shares=i.species_pct,available=Number(i.sources?.species_pct?.area_ha);
+    const shareHint=shares&&Number.isFinite(available)&&available>=Number(s.area_ha||0)*.7
+      ?'<p class="fp-muted">Baumartenvorrat nach SLU (nur Strukturhinweis): Kiefer '+fmt(shares.pine,0)+' %, Fichte '+fmt(shares.spruce,0)+' %. Diese Anteile ersetzen nicht die Bestimmung der standortanzeigenden Baumart.</p>':'';
+    return '<section class="fp-scenario"><h3>INGVAR-Standortvergleich · Kiefer und Fichte</h3>'+
+      (Number.isFinite(basal)?'<p>Grundfläche: <strong>'+fmt(basal,1)+' m²/ha</strong>.</p>':'')+
+      (Number.isFinite(p95)&&p95>0?'<p>Laser-P95: '+fmt(p95,1)+' m (kein gemessenes Hdom). Ohne Geländemessung werden nur vorläufige Höhenszenarien verwendet.</p>':'')+
+      values+shareHint+
+      '<p class="fp-muted">Standortwerte werden nicht automatisch gleichgesetzt: T-Werte gelten für die Kiefer-Referenz, G-Werte für die Fichte-Referenz. Außerhalb der hinterlegten Tabellen wird nicht extrapoliert. Ein konkreter Entnahmewert ist erst nach Bestandesaufnahme möglich.</p></section>';
   }
   function recommendationView(s,spatial=null){
     const r=M.recommend(s);
