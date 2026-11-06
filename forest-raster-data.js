@@ -294,8 +294,12 @@
       const siteIndex=siteArea>=component.area*.7&&sameSiteType
         ?siteType+Math.round(siteCells.reduce((n,c)=>n+Number(c.siteIndex.slice(1))*c.w,0)/siteArea):null;
       const thinAdvice=component.action==='thinning'?thinning.evaluate({
+        area_ha:component.area/10000,
         inventory:{age_years:stats.age.mean,basal_area_m2_ha:stats.basal.mean,
-          mean_height_m:stats.height.mean,site_index:siteIndex},
+          mean_height_m:stats.height.mean,
+          p95_height_m:stats.p95?.coverage>=.7?stats.p95.mean:null,
+          sources:{p95_height_m:{area_ha:(stats.p95?.coverage||0)*component.area/10000}},
+          site_index:siteIndex},
         siteTypeInferred:!!options.siteTypeInferred}):null;
       result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,p95_height_m:stats.p95?.mean??null,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,
         site_index:siteIndex,thinningAdvice:thinAdvice,

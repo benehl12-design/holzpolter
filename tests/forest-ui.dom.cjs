@@ -50,6 +50,19 @@ test('create property and stand through the actual forms, then show their summar
 test('a second property can be smaller than the stands in the first property',async t=>{
   const h=fixture(t,{props:[prop],stands:[stand]});await h.w.ForestPlanning.open();h.click('[data-act="new-property"]');h.set('name','Klein');h.set('area_ha','0,5');h.submit();await until(()=>h.tables.forest_properties.length===2);assert.equal(h.tables.forest_properties[1].area_ha,.5);
 });
+test('existing stand form records field-measured dominant tree heights and uses Hdom independently of laser P95',async t=>{
+  const h=fixture(t,{props:[prop],stands:[{...stand,inventory:{...stand.inventory,p95_height_m:11.5,basal_area_m2_ha:37,site_index:'T19'}}]});
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');h.click('[data-act="edit-stand"]');
+  assert.match(h.d.getElementById('fp-form').textContent,/Oberhöhe \(Hdom\)/);
+  h.set('dominant_height_plot_pairs',['12,5; 13,5','14; 14'].join(String.fromCharCode(10)));
+  h.submit();await until(()=>!h.d.getElementById('fp-form'));
+  const i=h.tables.forest_stands[0].inventory;
+  assert.equal(i.dominant_height_m,13.5);
+  assert.deepEqual(i.dominant_height_plots,[[12.5,13.5],[14,14]]);
+  assert.match(i.sources.dominant_height_m.method,/10-m-Radius/);
+  assert.match(h.d.getElementById('fp-content').textContent,/Oberhöhe \(Geländemessung\)/);
+  assert.deepEqual(h.errors,[]);
+});
 test('invalid inventory keeps the form open and creates no record',async t=>{
   const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();h.click('[data-act="new-stand"]');h.set('name','Invalid');h.set('area_ha','2');h.set('volume_m3sk_ha','-1');h.submit();await until(()=>h.d.getElementById('fp-form-error').textContent.length>0);assert.equal(h.writes.length,0);assert.ok(h.d.getElementById('fp-form'));
 });
