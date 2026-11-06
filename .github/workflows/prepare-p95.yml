@@ -1,0 +1,31 @@
+name: Prepare P95 raster for Lignum
+on:
+  push:
+    branches: [lignum-13-64-p95-import]
+    paths:
+      - '.github/workflows/prepare-p95.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned GIS library
+        run: pip install -r tools/forest-raster-requirements.txt
+      - name: Get official P95 raster and clip native 10x10 km Sarvisvaara subset
+        run: python tools/extend_p95_rasters.py
+      - name: Commit only verified public raster subset
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A data/forest-rasters/
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: official Skogsstyrelsen P95 Sarvisvaara [skip ci]'
+            git push origin HEAD:lignum-13-64-p95-import
+          fi
