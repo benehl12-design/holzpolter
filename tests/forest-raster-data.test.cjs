@@ -28,6 +28,15 @@ test('scan dates outside official grids remain unavailable, not a guessed year',
   assert.equal(result.current,null);
   assert.deepEqual(result.cycles,[]);
 });
+test('public laser P95 decimetres are shown as metres, not silently as measured Hdom',()=>{
+  const fx=fixture({volume_2:[100,300],height_2:[105,135],p95_2:[140,180]});
+  fx.index.sources.p95_2.scale=.1;
+  const i=fx.result().inventory;
+  assert.ok(Math.abs(i.p95_height_m-16)<.001);
+  assert.ok(Math.abs(i.mean_height_m-12)<.001);
+  assert.equal(i.dominant_height_m,undefined);
+  assert.ok(i.sources.p95_height_m.area_ha>0);
+});
 test('native fractional cells give weighted means and true covered stock',()=>{
   const i=fixture().result(geo(780000,7410000,780015,7410010)).inventory;
   assert.ok(Math.abs(i.volume_m3sk_ha-500/3)<1e-4);assert.ok(Math.abs(i.volume_m3sk-2.5)<1e-5);assert.ok(Math.abs(i.stock_area_ha-.015)<1e-6);
