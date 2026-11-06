@@ -48,7 +48,7 @@ test('new shipped official P95 tile covers real Sarvisvaara forest without inven
   assert.ok(tile.layers.p95_2);
   assert.equal(tile.layers.p95_2.step,10);
   assert.ok(tile.layers.p95_2.runs.some(([v])=>v>0));
-  const r=R.evaluate(geo(785020,7417020,785420,7417420),index,[{file:entry.file,data:tile}],{ageType:'mixed',siteSpecies:'T'});
+  const r=R.evaluate(geo(785023.3,7417023.3,785418.7,7417418.7),index,[{file:entry.file,data:tile}],{ageType:'mixed',siteSpecies:'T'});
   assert.ok(Number.isFinite(r.inventory.p95_height_m)&&r.inventory.p95_height_m>1);
   assert.ok(r.inventory.p95_height_m<50);
   assert.equal(r.inventory.dominant_height_m,undefined);
