@@ -85,7 +85,7 @@
     }
     const inventory={sources:{},source_label:'Skogsstyrelsen / SLU · ZIP-Daten, lokal ausgewertet'},fields=[];
     for(const [key,t] of Object.entries(totals)){
-      inventory[key]=key==='site_index'?options.siteSpecies+Math.round(t.sum/t.area):key==='age_years'?Math.round(t.sum/t.area):t.sum/t.area;
+      inventory[key]=key==='site_index'?options.siteSpecies+Math.round(t.sum/t.area):key.startsWith('site_index_')||key==='age_years'?Math.round(t.sum/t.area):t.sum/t.area;
       const ids=Object.keys(provenance[key]),sources=ids.map(id=>({...index.sources[id],area_ha:provenance[key][id]/10000})),years=[...new Set(sources.map(s=>s.year??null))];
       inventory.sources[key]={name:sources.map(s=>s.name).join(' / '),year:years.length===1?years[0]:null,area_ha:t.area/10000,method:'native cell-polygon intersection area weighted',datasets:sources};fields.push(key);
       if(key==='volume_m3sk_ha'){
