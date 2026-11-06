@@ -96,6 +96,43 @@ test('percentage of basal area is not silently written into saved logging scenar
   assert.equal(scenario.removal,0,'manual logging scenario must be independent');
 });
 
+test('P95 laser estimate yields only ±20 % provisional upper-height sensitivity, never measured Hdom',()=>{
+  const r=T.evaluate(stand({basal_area_m2_ha:38,site_index:'T19',p95_height_m:14,
+    sources:{p95_height_m:{area_ha:2}}}));
+  assert.equal(r.status,'provisional');
+  assert.equal(r.height_kind,'sensitivity-p95-laser');
+  assert.equal(r.removal_pct,null);
+  assert.equal(r.basis_height_m,null);
+  assert.deepEqual(r.height_range_m,[11.2,16.8]);
+  assert.ok(r.warnings.join(' ').includes('nicht statistisch kalibriert'));
+});
+test('laser P95 can be used provisionally even if old mean-height raster is absent',()=>{
+  const r=T.evaluate(stand({basal_area_m2_ha:38,site_index:'T19',p95_height_m:14}));
+  assert.equal(r.height_kind,'sensitivity-p95-laser');
+  assert.ok(r.removal_range_pct[1]>0);
+});
+test('sparse P95 is ignored when mean height is adequately covered',()=>{
+  const r=T.evaluate(stand({basal_area_m2_ha:38,site_index:'T19',mean_height_m:12,
+    p95_height_m:17,sources:{p95_height_m:{area_ha:.5},mean_height_m:{area_ha:2}}}));
+  assert.equal(r.height_kind,'sensitivity-mean-height');
+  assert.equal(r.removal_pct,null);
+});
+test('actual plot-based field Hdom overrides P95 and enables measured-input thinning',()=>{
+  const measure=M.dominantHeightFromPlots('12,5; 13,5\\n14; 14');
+  assert.deepEqual(measure.plots,[[12.5,13.5],[14,14]]);
+  assert.equal(measure.height_m,13.5);
+  const inv=M.inventory({basal_area_m2_ha:38,site_index:'T19',
+    dominant_height_m:measure.height_m,dominant_height_plots:measure.plots,p95_height_m:11});
+  assert.deepEqual(inv.dominant_height_plots,measure.plots);
+  const r=T.evaluate(stand(inv));
+  assert.equal(r.height_kind,'measured');
+  assert.equal(r.status,'recommended');
+});
+test('field Hdom requires exactly two plausible measured trees per circle and matching mean',()=>{
+  assert.throws(()=>M.dominantHeightFromPlots('12,4; 13,1; 13,6'),/zwei Baumhöhen/);
+  assert.throws(()=>M.dominantHeightFromPlots('12,4; 0'),/zwischen 3 und 60/);
+  assert.throws(()=>M.inventory({dominant_height_m:15,dominant_height_plots:[[12,13]]}),/überein/);
+});
 test('spatial planning keeps neighboring 29 and 35 m²/ha thinning zones separate',()=>{
   const R=require('../forest-raster-data.js');
   const proj=require('../vendor/proj4-2.11.0.js');
