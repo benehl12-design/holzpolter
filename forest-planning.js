@@ -228,13 +228,18 @@
       const who=ctx();siteLoads.add(s.id);
       window.ForestRasterData.inventory(s.geometry,{ageType:'',siteSpecies:'',includeSubareas:false})
         .then(result=>{
-          if(!same(who))return;
-          siteSupplements.set(s.id,{signature,inventory:result.inventory});
-          if(selected()?.id===s.id&&visible())renderDetail();
-        }).catch(error=>{
-          siteSupplements.set(s.id,{signature,inventory:{},error:String(error.message||error)});
-          if(selected()?.id===s.id&&visible())renderDetail();
-        }).finally(()=>siteLoads.delete(s.id));
+          if(same(who))siteSupplements.set(s.id,{signature,inventory:result.inventory||{}});
+        },error=>{
+          if(same(who))siteSupplements.set(s.id,{signature,inventory:{},error:String(error.message||error)});
+        }).finally(()=>{
+          siteLoads.delete(s.id);
+          // A background lookup can finish after the user has left the screen
+          // or a test/browser view has been destroyed. Never render into it.
+          try{
+            if(window.document?.getElementById?.('fp-content')&&screen?.isConnected&&
+                same(who)&&selected()?.id===s.id&&visible())renderDetail();
+          }catch(error){console.warn('SIS-Anzeige konnte nicht aktualisiert werden:',error);}
+        }).catch(error=>console.warn('SIS-Nachladen beendet:',error));
     }
     return i;
   }
