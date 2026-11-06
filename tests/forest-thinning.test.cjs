@@ -95,3 +95,27 @@ test('percentage of basal area is not silently written into saved logging scenar
   assert.ok(result.thinning.removal_pct>0);
   assert.equal(scenario.removal,0,'manual logging scenario must be independent');
 });
+
+test('spatial planning keeps neighboring 29 and 35 m²/ha thinning zones separate',()=>{
+  const R=require('../forest-raster-data.js');
+  const proj=require('../vendor/proj4-2.11.0.js');
+  const sweref='+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs';
+  const pts=[[780000,7410000],[780400,7410000],[780400,7410200],[780000,7410200],[780000,7410000]];
+  const geometry={type:'Polygon',coordinates:[pts.map(p=>proj(sweref,'EPSG:4326',p))]};
+  const ids=['volume_2','height_2','diameter_2','basal_area_2','age_mixed','site_pine'];
+  const constants={volume_2:200,height_2:120,diameter_2:20,age_mixed:45,site_pine:19};
+  const sources={},layers={};
+  for(const id of ids){
+    sources[id]={name:id,scale:id==='height_2'?.1:1,year:2025};
+    layers[id]={x:780000,y:7410200,step:10,width:40,height:20,
+      runs:id==='basal_area_2'?Array.from({length:20},()=>[[29,20],[35,20]]).flat():[[constants[id],800]]};
+  }
+  const bounds=[780000,7410000,780400,7410200];
+  const index={schema:'lignum-raster-index-v1',sources,tiles:[{file:'sample',bounds}]};
+  const tiles=[{file:'sample',data:{schema:'lignum-raster-tile-v1',bounds,layers}}];
+  const data=R.evaluate(geometry,index,tiles,{ageType:'mixed',siteSpecies:'T',includeSubareas:true});
+  assert.equal(data.subareas.parts.length,2);
+  assert.ok(data.subareas.parts.every(p=>p.action==='thinning'&&p.structure.thinningAdvice.status==='provisional'));
+  const [low,high]=data.subareas.parts.map(p=>p.structure.thinningAdvice.removal_range_pct[0]).sort((a,b)=>a-b);
+  assert.ok(low<high,'different basal-area intensity must remain separate polygons');
+});
