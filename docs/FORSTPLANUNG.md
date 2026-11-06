@@ -307,3 +307,17 @@ Das Bezugsjahr des Altersmodells ist aus der Altersraster-Quelle als
 **2025** verfügbar. Ein standortspezifisches Laserscan-Aufnahmejahr ist in den
 gegenwärtigen Kacheln nicht vorhanden und wird deshalb weiterhin als unbekannt
 ausgewiesen. ZIP-Bereitstellungsdatum und Produktjahr sind keine Aufnahmejahre.
+
+### P95-Laserhöhe (separater Höhenkennwert)
+
+Die öffentliche Skogsstyrelsen-Datenquelle *P95, Omdrev 2* ist ein
+Höhenperzentil aus Laserrückgaben (ursprünglich Dezimeter).
+Lignum zeigt dessen flächengewichteten Wert **separat** von der Grundflächen-
+gewichteten mittleren Höhe und einer **vor Ort gemessenen** Oberhöhe.
+Ohne validierte Umrechnung darf P95 die manuell gemessene
+Oberhöhe nicht automatisch ersetzen und begründet für sich allein
+keinen verbindlichen INGVAR-Entnahmeprozentsatz.
+
+Das neue regionale P95-Raster wird mit derselben echten Zell-Polygon-
+Verschneidung ausgewertet wie die übrigen ZIP-Raster. Fehlt das
+P95-Raster im lokalen Datenpaket, bleibt der Wert unbekannt.

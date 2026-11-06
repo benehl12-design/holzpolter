@@ -58,6 +58,7 @@
       strength_cap_pct:strongLimit,target_fraction_of_upper:.8,
       confidence:exact?'medium':'low'};
     if(!exact)base.warnings.push('Oberhöhe nicht vorhanden: 100–120 % der mittleren Höhe ist nur ein Sensitivitätsbereich, kein gemessener Umrechnungsfaktor.');
+    if(numeric(i.p95_height_m)>0)base.warnings.push('Der Laser-P95-Höhenkennwert ist zusätzlich verfügbar, wird aber nicht ungeprüft als Hdom/Oberhöhe in die INGVAR-Formel eingesetzt.');
     if(i.sources?.site_index?.site_species_inferred===true||raw.siteTypeInferred)base.warnings.push('Standortindex-Baumart wurde automatisch angenommen; vor Ort bestätigen.');
     const p=i.species_pct||{};
     if(type==='G'&&numeric(p.spruce)!=null&&numeric(p.spruce)<40)base.warnings.push('G-Standortindex bei geringem Fichtenanteil: Baumart-/Standortzuordnung prüfen.');
