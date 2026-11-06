@@ -3,7 +3,7 @@
   'use strict';
   const M=window.ForestModel,esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=0)=>n==null?'–':Number(n).toLocaleString('de-DE',{maximumFractionDigits:d});
-  let screen,map,shapes,propertyId=null,standId=null,properties=[],stands=[],owner=null,ownerCompany=null,request=0,theme='class',draft=null,draw=null,busy=false,search='';
+  let screen,map,shapes,savedStandBounds=null,propertyId=null,standId=null,properties=[],stands=[],owner=null,ownerCompany=null,request=0,theme='class',draft=null,draw=null,busy=false,search='';
   let sharedAreas=[],quick=null,areaWarning='';
   let basemap,baseMode='satellite',mapObserver,mapFrame,mapTimer,mapRetry,fitPending=false;
   const basemaps={
@@ -46,7 +46,11 @@
     mapFrame=requestAnimationFrame(()=>{
       const box=el('fp-map');if(!visible()||!box.clientWidth||!box.clientHeight)return;
       map.invalidateSize({pan:false,animate:false});
-      if(fitPending){const focus=quick?.geometry||property()?.geometry;const bounds=focus?L.geoJSON(focus).getBounds():shapes.getBounds();if(bounds.isValid())map.fitBounds(bounds,{padding:[18,18],maxZoom:18,animate:false});fitPending=false;}
+      if(fitPending){
+        const focus=quick?.geometry;
+        const bounds=focus?L.geoJSON(focus).getBounds():(savedStandBounds?.isValid()?savedStandBounds:(property()?.geometry?L.geoJSON(property().geometry).getBounds():shapes.getBounds()));
+        if(bounds.isValid())map.fitBounds(bounds,{padding:[18,18],maxZoom:18,animate:false});fitPending=false;
+      }
     });
   }
   function setBasemap(mode=baseMode){
@@ -119,10 +123,10 @@
   function controls(){screen.querySelectorAll('[data-admin]').forEach(b=>b.hidden=!admin());}
   function render(fit=false){
     el('fp-property').innerHTML=properties.length?properties.map(p=>`<option value="${p.id}" ${p.id===propertyId?'selected':''}>${esc(p.cadastral_ref||p.name)}</option>`).join(''):'<option value="">Noch kein Grundstück</option>';
-    el('fp-subtitle').textContent=property()?.name||'Grundstücke · Bestände · Maßnahmen';renderMap(fit);renderDetail();controls();
+    el('fp-subtitle').textContent=stands.some(s=>s.geometry)?`${stands.filter(s=>s.geometry).length} Bestandsflächen · alle Grundstücke`:(property()?.name||'Grundstücke · Bestände · Maßnahmen');renderMap(fit);renderDetail();controls();
   }
   function renderMap(fit=false){
-    if(!map)return;shapes.clearLayers();const p=property();
+    if(!map)return;shapes.clearLayers();savedStandBounds=L.latLngBounds([]);const ownedProperties=new Set(properties.map(p=>p.id));
     for(const a of sharedAreas){const layer=L.geoJSON(a.geometry,{style:{color:a.color||'#efc86d',weight:2,dashArray:a.color?null:'7 5',fillOpacity:.04,bubblingMouseEvents:false}});layer.eachLayer(l=>{l.bindTooltip(esc(a.name||'Fläche'),{className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);selectArea(a.id);});});layer.addTo(shapes);}
     if(quick?.result?.subareas?.parts)for(const part of quick.result.subareas.parts){
       const colors={thinning:'#e5a44a',tending:'#7dbb77',regeneration:'#ba7064',review:'#b7a0cb',unknown:'#999999'};
@@ -133,10 +137,11 @@
       L.geoJSON(part.geometry,{interactive:false,style:{color:colors[part.zone],weight:2,fillColor:colors[part.zone],fillOpacity:.25}}).addTo(shapes);
     }
     if(quick?.geometry)L.geoJSON(quick.geometry,{interactive:false,style:{color:'#fff',weight:3,fillColor:'#8dbd74',fillOpacity:quick?.result?.subareas?.parts?.length||quick?.result?.subareas?.structureZones?.length?0:.18}}).addTo(shapes);
-    if(p?.geometry)L.geoJSON(p.geometry,{interactive:false,style:{color:'#f2f3d5',weight:3,fillOpacity:0}}).addTo(shapes);
-    for(const s of rows())if(s.geometry){
+    for(const parcel of properties)if(parcel.geometry)L.geoJSON(parcel.geometry,{interactive:false,style:{color:parcel.id===propertyId?'#f2f3d5':'#aabcac',weight:parcel.id===propertyId?3:1.5,fillOpacity:0,dashArray:parcel.id===propertyId?undefined:'5 5'}}).addTo(shapes);
+    for(const s of stands)if(s.geometry&&ownedProperties.has(s.property_id)){
       const layer=L.geoJSON(s.geometry,{style:{color:s.id===standId?'#fff':M.color(s,theme),weight:s.id===standId?4:2,fillColor:M.color(s,theme),fillOpacity:.36,bubblingMouseEvents:false}});
-      layer.eachLayer(l=>{l.bindTooltip(esc(s.number),{permanent:true,direction:'center',className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);quick=null;standId=s.id;render();});});layer.addTo(shapes);
+      savedStandBounds.extend(layer.getBounds());
+      layer.eachLayer(l=>{l.bindTooltip(esc(s.number),{permanent:true,direction:'center',className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);quick=null;propertyId=s.property_id;standId=s.id;render();});});layer.addTo(shapes);
     }
     if(draw)paintDraw();
     sizeMap(fit);

@@ -60,6 +60,23 @@ flächengewichteten Mittel der gültigen Zellen: weniger als 75 %,
 75–125 % oder mehr als 125 %. Lignum zeigt diesen Mittelwert in m³sk/ha
 an. Eine höhere Vorratsdichte ist keine automatische Ernteempfehlung.
 
+## Alle gespeicherten Bestände auf einer Karte · ab 13.60
+
+- Forstplanung zeichnet **alle gespeicherten Bestandsflächen des aktuellen Betriebs**
+  gleichzeitig, auch wenn sie unterschiedlichen Grundstücken zugeordnet sind.
+  Die Grundstücksauswahl filtert nur noch die Detail-/Bearbeitungsansicht, nicht die Karte.
+- Ein Tipp auf ein Bestandspolygon wählt automatisch das zugehörige Grundstück
+  und öffnet die vorhandenen Bestandsdaten, Baumarten und Maßnahmen. Dafür
+  muss nicht erst im Grundstücksmenü umgeschaltet werden.
+- Beim Öffnen und Aktualisieren richtet die Karte den Ausschnitt möglichst nach
+  sämtlichen gespeicherten Beständen aus. Grundstücksgrenzen bleiben sichtbar,
+  die gewählte Bestandsfläche ist weiß hervorgehoben.
+- Neue Bestandsgrenzen werden unverändert gezeichnet und anschließend gespeichert.
+  Die Funktion **Fläche auswerten** bleibt eine zunächst ungespeicherte Auswertung:
+  dauerhaft sichtbar wird sie erst über **Optional speichern** als Bestand.
+- Die Sichtbarkeit bleibt auf den aktuellen Betrieb begrenzt; die Änderung
+  führt keine Datenbankmigration durch und ändert keine Waldkennzahlen.
+
 ## Dauerhafte Planung (optional)
 
 1. Grundstück anlegen, Name/Grundstücksbezeichnung und Fläche angeben. Grenze zeichnen

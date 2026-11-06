@@ -53,6 +53,33 @@ test('a second property can be smaller than the stands in the first property',as
 test('invalid inventory keeps the form open and creates no record',async t=>{
   const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();h.click('[data-act="new-stand"]');h.set('name','Invalid');h.set('area_ha','2');h.set('volume_m3sk_ha','-1');h.submit();await until(()=>h.d.getElementById('fp-form-error').textContent.length>0);assert.equal(h.writes.length,0);assert.ok(h.d.getElementById('fp-form'));
 });
+
+test('all saved stand polygons remain visible and tapping one opens its own property and inventory',async t=>{
+  const polygon=lng=>({type:'Polygon',coordinates:[[[lng,67],[lng+.002,67],[lng+.002,67.002],[lng,67.002],[lng,67]]]});
+  const otherProperty={...prop,id:'property-b',name:'Südwald',cadastral_ref:'Suedwald'};
+  const second={...stand,id:'stand-b',property_id:'property-b',number:'2',name:'Ostbestand',geometry:polygon(22.01),inventory:{...stand.inventory,volume_m3sk_ha:325}};
+  const h=fixture(t,{props:[prop,otherProperty],stands:[{...stand,geometry:polygon(22)},second]});
+  await h.w.ForestPlanning.open();
+  const plotted=()=>{const layers=[];h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.fillOpacity===.36)layers.push(l);});return layers;};
+  assert.equal(plotted().length,2,'both properties visible without switching the dropdown');
+  const tap=number=>{const layer=plotted().find(l=>l.getTooltip()?.getContent()===number);assert.ok(layer,'stand '+number+' visible');layer.fire('click',{originalEvent:{stopPropagation(){}}});};
+  tap('2');
+  assert.equal(h.d.getElementById('fp-property').value,'property-b');
+  assert.match(h.d.getElementById('fp-content').textContent,/Ostbestand/);
+  assert.match(h.d.getElementById('fp-content').textContent,/325/);
+  assert.equal(plotted().length,2,'selection does not hide the first stand');
+  tap('1');
+  assert.equal(h.d.getElementById('fp-property').value,'property-a');
+  assert.match(h.d.getElementById('fp-content').textContent,/Nordfläche/);
+  h.d.getElementById('fp-property').value='property-b';
+  h.d.getElementById('fp-property').dispatchEvent(new h.w.Event('change',{bubbles:true}));
+  assert.equal(plotted().length,2,'property dropdown does not filter saved stand polygons');
+  await h.w.ForestPlanning.refresh();
+  assert.equal(plotted().length,2,'refresh does not duplicate or hide saved stands');
+  assert.equal(h.writes.length,0,'viewing saved stands does not change database records');
+  assert.deepEqual(h.errors,[]);
+});
+
 test('draw a stand on the Leaflet map, save it and cancel another drawing safely',async t=>{
   const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();h.click('[data-act="draw-stand"]');
   for(const [lat,lng] of [[67,22],[67,22.001],[67.001,22.001],[67.001,22]])h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
