@@ -35,7 +35,7 @@
       if(w>1e-7)callback(layer.values[row*layer.width+col],w,x+step/2,y-step/2);
     }
   }
-  const metricKeys={volume:'volume_m3sk_ha',height:'mean_height_m',diameter:'mean_diameter_cm',basal_area:'basal_area_m2_ha'};
+  const metricKeys={volume:'volume_m3sk_ha',height:'mean_height_m',p95:'p95_height_m',diameter:'mean_diameter_cm',basal_area:'basal_area_m2_ha'};
   function evaluate(geometry,index,tiles,options={}){
     if(index.schema!=='lignum-raster-index-v1')throw Error('Datenpaket wird nicht unterstützt.');
     const {poly:polygon,needed:expected,origin}=selection(geometry,index),fullArea=area(polygon);
@@ -177,7 +177,7 @@
       cells(base,part,(_,w,x,y)=>{
         if(++inspected>6000)throw Error('Zu viele Rasterzellen für die Teilflächenanalyse. Bitte eine kleinere Fläche auswählen.');
         const sample=(key)=>{for(const suffix of ['_3','_2']){const layer=layers[key+suffix],v=valueAt(layer,x,y);if(v>=0)return v>0?v*(index.sources[key+suffix]?.scale??1):null;}return null;};
-        const basal=sample('basal_area'),height=sample('height'),volume=sample('volume'),diameter=sample('diameter');
+        const basal=sample('basal_area'),height=sample('height'),p95=sample('p95'),volume=sample('volume'),diameter=sample('diameter');
         const speciesPrefix=layers.species2018_pine?'species2018_':layers.species_pine?'species_':null;
         const speciesKeys=['pine','spruce','birch','broadleaf','contorta','oak','beech'];
         const speciesValues=speciesPrefix?speciesKeys.map(k=>valueAt(layers[speciesPrefix+k],x,y)):[];
@@ -213,7 +213,7 @@
         else if(age!=null&&height!=null&&age>=20&&height<10)action='tending';
         const step=base.step,x0=x-step/2,y0=y-step/2;
         const key=[Math.round((x0+origin[0])*100),Math.round((y0+origin[1])*100),Math.round(step*100)].join(':');
-        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume,diameter,siteIndex,harvest,thin});
+        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,p95,volume,diameter,siteIndex,harvest,thin});
       });
     }
     const all=[...classified.values()];
@@ -274,7 +274,7 @@
       // Spatial coherence: action equality alone is insufficient to call this a stand.
       // Age, height and basal area must be measured over most of the patch and
       // reasonably homogeneous. Mixed structures remain unclassified.
-      const stats={age:weighted(component.cells,'age'),height:weighted(component.cells,'height'),basal:weighted(component.cells,'basal'),volume:weighted(component.cells,'volume'),diameter:weighted(component.cells,'diameter')};
+      const stats={age:weighted(component.cells,'age'),height:weighted(component.cells,'height'),p95:weighted(component.cells,'p95'),basal:weighted(component.cells,'basal'),volume:weighted(component.cells,'volume'),diameter:weighted(component.cells,'diameter')};
       if([stats.age,stats.height,stats.basal].some(v=>!v||v.coverage<.75)||(component.action==='regeneration'&&[stats.volume,stats.diameter].some(v=>!v||v.coverage<.75))){diagnostics.rejectedSparse++;continue;}
       if(stats.age.cv>.30||stats.height.cv>.30||stats.basal.cv>.35||(component.action==='regeneration'&&(stats.volume.cv>.40||stats.diameter.cv>.30))){diagnostics.rejectedHeterogeneous++;continue;}
       let merged=[];
@@ -297,7 +297,7 @@
         inventory:{age_years:stats.age.mean,basal_area_m2_ha:stats.basal.mean,
           mean_height_m:stats.height.mean,site_index:siteIndex},
         siteTypeInferred:!!options.siteTypeInferred}):null;
-      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,
+      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,p95_height_m:stats.p95?.mean??null,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,
         site_index:siteIndex,thinningAdvice:thinAdvice,
         harvestReference:component.action==='regeneration'?component.cells[0]?.harvest?.reference??null:null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
     }
