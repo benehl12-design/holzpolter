@@ -4,7 +4,7 @@ const dir=path.join(__dirname,'..');let leaflet;
 test.before(async()=>{leaflet=process.env.LIGNUM_TEST_LEAFLET?fs.readFileSync(process.env.LIGNUM_TEST_LEAFLET,'utf8'):await(await fetch('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')).text();});
 const tick=()=>new Promise(r=>setTimeout(r,5));
 async function until(check){for(let i=0;i<100;i++){if(check())return;await tick();}assert.ok(check(),'expected UI transition completed');}
-function fixture(t,{role='admin',props=[],stands=[],areas=[],mapSize=[500,400]}={}){
+function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],mapSize=[500,400]}={}){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
   const dom=new JSDOM(fs.readFileSync(path.join(dir,'index.html'),'utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://lignum.test/',virtualConsole:vc});
   const w=dom.window,d=w.document;
@@ -17,7 +17,7 @@ function fixture(t,{role='admin',props=[],stands=[],areas=[],mapSize=[500,400]}=
   w.HTMLElement.prototype.getBoundingClientRect=function(){return {left:0,top:0,right:500,bottom:400,width:500,height:400,x:0,y:0};};
   Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});
   w.eval(leaflet);const maps=[];w.L.Map.addInitHook(function(){maps.push(this);});
-  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas)},writes=[];
+  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas),geojson_layers:structuredClone(geojson)},writes=[];
   w.newRecordId=()=>webcrypto.randomUUID();w.confirm=()=>true;
   w.currentUser={id:'admin-a'};w.currentProfile={id:'admin-a',company_id:'company-a',role,is_admin:role==='admin'};
   w.isAdminUser=()=>w.currentProfile.is_admin;w.OfflineQueue={size:()=>0};
@@ -32,7 +32,7 @@ function fixture(t,{role='admin',props=[],stands=[],areas=[],mapSize=[500,400]}=
     if(method==='PATCH'){const row=data.find(match);Object.assign(row,structuredClone(options.body));return [structuredClone(row)];}
     if(method==='DELETE'){tables[table]=data.filter(x=>!match(x));return data.filter(match);}
   };
-  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
+  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-harvest-rules.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
   t.after(()=>{for(const m of maps)m.remove();dom.window.close();});
   const click=sel=>{const b=d.querySelector(sel);assert.ok(b,'button exists: '+sel);b.click();};
   const set=(name,value)=>{const input=d.querySelector(`[name="${name}"]`);assert.ok(input,'input exists '+name);input.value=value;};
@@ -53,6 +53,33 @@ test('a second property can be smaller than the stands in the first property',as
 test('invalid inventory keeps the form open and creates no record',async t=>{
   const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();h.click('[data-act="new-stand"]');h.set('name','Invalid');h.set('area_ha','2');h.set('volume_m3sk_ha','-1');h.submit();await until(()=>h.d.getElementById('fp-form-error').textContent.length>0);assert.equal(h.writes.length,0);assert.ok(h.d.getElementById('fp-form'));
 });
+
+test('all saved stand polygons remain visible and tapping one opens its own property and inventory',async t=>{
+  const polygon=lng=>({type:'Polygon',coordinates:[[[lng,67],[lng+.002,67],[lng+.002,67.002],[lng,67.002],[lng,67]]]});
+  const otherProperty={...prop,id:'property-b',name:'Südwald',cadastral_ref:'Suedwald'};
+  const second={...stand,id:'stand-b',property_id:'property-b',number:'2',name:'Ostbestand',geometry:polygon(22.01),inventory:{...stand.inventory,volume_m3sk_ha:325}};
+  const h=fixture(t,{props:[prop,otherProperty],stands:[{...stand,geometry:polygon(22)},second]});
+  await h.w.ForestPlanning.open();
+  const plotted=()=>{const layers=[];h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.fillOpacity===.36)layers.push(l);});return layers;};
+  assert.equal(plotted().length,2,'both properties visible without switching the dropdown');
+  const tap=number=>{const layer=plotted().find(l=>l.getTooltip()?.getContent()===number);assert.ok(layer,'stand '+number+' visible');layer.fire('click',{originalEvent:{stopPropagation(){}}});};
+  tap('2');
+  assert.equal(h.d.getElementById('fp-property').value,'property-b');
+  assert.match(h.d.getElementById('fp-content').textContent,/Ostbestand/);
+  assert.match(h.d.getElementById('fp-content').textContent,/325/);
+  assert.equal(plotted().length,2,'selection does not hide the first stand');
+  tap('1');
+  assert.equal(h.d.getElementById('fp-property').value,'property-a');
+  assert.match(h.d.getElementById('fp-content').textContent,/Nordfläche/);
+  h.d.getElementById('fp-property').value='property-b';
+  h.d.getElementById('fp-property').dispatchEvent(new h.w.Event('change',{bubbles:true}));
+  assert.equal(plotted().length,2,'property dropdown does not filter saved stand polygons');
+  await h.w.ForestPlanning.refresh();
+  assert.equal(plotted().length,2,'refresh does not duplicate or hide saved stands');
+  assert.equal(h.writes.length,0,'viewing saved stands does not change database records');
+  assert.deepEqual(h.errors,[]);
+});
+
 test('draw a stand on the Leaflet map, save it and cancel another drawing safely',async t=>{
   const h=fixture(t,{props:[prop]});await h.w.ForestPlanning.open();h.click('[data-act="draw-stand"]');
   for(const [lat,lng] of [[67,22],[67,22.001],[67.001,22.001],[67.001,22]])h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
@@ -213,4 +240,85 @@ test('invalid shared geometry and area loading errors do not prevent free analys
   const h=fixture(t,{areas:[{id:'bad',company_id:'company-a',name:'Bad',boundary:[[1,1],[1,1],[1,1]]}]});await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-message').textContent,/ungültig/);
   const db=h.w.dbFetch;h.w.dbFetch=async(...args)=>{if(args[0].startsWith('areas?'))throw Error('Unavailable');return db(...args);};
   await drawDirect(h);assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
+});
+
+test('imported parcels display automatically with names, colors and no database writes; deletion refreshes',async t=>{
+  const h=fixture(t),geometry=directRaster(h);
+  h.tables.geojson_layers.push({id:'cadastre',company_id:'company-a',name:'Datei',color:'#c0392b',geojson:{type:'FeatureCollection',features:[{type:'Feature',properties:{fastighetsbeteckning:'Sarvisvaara 2:6'},geometry},{type:'Feature',properties:{name:'Zweites Flurstück'},geometry:{type:'MultiPolygon',coordinates:[geometry.coordinates]}}]}});
+  h.tables.geojson_layers.push({id:'private',company_id:'company-b',geojson:{type:'Feature',properties:{name:'Fremd'},geometry}});
+  await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-content').textContent,/Sarvisvaara 2:6/);assert.match(h.d.getElementById('fp-content').textContent,/Zweites Flurstück/);assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Fremd/);
+  let count=0;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.color==='#c0392b')count++;});assert.equal(count,2);
+  h.click('[data-act="select-area"]');h.click('[data-act="quick-data"]');h.click('[data-act="calculate-zip"]');await until(()=>h.d.querySelector('[data-act="save-quick"]'));
+  h.click('[data-act="save-quick"]');h.click('[data-act="quick-new-property"]');h.submit();await until(()=>h.d.querySelector('[name="number"]'));h.submit();await until(()=>h.tables.forest_stands.length===1&&!h.d.getElementById('fp-form'));
+  assert.ok(!h.tables.forest_stands[0].area_id,'cadastral feature must never become an areas foreign key');
+  h.click('[data-act="shared-areas"]');h.click('[data-act="select-area"]');h.tables.geojson_layers=[];await h.w.ForestPlanning.refresh();assert.equal(h.d.querySelector('[data-act="quick-data"]'),null);
+});
+test('local-only cadastral imports are included and detailed polygons with holes remain visible',async t=>{
+  const h=fixture(t),ring=[];for(let i=0;i<=2600;i++){const a=i/2600*2*Math.PI;ring.push([22+Math.cos(a)*.01,67+Math.sin(a)*.01]);}ring[2600]=ring[0];
+  const geometry={type:'Polygon',coordinates:[ring,[[21.999,66.999],[22.001,66.999],[22.001,67.001],[21.999,67.001],[21.999,66.999]]]};
+  h.w.getLocalPlanningBoundaries=()=>[{id:'local-test',company_id:'company-a',name:'Lokale Grenze',color:'#ffff00',geojson:geometry},{id:'other',company_id:'company-b',name:'Fremd',geojson:geometry}];
+  await h.w.ForestPlanning.open();assert.match(h.d.getElementById('fp-content').textContent,/Lokale Grenze/);assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Fremd/);
+  let polygon;h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon)polygon=l;});assert.equal(polygon.getLatLngs().length,2);assert.ok(polygon.getLatLngs()[0].length>2500);assert.equal(h.writes.length,0);
+});
+
+test('a spatial harvest-review candidate appears both on map and in the legend',async t=>{
+ const h=fixture(t),geometry=directRaster(h);
+ h.w.ForestRasterData.coverage=async()=>({name:'Testgebiet',coverage_ha:6,area_ha:6});
+ h.w.ForestRasterData.inventory=async()=>({
+   inventory:{age_years:115,basal_area_m2_ha:26,mean_height_m:18,mean_diameter_cm:24,
+     volume_m3sk_ha:190,sources:{}},coverage_ha:6,area_ha:6,note:'Testdaten',
+   subareas:{parts:[{action:'regeneration',area_ha:3,geometry,
+     structure:{age_years:115,height_m:18,basal_area_m2_ha:26}}],
+     analyzed_ha:6,unshown_ha:3,method:'Räumliche Testanalyse'}
+ });
+ await h.w.ForestPlanning.open();h.click('[data-act="draw-quick"]');
+ for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))
+   h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
+ h.click('[data-act="finish-draw"]');h.click('[data-act="calculate-zip"]');
+ await until(()=>h.d.getElementById('fp-legend').textContent.includes('Ernte / Verjüngung'));
+ assert.match(h.d.getElementById('fp-content').textContent,/Räumlich geprüfter Maßnahmenhinweis/);
+ assert.match(h.d.getElementById('fp-content').textContent,/KEINE Fällfreigabe/);
+ let colored=false;
+ h.maps[0].eachLayer(l=>{if(l instanceof h.w.L.Polygon&&l.options.color==='#ba7064')colored=true;});
+ assert.ok(colored,'harvest-review polygon must have the matching map color');
+ assert.equal(h.writes.length,0);assert.deepEqual(h.errors,[]);
+});
+
+test('switching pine to birch age model changes displayed species stock, not total inventory',async t=>{
+  const h=fixture(t),geometry=directRaster(h);
+  h.w.ForestRasterData.coverage=async()=>({name:'Testgebiet',area_ha:.02,coverage_ha:.02});
+  h.w.ForestRasterData.inventory=async(_geometry,options)=>({
+    inventory:{
+      volume_m3sk:4,volume_m3sk_ha:200,age_years:options.ageType==='birch'?45:85,
+      species_pct:{pine:25,spruce:0,birch:75,other:0},
+      species_volume_m3sk:{pine:1,spruce:0,birch:3,other:0},
+      species_volume_m3sk_ha:{pine:50,spruce:0,birch:150,other:0},
+      species_stock_area_ha:.02,sources:{}
+    },
+    area_ha:.02,coverage_ha:.02,species_focus:options.speciesFocus,
+    subareas:null,note:'Testdaten'
+  });
+  await h.w.ForestPlanning.open();
+  h.click('[data-act="draw-quick"]');
+  for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))
+    h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
+  h.click('[data-act="finish-draw"]');
+  h.d.getElementById('fp-age-type').value='pine';
+  h.click('[data-act="calculate-zip"]');
+  await until(()=>h.d.getElementById('fp-content').textContent.includes('Gewählte Baumart: Kiefer'));
+  let text=h.d.getElementById('fp-content').textContent;
+  assert.match(text,/Gewählte Baumart: Kiefer/);
+  assert.match(text,/Gesamtvorrat \(alle Arten\)/);
+  assert.match(text,/4 m³sk/);
+  assert.match(text,/50 m³sk\/ha/);
+  h.click('[data-act="quick-data"]');
+  h.d.getElementById('fp-age-type').value='birch';
+  h.click('[data-act="calculate-zip"]');
+  await until(()=>h.d.getElementById('fp-content').textContent.includes('Gewählte Baumart: Birke'));
+  text=h.d.getElementById('fp-content').textContent;
+  assert.match(text,/150 m³sk\/ha/);
+  assert.match(text,/3 m³sk/);
+  assert.match(text,/Gesamtvorrat \(alle Arten\)/);
+  assert.equal(h.writes.length,0);
+  assert.deepEqual(h.errors,[]);
 });

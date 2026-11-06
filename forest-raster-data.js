@@ -1,8 +1,8 @@
 /* LIGNUM · Native cells from public Skogsstyrelsen ZIPs, evaluated on the device. */
 (function(root,factory){
-  if(typeof module==='object'&&module.exports)module.exports=factory(require('./vendor/proj4-2.11.0.js'),require('./vendor/polygon-clipping-0.15.7.js'));
-  else root.ForestRasterData=factory(root.proj4,root.polygonClipping);
-})(typeof globalThis!=='undefined'?globalThis:this,function(proj4,clip){
+  if(typeof module==='object'&&module.exports)module.exports=factory(require('./vendor/proj4-2.11.0.js'),require('./vendor/polygon-clipping-0.15.7.js'),require('./forest-harvest-rules.js'),require('./forest-thinning.js'));
+  else root.ForestRasterData=factory(root.proj4,root.polygonClipping,root.ForestHarvestRules,root.ForestThinning);
+})(typeof globalThis!=='undefined'?globalThis:this,function(proj4,clip,harvestRules,thinning){
   'use strict';
   const SWEREF='+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs',CACHE='lignum-forest-rasters-v1';
   const rectangle=b=>[[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]];
@@ -41,7 +41,7 @@
     const {poly:polygon,needed:expected,origin}=selection(geometry,index),fullArea=area(polygon);
     const byFile=new Map(tiles.map(t=>[t.file,t.data]));
     for(const t of expected)if(!byFile.has(t.file))throw Error('Ein benötigter Datenausschnitt fehlt. Bitte online vollständig laden.');
-    const totals={},provenance={},species={pine:0,spruce:0,birch:0,other:0},speciesFiles=new Set();let speciesArea=0,covered=0;
+    const totals={},provenance={},speciesRecent={pine:0,spruce:0,birch:0,other:0},speciesLegacy={pine:0,spruce:0,birch:0,other:0},speciesFilesRecent=new Set(),speciesFilesLegacy=new Set();let areaRecent=0,areaLegacy=0,covered=0;
     function accumulate(key,value,w,id){
       const source=index.sources[id];if(!source)throw Error('Quellenangabe fehlt.');
       const t=totals[key]||(totals[key]={sum:0,area:0});t.sum+=value*(source.scale??1)*w;t.area+=w;
@@ -60,7 +60,7 @@
         }});
       }
       if(options.ageType){const id='age_'+options.ageType,layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('age_years',v,w,id);});}
-      if(options.siteSpecies){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
+      if(['T','G'].includes(options.siteSpecies)){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
       const recent=!!layers.species2018_pine,prefix=recent?'species2018_':'species_';
       const ids=['pine','spruce','birch','broadleaf','contorta','oak','beech'].map(k=>prefix+k),base=layers[prefix+'pine'];
       if(base&&ids.every(id=>layers[id])){
@@ -75,7 +75,11 @@
             if(!weight)return;
             weight/=sum; // Normalize rounded per-cell percentages before volume weighting.
           }
-          species.pine+=v[0]*weight;species.spruce+=v[1]*weight;species.birch+=v[2]*weight;species.other+=(v[3]+v[4]+v[5]+v[6])*weight;speciesArea+=commonArea;ids.forEach(id=>speciesFiles.add(id));});
+          const target=recent?speciesRecent:speciesLegacy,files=recent?speciesFilesRecent:speciesFilesLegacy;
+          target.pine+=v[0]*weight;target.spruce+=v[1]*weight;target.birch+=v[2]*weight;
+          target.other+=(v[3]+v[4]+v[5]+v[6])*weight;
+          if(recent)areaRecent+=commonArea;else areaLegacy+=commonArea;
+          ids.forEach(id=>files.add(id));});
       }
     }
     const inventory={sources:{},source_label:'Skogsstyrelsen / SLU · ZIP-Daten, lokal ausgewertet'},fields=[];
@@ -93,10 +97,260 @@
     // A refreshed stock source with no valid cells clears obsolete stock values.
     for(const key of Object.values(metricKeys))if(!fields.includes(key))fields.push(key);
     if(!('volume_m3sk_ha' in inventory))fields.push('volume_m3sk','stock_area_ha','reference_year','scan_year','projected_to_year');
+    // 2018 percentages weighted by m³sk and 2015 area-weighted percentages
+    // must never be added together. Prefer 2018 where available and report
+    // only its actual common raster coverage; otherwise fall back to 2015.
+    const useRecent=Object.values(speciesRecent).some(v=>v>0);
+    const species=useRecent?speciesRecent:speciesLegacy,
+      speciesFiles=useRecent?speciesFilesRecent:speciesFilesLegacy,
+      speciesArea=useRecent?areaRecent:areaLegacy;
     const speciesTotal=Object.values(species).reduce((a,b)=>a+b,0);
+    // Species 2018 gives percentage shares, not species-specific LiDAR scans.
+    // Multiply those shares by *actual co-located* Omdrev volume cells.
+    // Never extrapolate missing cells or infer species volumes from the older
+    // 2015 maps, which were accumulated without matching stock weights.
     if(speciesTotal>0){const recent=[...speciesFiles].some(id=>id.startsWith('species2018_'));inventory.species_pct=Object.fromEntries(Object.entries(species).map(([k,v])=>[k,v/speciesTotal*100]));inventory.sources.species_pct={name:recent?'SLU Trädslag 2018 · Bilder 2017–2019 · mit Grunddatenvorrat gewichtet':'SLU Skogskarta 2015 · alle sieben Baumartengruppen',year:null,product_year:recent?2018:2015,area_ha:speciesArea/10000,method:recent?'2017-2019 cell volume percentages weighted by available Omdrev volume on exact common native cell intersections':'volume shares on common valid native cells',datasets:[...speciesFiles].map(id=>index.sources[id])};}
-    fields.push('species_pct');
-    return {inventory,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+    if(useRecent&&speciesTotal>0&&speciesArea>0){
+      inventory.species_volume_m3sk=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/10000]));
+      inventory.species_volume_m3sk_ha=Object.fromEntries(Object.entries(species).map(([kind,value])=>[kind,value/speciesArea]));
+      inventory.species_stock_area_ha=speciesArea/10000;
+      const source={
+        name:'SLU Trädslag 2018 (Baumartenanteil) × Omdrev 2/3 (Gesamtvorrat)',
+        product_year:2018,year:null,area_ha:speciesArea/10000,
+        method:'Cell-wise volume × normalized species proportion on common valid raster coverage; historical datasets, not a current species inventory',
+        note:'Schätzung aus unterschiedlichen Aufnahmezeitpunkten; nicht flächendeckend, fehlende Bereiche wurden nicht hochgerechnet.'
+      };
+      inventory.sources.species_volume_m3sk=source;
+      inventory.sources.species_volume_m3sk_ha=source;
+      fields.push('species_volume_m3sk','species_volume_m3sk_ha','species_stock_area_ha');
+    }
+    // Always remove old species-specific stock if refreshed datasets cannot
+    // support the same spatially matched estimate.
+    fields.push('species_pct','species_volume_m3sk','species_volume_m3sk_ha','species_stock_area_ha');
+    // Site-index species can be suggested from a clearly dominant pine or spruce
+    // volume share. This is only a proxy: stand-site reference ages cannot be
+    // treated as confirmed when the site-indicating species was guessed.
+    if(options.siteSpecies==='auto'){
+      const share=inventory.species_pct,known=inventory.sources.species_pct?.area_ha||0,
+        sufficient=share&&known>=fullArea/10000*.7;
+      const type=sufficient&&share.pine>=75?'T':sufficient&&share.spruce>=75?'G':'';
+      const selected=evaluate(geometry,index,tiles,{...options,siteSpecies:type,siteTypeInferred:true});
+      selected.site_selection={
+        type:type||'unknown',reliable:false,
+        method:type?'Standortanzeigende Baumart aus Baumarten-Vorratsanteilen angenähert; für eine Ernteprüfung vor Ort bestätigen.':'Baumartenverteilung reicht für eine zuverlässige automatische Standortindex-Typwahl nicht aus.'
+      };
+      if(selected.inventory.sources?.site_index)selected.inventory.sources.site_index.site_species_inferred=true;
+      return selected;
+    }
+    // Automatic age-map selection uses species volume only as a proxy, never as measured basal-area dominance.
+    if(options.ageType==='auto'){
+      const share=inventory.species_pct,known=inventory.sources.species_pct?.area_ha||0;
+      const ranked=share?Object.entries(share).sort((a,b)=>b[1]-a[1]):[];
+      const dominant=ranked[0],ageType=dominant&&dominant[1]>=75&&known>=fullArea/10000*.7
+        ? ({pine:'pine',spruce:'spruce',birch:'birch',other:'other'}[dominant[0]]||'mixed'):'mixed';
+      const selected=evaluate(geometry,index,tiles,{...options,ageType});
+      selected.age_selection={type:ageType,method:'Automatische Näherung aus Baumarten-Volumenanteilen; kein Nachweis der 65-%-Grundflächenregel.',reliable:false};
+      selected.note+=' Alterskarte automatisch als Näherung gewählt; vor Ort überprüfen.';
+      return selected;
+    }
+    return {inventory,species_focus:options.speciesFocus||'all',subareas:options.includeSubareas?safeSubareas(geometry,index,tiles,options):null,fields:[...new Set(fields)],coverage_ha:covered/10000,area_ha:fullArea/10000,note:'ZIP-Daten: Quelle und Abdeckung je Kennzahl prüfen. Aufnahmejahre variieren; spätere Eingriffe sind nicht berücksichtigt.'};
+  }
+  function safeSubareas(geometry,index,tiles,options){
+    try{return subareas(geometry,index,tiles,options);}
+    catch(e){return {parts:[],analyzed_ha:0,unshown_ha:0,error:String(e.message||e),method:'Teilflächenanalyse nicht verfügbar; die übrigen Kennzahlen bleiben nutzbar.'};}
+  }
+  // Spatial raster analysis: classify native volume cells, group adjacent cells,
+  // and clip every resulting polygon to the selected boundary. Never invent coverage.
+  function subareas(geometry,index,tiles,options={}){
+    const {poly,needed,origin}=selection(geometry,index);
+    const byFile=new Map(tiles.map(t=>[t.file,t.data])),classified=new Map();
+    const ageType=options.ageType==='auto'?'mixed':options.ageType;
+    let inspected=0;
+    for(const entry of needed){
+      const tile=byFile.get(entry.file);if(!tile)continue;
+      const part=clip.intersection(poly,localRectangle(tile.bounds,origin));
+      const layers=Object.fromEntries(Object.entries(tile.layers).map(([id,l])=>[id,{...decode(l),x:l.x-origin[0],y:l.y-origin[1]}]));
+      const base=layers.volume_3||layers.volume_2||layers.basal_area_3||layers.basal_area_2;
+      if(!base)continue;
+      cells(base,part,(_,w,x,y)=>{
+        if(++inspected>6000)throw Error('Zu viele Rasterzellen für die Teilflächenanalyse. Bitte eine kleinere Fläche auswählen.');
+        const sample=(key)=>{for(const suffix of ['_3','_2']){const layer=layers[key+suffix],v=valueAt(layer,x,y);if(v>=0)return v>0?v*(index.sources[key+suffix]?.scale??1):null;}return null;};
+        const basal=sample('basal_area'),height=sample('height'),volume=sample('volume'),diameter=sample('diameter');
+        const siteKey=options.siteSpecies==='T'?'site_pine':options.siteSpecies==='G'?'site_spruce':null;
+        const rawSite=siteKey?valueAt(layers[siteKey],x,y):-1;
+        const siteIndex=rawSite>0?options.siteSpecies+Math.round(rawSite*(index.sources[siteKey]?.scale??1)):null;
+        const speciesPrefix=layers.species2018_pine?'species2018_':layers.species_pine?'species_':null;
+        const speciesKeys=['pine','spruce','birch','broadleaf','contorta','oak','beech'];
+        const speciesValues=speciesPrefix?speciesKeys.map(k=>valueAt(layers[speciesPrefix+k],x,y)):[];
+        const speciesTotal=speciesValues.length===7&&speciesValues.every(v=>v>=0)
+          ?speciesValues.reduce((a,b)=>a+b,0):0;
+        const pinePct=speciesTotal>0?speciesValues[0]/speciesTotal*100:null;
+        const sprucePct=speciesTotal>0?speciesValues[1]/speciesTotal*100:null;
+        const ageLayer=layers['age_'+ageType],rawAge=valueAt(ageLayer,x,y);
+        const age=rawAge>0?rawAge*(index.sources['age_'+ageType]?.scale??1):null;
+        // Mean height is not dominant height: INGVAR is advisory, not an automatic harvest permit.
+        const thin=thinning.evaluate({area_ha:null,inventory:{
+          age_years:age,basal_area_m2_ha:basal,mean_height_m:height,site_index:siteIndex,
+          species_pct:pinePct==null||sprucePct==null?null:{pine:pinePct,spruce:sprucePct}},
+          siteTypeInferred:!!options.siteTypeInferred});
+        // Do not infer a silvicultural class from stock volume alone.
+        let action='unknown';
+        const harvest=harvestRules.harvestReview({
+          age,basal,height,diameter,volume,site_index:siteIndex,
+          pine_pct:pinePct,spruce_pct:sprucePct,allowSiteReference:!options.siteTypeInferred
+        });
+        if(harvest.candidate)action='regeneration';
+        else if(age!=null&&age<20)action='tending';
+        else if(thin.status==='none'||thin.status==='uncertain')action='review';
+        else if(thin.status==='provisional'||thin.status==='recommended')action='thinning';
+        else if(basal!=null&&basal<12)action='review';
+        else if(age!=null&&basal!=null&&height!=null&&age>=20&&basal>=22&&height>=10)action='thinning';
+        else if(age!=null&&height!=null&&age>=20&&height<10)action='tending';
+        const step=base.step,x0=x-step/2,y0=y-step/2;
+        const key=[Math.round((x0+origin[0])*100),Math.round((y0+origin[1])*100),Math.round(step*100)].join(':');
+        if(!classified.has(key))classified.set(key,{key,x:x0,y:y0,step,w,action,age,basal,height,volume,diameter,siteIndex,harvest,thin});
+      });
+    }
+    const all=[...classified.values()];
+    // Smooth isolated positive labels only when at least five of the eight surrounding
+    // cells agree. Unknown and review cells must never be turned into harvest advice.
+    const lookup=new Map(all.map(c=>[c.key,c]));
+    const keyAt=(x,y,step)=>[Math.round((x+origin[0])*100),Math.round((y+origin[1])*100),Math.round(step*100)].join(':');
+    const revised=new Map();
+    for(const c of all){
+      if(c.action!=='thinning'&&c.action!=='tending')continue;
+      const votes={thinning:0,tending:0};
+      for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+        if(dx===0&&dy===0)continue;
+        const n=lookup.get(keyAt(c.x+dx*c.step,c.y+dy*c.step,c.step));
+        if(n&&votes[n.action]!==undefined)votes[n.action]++;
+      }
+      const other=c.action==='thinning'?'tending':'thinning';
+      if(votes[other]>=5&&votes[other]>votes[c.action])revised.set(c.key,other);
+    }
+    for(const c of all)if(revised.has(c.key))c.action=revised.get(c.key);
+    const cellsByAction=new Map(),seen=new Set();
+    // Keep spatially distinct thinning strengths separate: contiguous areas
+    // that both need thinning can still require very different intensity.
+    const groupKey=c=>{
+      if(c.action!=='thinning'||!c.thin?.removal_range_pct)return c.action;
+      const [a,b]=c.thin.removal_range_pct;
+      return c.action+':'+Math.floor(((a+b)/2)/10);
+    };
+    for(const c of all){const key=groupKey(c);if(!cellsByAction.has(key))cellsByAction.set(key,[]);cellsByAction.get(key).push(c);}
+    const components=[];
+    for(const [actionKey,group] of cellsByAction){
+      const action=actionKey.split(':')[0];
+      // Unclassified cells remain a neutral background, not hundreds of polygons.
+      if(action==='unknown'||action==='review')continue;
+      const groupLookup=new Map(group.map(c=>[c.key,c]));
+      for(const first of group){
+        if(seen.has(first.key))continue;
+        const queue=[first],component=[];seen.add(first.key);
+        for(let pos=0;pos<queue.length;pos++){
+          const c=queue[pos];component.push(c);
+          for(const [dx,dy] of [[c.step,0],[-c.step,0],[0,c.step],[0,-c.step]]){
+            const n=groupLookup.get(keyAt(c.x+dx,c.y+dy,c.step));
+            if(n&&!seen.has(n.key)){seen.add(n.key);queue.push(n);}
+          }
+        }
+        components.push({action,cells:component,area:component.reduce((a,c)=>a+c.w,0)});
+      }
+    }
+    components.sort((a,b)=>b.area-a.area);
+    const totalArea=all.reduce((a,c)=>a+c.w,0);
+    // Practical mapping units: at least 0.5 ha and at least 3% of evaluated raster area.
+    // Smaller patches remain unclassified on the map, not reassigned to harvest.
+    const selectedArea=area(poly),minArea=Math.max(20000,selectedArea*.08),result=[];
+    const diagnostics={rejectedSmall:0,rejectedHeterogeneous:0,rejectedSparse:0};
+    const weighted=(items,key)=>{const valid=items.filter(c=>Number.isFinite(c[key])&&c[key]>0),w=valid.reduce((n,c)=>n+c.w,0);if(!w)return null;const mean=valid.reduce((n,c)=>n+c[key]*c.w,0)/w;return {mean,cv:Math.sqrt(valid.reduce((n,c)=>n+c.w*(c[key]-mean)**2,0)/w)/mean,coverage:w/items.reduce((n,c)=>n+c.w,0)};};
+    for(const component of components){
+      if(component.area<minArea||result.length>=6){diagnostics.rejectedSmall++;continue;}
+      // Spatial coherence: action equality alone is insufficient to call this a stand.
+      // Age, height and basal area must be measured over most of the patch and
+      // reasonably homogeneous. Mixed structures remain unclassified.
+      const stats={age:weighted(component.cells,'age'),height:weighted(component.cells,'height'),basal:weighted(component.cells,'basal'),volume:weighted(component.cells,'volume'),diameter:weighted(component.cells,'diameter')};
+      if([stats.age,stats.height,stats.basal].some(v=>!v||v.coverage<.75)||(component.action==='regeneration'&&[stats.volume,stats.diameter].some(v=>!v||v.coverage<.75))){diagnostics.rejectedSparse++;continue;}
+      if(stats.age.cv>.30||stats.height.cv>.30||stats.basal.cv>.35||(component.action==='regeneration'&&(stats.volume.cv>.40||stats.diameter.cv>.30))){diagnostics.rejectedHeterogeneous++;continue;}
+      let merged=[];
+      for(const c of component.cells){
+        const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
+        if(!shape.length)continue;
+        merged=merged.length?clip.union(merged,shape):shape;
+      }
+      if(!merged.length)continue;
+      const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
+      // Average only actually sampled site-index pixels; never treat an inferred
+      // site index or species distribution as a measured stand inventory.
+      const siteCells=component.cells.filter(c=>/^[TG]\d{1,2}$/.test(c.siteIndex||''));
+      const siteArea=siteCells.reduce((n,c)=>n+c.w,0);
+      const siteType=siteCells[0]?.siteIndex[0];
+      const sameSiteType=siteCells.every(c=>c.siteIndex[0]===siteType);
+      const siteIndex=siteArea>=component.area*.7&&sameSiteType
+        ?siteType+Math.round(siteCells.reduce((n,c)=>n+Number(c.siteIndex.slice(1))*c.w,0)/siteArea):null;
+      const thinAdvice=component.action==='thinning'?thinning.evaluate({
+        inventory:{age_years:stats.age.mean,basal_area_m2_ha:stats.basal.mean,
+          mean_height_m:stats.height.mean,site_index:siteIndex},
+        siteTypeInferred:!!options.siteTypeInferred}):null;
+      result.push({action:component.action,area_ha:component.area/10000,cells:component.cells.length,structure:{age_years:stats.age.mean,height_m:stats.height.mean,basal_area_m2_ha:stats.basal.mean,volume_m3sk_ha:stats.volume?.mean??null,diameter_cm:stats.diameter?.mean??null,
+        site_index:siteIndex,thinningAdvice:thinAdvice,
+        harvestReference:component.action==='regeneration'?component.cells[0]?.harvest?.reference??null:null,variation:{age:stats.age.cv,height:stats.height.cv,basal:stats.basal.cv}},geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+    }
+    // A missing treatment recommendation must not erase measured forest structure.
+    // These are descriptive stock zones only; no silvicultural intervention is inferred.
+    const structureZones=[];
+    let stockMean_m3sk_ha=null;
+    if(!result.length){
+      const measured=all.filter(c=>Number.isFinite(c.volume)&&c.volume>0);
+      const measuredArea=measured.reduce((n,c)=>n+c.w,0);
+      if(measuredArea>=selectedArea*.7){
+        const average=measured.reduce((n,c)=>n+c.volume*c.w,0)/measuredArea;
+        stockMean_m3sk_ha=average;
+        const zoneFor=c=>c.volume<average*.75?'low':c.volume>average*1.25?'high':'mid';
+        const zones=new Map(measured.map(c=>[c.key,{...c,zone:zoneFor(c)}]));
+        // Majority filter removes isolated pixel noise but never fills missing-data gaps.
+        for(const c of measured){
+          const votes={low:0,mid:0,high:0};
+          for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+            if(dx===0&&dy===0)continue;
+            const n=zones.get(keyAt(c.x+dx*c.step,c.y+dy*c.step,c.step));
+            if(n)votes[n.zone]++;
+          }
+          const winner=Object.keys(votes).sort((a,b)=>votes[b]-votes[a])[0];
+          if(votes[winner]>=5)zones.get(c.key).zone=winner;
+        }
+        const visited=new Set(),groups=[];
+        for(const first of zones.values()){
+          if(visited.has(first.key))continue;
+          const queue=[first],group=[];visited.add(first.key);
+          for(let k=0;k<queue.length;k++){
+            const c=queue[k];group.push(c);
+            for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+              const n=zones.get(keyAt(c.x+dx*c.step,c.y+dy*c.step,c.step));
+              if(n&&n.zone===first.zone&&!visited.has(n.key)){visited.add(n.key);queue.push(n);}
+            }
+          }
+          groups.push({zone:first.zone,cells:group,area:group.reduce((n,c)=>n+c.w,0)});
+        }
+        groups.sort((a,b)=>b.area-a.area);
+        const threshold=Math.max(5000,selectedArea*.02);
+        for(const group of groups){
+          if(structureZones.length>=4)break;
+          if(group.area<threshold)continue;
+          let merged=[];
+          for(const c of group.cells){
+            const shape=clip.intersection(poly,rectangle([c.x,c.y,c.x+c.step,c.y+c.step]));
+            if(shape.length)merged=merged.length?clip.union(merged,shape):shape;
+          }
+          if(!merged.length)continue;
+          const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
+          structureZones.push({zone:group.zone,area_ha:group.area/10000,volume_m3sk_ha:group.cells.reduce((n,c)=>n+c.volume*c.w,0)/group.area,geometry:coords.length===1?{type:'Polygon',coordinates:coords[0]}:{type:'MultiPolygon',coordinates:coords}});
+        }
+      }
+    }
+    const shownArea=result.reduce((a,c)=>a+c.area_ha,0);
+    return {parts:result,structureZones,stockMean_m3sk_ha,diagnostics,validation:'Rasterstruktur geprüft (Alter, Höhe, Grundfläche); Luftbildabgleich und Geländekontrolle stehen noch aus.',analyzed_ha:totalArea/10000,unshown_ha:Math.max(0,(totalArea-shownArea)/10000),method:'Konservative Planungseinheiten: mindestens '+(minArea/10000).toFixed(2)+' ha (mindestens 2 ha und 8 % der gewählten Fläche), höchstens sechs große zusammenhängende Bereiche. Kleine, unklare und nicht erfasste Bereiche bleiben ohne Empfehlung.',ageType,limited:false};
+
   }
   const baseURL=()=>new URL('data/forest-rasters/',typeof document!=='undefined'?document.baseURI:undefined);
   let indexPromise;
@@ -150,5 +404,5 @@
     for(const key of result.fields){delete out[key];delete out.sources[key];}
     return {...out,...result.inventory,sources:{...out.sources,...result.inventory.sources}};
   }
-  return {inventory,index,coverage,evaluate,decode,merge};
+  return {inventory,index,coverage,evaluate,subareas,decode,merge};
 });
