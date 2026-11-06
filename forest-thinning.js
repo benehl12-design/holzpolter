@@ -31,8 +31,16 @@
     const c=match?TABLE[type].find(row=>value>=row[0]&&value<=row[1]):null;
     if(!(basal>0))result.missing.push('basal_area_m2_ha');
     if(!(dom>0)&&!(mean>0)&&!(p95>0))result.missing.push('dominant_height_m');
-    if(!c)result.missing.push('site_index');
-    if(result.missing.length){result.reason='Für die INGVAR-Berechnung fehlen Grundfläche, Oberhöhe/Höhenhinweis oder ein unterstützter Standortindex (T14–T30 bzw. G16–G40).';return result;}
+    const hasReferences=numeric(i.site_index_pine)>0||numeric(i.site_index_spruce)>0;
+    if(!c)result.missing.push(!si?(hasReferences?'site_type_confirmation':'site_index'):'site_index_unsupported');
+    if(result.missing.length){
+      result.reason=result.missing.length===1&&hasReferences&&!si
+        ?'Die Standortreferenzkarten für Kiefer und/oder Fichte sind vorhanden. Für den Mischbestand ist die standortanzeigende Baumart noch nicht bestätigt; beide Referenzen werden getrennt und nur bedingt geprüft.'
+        :result.missing.length===1&&si&&!c
+          ?'Der bestätigte Standortindex '+si+' liegt außerhalb der hinterlegten INGVAR-Tabelle (T14–T30 bzw. G16–G40). Eine Extrapolation wäre nicht belastbar.'
+          :'Für die INGVAR-Berechnung fehlen Grundfläche, Höhenhinweis oder eine bestätigte und unterstützte Standortzuordnung (T14–T30 bzw. G16–G40).';
+      return result;
+    }
     // P95 from a 10 m LiDAR pixel summarizes return heights, not the 100
     // thickest trees per hectare. It can guide a wide *sensitivity scenario*
     // but must NEVER become a measured Hdom or a definitive removal percentage.
@@ -94,5 +102,33 @@
     return {...base,status:'provisional',action:'thinning',removal_range_pct:[lo,hi],
       reason:'Die Grundfläche liegt auch bei der höheren angesetzten Höhenvariante über der oberen INGVAR-Grenze. Der Prozentbereich ist nur eine Orientierung, keine Entnahmeempfehlung; Oberhöhe vor Festlegung messen.'};
   }
-  return {evaluate,TABLE,SOURCE};
+  // Read *both* independently sampled Swedish SIS raster maps as conditional
+  // alternatives. Dominant timber shares do not establish the site-indicating
+  // species. Never persist or silently copy a provisional site type to inventory.
+  function siteAlternatives(raw={}){
+    const i=raw.inventory||raw,area=numeric(raw.area_ha);
+    if(i.site_index)return [];
+    return [['T','pine','Kiefer'],['G','spruce','Fichte']].map(([type,kind,species])=>{
+      const key='site_index_'+kind,n=numeric(i[key]);
+      if(!(n>0))return null;
+      const rounded=Math.round(n),site_index=type+rounded,source=i.sources?.[key];
+      const range=type==='T'?'T14–T30':'G16–G40';
+      const covered=source?.area_ha==null?null:numeric(source.area_ha);
+      const coverage=area>0&&covered!=null?Math.min(100,round(covered/area*100)):null;
+      const base={species,type,site_index,coverage_pct:coverage,coverage_ha:covered,range,confirmed:false};
+      if(!TABLE[type].some(row=>rounded>=row[0]&&rounded<=row[1])){
+        return {...base,status:'outside-table',advice:null,
+          note:site_index+' liegt außerhalb der hinterlegten INGVAR-'+species+'tabelle ('+range+'). Keine Extrapolation.'};
+      }
+      if(area>0&&covered!=null&&covered<area*.7){
+        return {...base,status:'insufficient-coverage',advice:null,
+          note:'Der Standortindex deckt weniger als 70 % der gewählten Fläche ab. Keine belastbare Gesamtflächenbewertung.'};
+      }
+      const inventory={...i,site_index,sources:{...i.sources,site_index:source??{name:'SIS-Rasterreferenz ohne ausgewiesene Abdeckung'}}};
+      return {...base,status:'conditional',
+        advice:evaluate({...raw,inventory,siteTypeInferred:true}),
+        note:'Nur unter der Annahme, dass '+species+' die standortanzeigende Baumart ist; vor Ort bestätigen.'};
+    }).filter(Boolean);
+  }
+  return {evaluate,siteAlternatives,TABLE,SOURCE};
 });

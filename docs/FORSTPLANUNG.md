@@ -359,3 +359,33 @@ zu bestätigen.
 
 Fachliche Definition und Geländepraxis:
 https://www.skogskunskap.se/aga-skog/fakta-om-skogen/skogstermer/
+
+
+### 13.66 – INGVAR-Standortvergleich ohne falsche Fehlermeldung
+
+Sind in einem gemischten Bestand die öffentlich verfügbaren SIS-Karten
+für Kiefer (T) und Fichte (G) vorhanden, aber die *standortanzeigende
+Baumart noch nicht bestätigt*, darf Lignum nicht pauschal behaupten,
+die SI-Rasterdaten fehlten. In der vorhandenen INGVAR-Anzeige erscheint
+stattdessen ein **bedingter T/G-Vergleich**.
+
+Jede Rasterreferenz wird auf mindestens 70 % Flächenabdeckung geprüft.
+Ein unterstützter Index (T14–T30 oder G16–G40) wird mit Grundfläche
+und Höhensensitivität vorläufig bewertet. Fehlt eine gemessene Hdom,
+bleibt es bei einem **Bereich ohne feste Entnahmestärke**. Ein Index
+außerhalb der tatsächlich in der verwendeten INGVAR-Tabelle belegten
+Standortgruppen wird mit dem spezifischen Grenzbereich benannt und
+**nicht extrapoliert**.
+
+Realer Regressionstest `T17/G14`: 8,71 ha, Grundfläche 18,1 m²/ha,
+P95 10,1 m, Alter 80 Jahre. T17 ergibt nur eine bedingte
+Sensitivitätsbewertung von 0–30 % Grundflächenentnahme (oberer Wert ist
+auch die App-Vorsichtskappe), **keine Empfehlung, 30 % zu entnehmen**.
+G14 liegt unter der hinterlegten G16-Untergrenze. Die App legt
+keine standortanzeigende Baumart automatisch fest, schreibt keinen
+Einzelindex in den Bestand und ändert keine manuell eingetragenen
+Erntevolumen-Szenarien.
+
+Bei unbekanntem Standorttyp können Baumartenvolumenanteile die
+Vor-Ort-Prüfung unterstützen, nicht aber eine bestätigte Standortwahl
+ersetzen.
