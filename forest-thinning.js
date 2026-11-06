@@ -24,25 +24,35 @@
     if(['water','wetland'].includes(land)||['NO','NS','E','K','R'].includes(hk)||land!=='forest'){
       return {...result,status:'not-applicable',reason:'Schutz-, Jung- oder ungleichaltriger Bestand: reguläre Gallringsmall nicht automatisch anwenden.'};
     }
-    const basal=numeric(i.basal_area_m2_ha),dom=numeric(i.dominant_height_m),mean=numeric(i.mean_height_m),
+    const basal=numeric(i.basal_area_m2_ha),dom=numeric(i.dominant_height_m),mean=numeric(i.mean_height_m),p95=numeric(i.p95_height_m),
       age=numeric(i.age_years),area=numeric(raw.area_ha);
     const si=typeof i.site_index==='string'?i.site_index.trim().toUpperCase():'';
     const match=/^([TG])(\d{1,2})$/.exec(si),type=match?.[1],value=match?Number(match[2]):null;
     const c=match?TABLE[type].find(row=>value>=row[0]&&value<=row[1]):null;
     if(!(basal>0))result.missing.push('basal_area_m2_ha');
-    if(!(dom>0)&&!(mean>0))result.missing.push('dominant_height_m');
+    if(!(dom>0)&&!(mean>0)&&!(p95>0))result.missing.push('dominant_height_m');
     if(!c)result.missing.push('site_index');
     if(result.missing.length){result.reason='Für die INGVAR-Berechnung fehlen Grundfläche, Oberhöhe/Höhenhinweis oder ein unterstützter Standortindex (T14–T30 bzw. G16–G40).';return result;}
-    if([['basal_area_m2_ha',basal],['dominant_height_m',dom],['mean_height_m',mean],['site_index',value]].some(([k,v])=>
+    // P95 from a 10 m LiDAR pixel summarizes return heights, not the 100
+    // thickest trees per hectare. It can guide a wide *sensitivity scenario*
+    // but must NEVER become a measured Hdom or a definitive removal percentage.
+    const exact=dom!=null&&dom>0;
+    const p95Coverage=i.sources?.p95_height_m?.area_ha;
+    const p95Covered=area==null||!(area>0)||p95Coverage==null||Number(p95Coverage)>=area*.7;
+    const p95Plausible=p95>0&&p95>=8&&p95<=32&&
+      (!(mean>0)||(p95>=mean*.9&&p95<=mean*1.8));
+    const useP95=!exact&&p95Plausible&&p95Covered;
+    const heightField=exact?'dominant_height_m':useP95?'p95_height_m':'mean_height_m';
+    if(!exact&&!useP95&&!(mean>0)){
+      return {...result,missing:['dominant_height_m'],reason:'P95 ohne ausreichende Rasterabdeckung oder außerhalb plausibler Grenzen; mittlere Höhe oder Gelände-Oberhöhe erforderlich.'};
+    }
+    const minHeight=exact?dom:useP95?p95*.8:mean,
+      maxHeight=exact?dom:useP95?p95*1.2:mean*1.2;
+    if([['basal_area_m2_ha',basal],[heightField,exact?dom:useP95?p95:mean],['site_index',value]].some(([k,v])=>
       v!=null&&area>0&&i.sources?.[k]?.area_ha!=null&&Number(i.sources[k].area_ha)<area*.7)){
       return {...result,missing:['Rasterabdeckung'],reason:'Mindestens eine notwendige Kennzahl deckt weniger als 70 % der Fläche ab.'};
     }
     if(age!=null&&age<20)return {...result,status:'not-applicable',reason:'Jungbestand: vor einer Durchforstung zunächst Pflegebedarf beurteilen.'};
-    // Mean height is never silently re-labelled as measured dominant height.
-    // Without measured dominant height, a deliberately wide 100–120% sensitivity
-    // interval is used. It is not a measured or validated height conversion.
-    const exact=dom!=null&&dom>0;
-    const minHeight=exact?dom:mean,maxHeight=exact?dom:mean*1.2;
     if(minHeight<8||maxHeight>40)return {...result,status:'needs-data',missing:['dominant_height_m'],reason:'Höhe außerhalb des Anwendungsbereichs für diese orientierende Berechnung.'};
     const upper=h=>c[2]+c[3]*Math.log(h);
     const upperLo=upper(minHeight),upperHi=upper(maxHeight);
@@ -54,11 +64,13 @@
     const base={...result,upper_basal_m2_ha:round(upperLo),lower_basal_m2_ha:round(lowerLo),
       upper_range_m2_ha:[round(upperLo),round(upperHi)],lower_range_m2_ha:[round(lowerLo),round(lowerHi)],
       basis_height_m:exact?dom:null,height_range_m:exact?null:[round(minHeight),round(maxHeight)],
-      height_kind:exact?'measured':'sensitivity-mean-height',standortindex:si,
+      height_kind:exact?'measured':useP95?'sensitivity-p95-laser':'sensitivity-mean-height',standortindex:si,
       strength_cap_pct:strongLimit,target_fraction_of_upper:.8,
       confidence:exact?'medium':'low'};
-    if(!exact)base.warnings.push('Oberhöhe nicht vorhanden: 100–120 % der mittleren Höhe ist nur ein Sensitivitätsbereich, kein gemessener Umrechnungsfaktor.');
-    if(numeric(i.p95_height_m)>0)base.warnings.push('Der Laser-P95-Höhenkennwert ist zusätzlich verfügbar, wird aber nicht ungeprüft als Hdom/Oberhöhe in die INGVAR-Formel eingesetzt.');
+    if(!exact&&useP95)base.warnings.push('Hdom fehlt: der Laserscan-P95-Wert wird ausschließlich als ±20-%-Sensitivitätsbereich für INGVAR verwendet (nicht statistisch kalibriert, keine Messung oder Sicherheitsgrenze). Keine verbindliche Prozentangabe.');
+    else if(!exact)base.warnings.push('Oberhöhe nicht vorhanden: 100–120 % der mittleren Höhe ist nur ein Sensitivitätsbereich, kein gemessener Umrechnungsfaktor.');
+    if(p95>0&&!useP95)base.warnings.push('P95 wurde nicht als Hdom-Ersatz verwendet; Datenabdeckung, Plausibilität oder vorrangige Geländemessung prüfen.');
+    if(useP95&&i.scan_year)base.warnings.push('P95-Laserscan ist historisch (Scan-Metadatenjahr '+i.scan_year+'); Zuwachs und Eingriffe seitdem wurden nicht fortgeschrieben.');
     if(i.sources?.site_index?.site_species_inferred===true||raw.siteTypeInferred)base.warnings.push('Standortindex-Baumart wurde automatisch angenommen; vor Ort bestätigen.');
     const p=i.species_pct||{};
     if(type==='G'&&numeric(p.spruce)!=null&&numeric(p.spruce)<40)base.warnings.push('G-Standortindex bei geringem Fichtenanteil: Baumart-/Standortzuordnung prüfen.');
@@ -68,7 +80,7 @@
     }
     if(!exact&&basal<upperHi){
       return {...base,status:'uncertain',action:'review',removal_range_pct:[0,round(pctHigh)],
-        reason:'Je nach tatsächlicher Oberhöhe liegt der Bestand möglicherweise bereits an der Durchforstungsgrenze. Oberhöhe messen, bevor ein Prozentwert festgelegt wird.'};
+        reason:'Die Höhe ist nur als Sensitivität angesetzt (P95 oder mittlere Höhe). Je nach tatsächlicher Oberhöhe liegt der Bestand möglicherweise bereits an der Durchforstungsgrenze. Vor einer Entnahme Oberhöhe messen.'};
     }
     if(exact){
       const percentage=round(pctHigh);
@@ -80,7 +92,7 @@
     }
     const lo=round(pctLow),hi=round(pctHigh);
     return {...base,status:'provisional',action:'thinning',removal_range_pct:[lo,hi],
-      reason:'Die Grundfläche liegt selbst bei der höheren angenommenen Oberhöhe über der oberen INGVAR-Grenze. Der Prozentbereich ist nur eine Vorplanung; Oberhöhe vor Festlegung messen.'};
+      reason:'Die Grundfläche liegt auch bei der höheren angesetzten Höhenvariante über der oberen INGVAR-Grenze. Der Prozentbereich ist nur eine Orientierung, keine Entnahmeempfehlung; Oberhöhe vor Festlegung messen.'};
   }
   return {evaluate,TABLE,SOURCE};
 });

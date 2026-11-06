@@ -17,6 +17,24 @@
     if(!Number.isFinite(n))throw Error('Ungültige Zahl: '+String(value).slice(0,40));return n;
   }
   const round=(n,d=3)=>Math.round(n*10**d)/10**d;
+  // One upper-height sample plot: heights of the two thickest undamaged
+  // trees in a roughly 10 m radius circle (field measurement, not P95).
+  function dominantHeightFromPlots(raw){
+    if(raw==null||raw==='')throw Error('Bitte wenigstens eine Probefläche mit zwei gemessenen Baumhöhen eintragen.');
+    const lines=typeof raw==='string'?raw.trim().split(/\r?\n/):
+      Array.isArray(raw)?raw:null;
+    if(!Array.isArray(lines)||!lines.length||lines.length>30)throw Error('Bitte 1 bis 30 Probeflächen angeben.');
+    const plots=lines.map((line,j)=>{
+      const values=Array.isArray(line)?line:String(line).split(/[;|]/);
+      if(values.length!==2)throw Error('Probefläche '+(j+1)+': bitte zwei Baumhöhen mit Semikolon trennen, z. B. 12,4; 13,1.');
+      const pair=values.map(value=>number(value));
+      if(pair.some(v=>v==null||v<3||v>60))throw Error('Probefläche '+(j+1)+': beide gemessenen Baumhöhen müssen zwischen 3 und 60 m liegen.');
+      return pair.map(v=>round(v,2));
+    });
+    const height_m=round(plots.reduce((sum,p)=>sum+(p[0]+p[1])/2,0)/plots.length,2);
+    return {height_m,plots,plot_count:plots.length,method:'Mittelwert von zwei stärksten unbeschädigten Bäumen je 10-m-Radius-Probekreis'};
+  }
+
   function ringArea(r){const [x,y]=r[0];let a=0;for(let i=1;i<r.length;i++)a+=(r[i-1][0]-x)*(r[i][1]-y)-(r[i][0]-x)*(r[i-1][1]-y);return Math.abs(a)/2;}
   function projectedArea(polys){return polys.reduce((s,p)=>s+Math.max(0,ringArea(p[0])-p.slice(1).reduce((v,r)=>v+ringArea(r),0)),0)/10000;}
   const polygons=g=>g.type==='Polygon'?[g.coordinates]:g.coordinates;
@@ -86,6 +104,12 @@
         values[kind]=value;
       }
       out[key]=values;
+    }
+    if(raw.dominant_height_plots!=null){
+      const measured=dominantHeightFromPlots(raw.dominant_height_plots);
+      if(out.dominant_height_m==null||Math.abs(out.dominant_height_m-measured.height_m)>.11)
+        throw Error('Die Oberhöhe stimmt nicht mit den Probeflächenmessungen überein.');
+      out.dominant_height_plots=measured.plots;
     }
     if(raw.source_label)out.source_label=String(raw.source_label).slice(0,300);
     if(raw.sources&&typeof raw.sources==='object'&&!Array.isArray(raw.sources))out.sources=JSON.parse(JSON.stringify(raw.sources));
@@ -225,5 +249,5 @@
     });
   }
   function featureCollection(stands){return {type:'FeatureCollection',lignum_schema:'forest-stands-v1',features:stands.map(s=>({type:'Feature',geometry:s.geometry,properties:{...stand(s),geometry:undefined}}))};}
-  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
+  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,dominantHeightFromPlots,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
 });
