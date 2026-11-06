@@ -274,7 +274,7 @@
       const coords=merged.map(p=>p.map(r=>r.map(([x,y])=>proj4(SWEREF,'EPSG:4326',[x+origin[0],y+origin[1]]))));
       // Average only actually sampled site-index pixels; never treat an inferred
       // site index or species distribution as a measured stand inventory.
-      const siteCells=component.cells.filter(c=>/^[TG]\\d{1,2}$/.test(c.siteIndex||''));
+      const siteCells=component.cells.filter(c=>/^[TG]\d{1,2}$/.test(c.siteIndex||''));
       const siteArea=siteCells.reduce((n,c)=>n+c.w,0);
       const siteType=siteCells[0]?.siteIndex[0];
       const sameSiteType=siteCells.every(c=>c.siteIndex[0]===siteType);
