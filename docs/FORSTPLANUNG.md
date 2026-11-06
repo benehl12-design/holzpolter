@@ -60,6 +60,75 @@ flächengewichteten Mittel der gültigen Zellen: weniger als 75 %,
 75–125 % oder mehr als 125 %. Lignum zeigt diesen Mittelwert in m³sk/ha
 an. Eine höhere Vorratsdichte ist keine automatische Ernteempfehlung.
 
+## Schwedische Durchforstungsdiagramme · Version 13.61
+
+Die automatische Forstplanung berechnet für jedes gespeicherte Bestandspolygon sowie
+für die auf ZIP-Rasterzellen beruhenden zusammenhängenden Prüfbereiche eine
+**modellgestützte Grundflächen-Entnahmestärke**, soweit die Daten reichen.
+
+- Grundlage: **Skogforsk hprYield 2024, Bilaga 14 / INGVAR**.
+  Für Kiefer (T14–T30) und Fichte (G16–G40) verwendet Lignum die
+  dokumentierten artspezifischen Standortindex-Koeffizienten
+  `B_ober = c + k * ln(Oberhöhe)`; die untere Bandgrenze ist `0,60 * B_ober`.
+  [Originalbericht, Anhang 14](https://www.skogforsk.se/contentassets/2d0af30a469b4500b5cf61cef2ad4ca6/arbetsrapport-1228-2024-hpryield--berakningsmodul-for-generering-av-geografiskt-uppdelade-nyckeltal-baserade-pa-skordardata.pdf).
+- **Eigene Planungsregel von Lignum**, nicht Teil der INGVAR-Formel: Zielwert
+  `0,80 * B_ober` nach Eingriff; maximal 35 % Grundflächenentnahme in G1
+  und 30 % in anderen Durchforstungen. Bei überschrittener Höchstgrenze
+  wird ein Hinweis auf vorsichtiges mehrstufiges Vorgehen angezeigt.
+  Dies ist keine belegte optimale Eingriffsstärke, sondern ein überprüfbarer,
+  konservativ begrenzter Szenariowert.
+- Der Standortindex stammt – sofern vollständig verfügbar – schon aus
+  dem örtlichen Rasterpaket (Skogsstyrelsen, site_pine/site_spruce), oder
+  wird im Bestandsdatenblatt manuell als T- bzw. G-Index eingetragen.
+  Bei automatisch erschlossener standortanzeigender Baumart bleibt ein Warnhinweis.
+  **Mischbestände** ohne eindeutig passenden Standortindex erhalten keinen
+  erfundenen Zahlenwert. Die tatsächliche standortanzeigende Baumart ist im Gelände
+  zu verifizieren.
+- Die Originalraster enthalten **mittlere Höhe, nicht zuverlässig
+  standesspezifische Oberhöhe**. Deshalb gibt es im Datenblatt ein neues
+  Eingabefeld **Oberhöhe (gemessen)**. Nur mit diesem Wert kann die App einen
+  einzelnen konkreten Prozentwert als Modell-Szenario anzeigen.
+  Ohne Oberhöhe wird für die *Rechenprüfung* ein absichtlich breites
+  Höhenintervall von 100–120 % der mittleren Höhe verwendet. Das ist
+  eine explizite **Sensitivitätsannahme**, keine offiziell gültige
+  Umrechnung. Die App zeigt je nach Fall einen provisorischen Prozentbereich,
+  eine nicht entscheidbare Spanne oder ausdrücklich fehlende Daten.
+- Der Prozentwert beschreibt **Grundflächenentnahme (m²/ha)** und darf nicht
+  ohne weiteres als `m³sk`-Entnahme oder Sägeholzerlös interpretiert werden.
+  Der vom Anwender gespeicherte `removal_pct` bleibt ein getrenntes
+  **manuelles Volumenszenario**, wird nicht überschrieben und wird nicht
+  automatisch als Einschlagsauftrag übernommen. Keine automatische Fällfreigabe.
+- Geringe Rasterabdeckung, Schutzklassen, Nassflächen, Jungwuchs und ungleichaltrige
+  Bestände sperren bzw. kennzeichnen die Modellanwendung. Frühere Eingriffe, Wind- und
+  Schneebruchgefahr, Boden-/Schutzwerte sowie tatsächliche Bestandsstruktur
+  sind weiterhin im Gelände zu beurteilen.
+
+**So testen:** Version 13.61 laden, in *Forstplanung* eine vorhandene
+Bestandsfläche wählen oder eine Fläche frei auswerten. Für nordschwedische
+Kiefer-/Fichtenbestände ein geeignetes T-/G-Standortindexraster auswählen.
+In *Schwedische Gallringsmall · INGVAR* den modellierten Bereich sehen.
+Für einen gemessenen Wert Bestand bearbeiten, **Oberhöhe (gemessen)**
+ergänzen und den konkreten Grundflächen-Entnahmeprozentsatz prüfen.
+Bei zwei Beständen mit unterschiedlichen Grundflächen oder Oberhöhen müssen
+unterschiedliche Ergebnisse herauskommen.
+
+## Alle gespeicherten Bestände auf einer Karte · ab 13.60
+
+- Forstplanung zeichnet **alle gespeicherten Bestandsflächen des aktuellen Betriebs**
+  gleichzeitig, auch wenn sie unterschiedlichen Grundstücken zugeordnet sind.
+  Die Grundstücksauswahl filtert nur noch die Detail-/Bearbeitungsansicht, nicht die Karte.
+- Ein Tipp auf ein Bestandspolygon wählt automatisch das zugehörige Grundstück
+  und öffnet die vorhandenen Bestandsdaten, Baumarten und Maßnahmen. Dafür
+  muss nicht erst im Grundstücksmenü umgeschaltet werden.
+- Beim Öffnen und Aktualisieren richtet die Karte den Ausschnitt möglichst nach
+  sämtlichen gespeicherten Beständen aus. Grundstücksgrenzen bleiben sichtbar,
+  die gewählte Bestandsfläche ist weiß hervorgehoben.
+- Neue Bestandsgrenzen werden unverändert gezeichnet und anschließend gespeichert.
+  Die Funktion **Fläche auswerten** bleibt eine zunächst ungespeicherte Auswertung:
+  dauerhaft sichtbar wird sie erst über **Optional speichern** als Bestand.
+- Die Sichtbarkeit bleibt auf den aktuellen Betrieb begrenzt; die Änderung
+  führt keine Datenbankmigration durch und ändert keine Waldkennzahlen.
+
 ## Dauerhafte Planung (optional)
 
 1. Grundstück anlegen, Name/Grundstücksbezeichnung und Fläche angeben. Grenze zeichnen

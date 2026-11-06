@@ -3,7 +3,7 @@
   'use strict';
   const M=window.ForestModel,esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=0)=>n==null?'–':Number(n).toLocaleString('de-DE',{maximumFractionDigits:d});
-  let screen,map,shapes,propertyId=null,standId=null,properties=[],stands=[],owner=null,ownerCompany=null,request=0,theme='class',draft=null,draw=null,busy=false,search='';
+  let screen,map,shapes,savedStandBounds=null,propertyId=null,standId=null,properties=[],stands=[],owner=null,ownerCompany=null,request=0,theme='class',draft=null,draw=null,busy=false,search='';
   let sharedAreas=[],quick=null,areaWarning='';
   let basemap,baseMode='satellite',mapObserver,mapFrame,mapTimer,mapRetry,fitPending=false;
   const basemaps={
@@ -46,7 +46,11 @@
     mapFrame=requestAnimationFrame(()=>{
       const box=el('fp-map');if(!visible()||!box.clientWidth||!box.clientHeight)return;
       map.invalidateSize({pan:false,animate:false});
-      if(fitPending){const focus=quick?.geometry||property()?.geometry;const bounds=focus?L.geoJSON(focus).getBounds():shapes.getBounds();if(bounds.isValid())map.fitBounds(bounds,{padding:[18,18],maxZoom:18,animate:false});fitPending=false;}
+      if(fitPending){
+        const focus=quick?.geometry;
+        const bounds=focus?L.geoJSON(focus).getBounds():(savedStandBounds?.isValid()?savedStandBounds:(property()?.geometry?L.geoJSON(property().geometry).getBounds():shapes.getBounds()));
+        if(bounds.isValid())map.fitBounds(bounds,{padding:[18,18],maxZoom:18,animate:false});fitPending=false;
+      }
     });
   }
   function setBasemap(mode=baseMode){
@@ -119,24 +123,31 @@
   function controls(){screen.querySelectorAll('[data-admin]').forEach(b=>b.hidden=!admin());}
   function render(fit=false){
     el('fp-property').innerHTML=properties.length?properties.map(p=>`<option value="${p.id}" ${p.id===propertyId?'selected':''}>${esc(p.cadastral_ref||p.name)}</option>`).join(''):'<option value="">Noch kein Grundstück</option>';
-    el('fp-subtitle').textContent=property()?.name||'Grundstücke · Bestände · Maßnahmen';renderMap(fit);renderDetail();controls();
+    el('fp-subtitle').textContent=stands.some(s=>s.geometry)?`${stands.filter(s=>s.geometry).length} Bestandsflächen · alle Grundstücke`:(property()?.name||'Grundstücke · Bestände · Maßnahmen');renderMap(fit);renderDetail();controls();
   }
   function renderMap(fit=false){
-    if(!map)return;shapes.clearLayers();const p=property();
+    if(!map)return;shapes.clearLayers();savedStandBounds=L.latLngBounds([]);const ownedProperties=new Set(properties.map(p=>p.id));
     for(const a of sharedAreas){const layer=L.geoJSON(a.geometry,{style:{color:a.color||'#efc86d',weight:2,dashArray:a.color?null:'7 5',fillOpacity:.04,bubblingMouseEvents:false}});layer.eachLayer(l=>{l.bindTooltip(esc(a.name||'Fläche'),{className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);selectArea(a.id);});});layer.addTo(shapes);}
-    if(quick?.result?.subareas?.parts)for(const part of quick.result.subareas.parts){
+    if(quick?.result?.subareas?.parts)for(const [n,part] of quick.result.subareas.parts.entries()){
       const colors={thinning:'#e5a44a',tending:'#7dbb77',regeneration:'#ba7064',review:'#b7a0cb',unknown:'#999999'};
-      L.geoJSON(part.geometry,{interactive:false,style:{color:colors[part.action]||'#999',weight:2,fillColor:colors[part.action]||'#999',fillOpacity:.3}}).addTo(shapes);
+      const layer=L.geoJSON(part.geometry,{style:{color:colors[part.action]||'#999',weight:2,fillColor:colors[part.action]||'#999',fillOpacity:.3,bubblingMouseEvents:false}});
+      const popup='<strong>Teilfläche '+(n+1)+' · '+fmt(part.area_ha,2)+' ha</strong><p>'+esc(M.ACTIONS[part.action]||part.action)+
+        '</p><p>Grundfläche: '+fmt(part.structure?.basal_area_m2_ha,1)+' m²/ha'+
+        (part.structure?.site_index?' · Standortindex '+esc(part.structure.site_index):'')+
+        '</p><p>'+esc(thinningPartLabel(part)||'Keine gesicherte Entnahmestärke')+'</p>';
+      layer.bindPopup(popup);
+      layer.addTo(shapes);
     }
     if(quick?.result?.subareas?.structureZones?.length)for(const part of quick.result.subareas.structureZones){
       const colors={low:'#72a7ca',mid:'#80b88e',high:'#c5a66b'};
       L.geoJSON(part.geometry,{interactive:false,style:{color:colors[part.zone],weight:2,fillColor:colors[part.zone],fillOpacity:.25}}).addTo(shapes);
     }
     if(quick?.geometry)L.geoJSON(quick.geometry,{interactive:false,style:{color:'#fff',weight:3,fillColor:'#8dbd74',fillOpacity:quick?.result?.subareas?.parts?.length||quick?.result?.subareas?.structureZones?.length?0:.18}}).addTo(shapes);
-    if(p?.geometry)L.geoJSON(p.geometry,{interactive:false,style:{color:'#f2f3d5',weight:3,fillOpacity:0}}).addTo(shapes);
-    for(const s of rows())if(s.geometry){
+    for(const parcel of properties)if(parcel.geometry)L.geoJSON(parcel.geometry,{interactive:false,style:{color:parcel.id===propertyId?'#f2f3d5':'#aabcac',weight:parcel.id===propertyId?3:1.5,fillOpacity:0,dashArray:parcel.id===propertyId?undefined:'5 5'}}).addTo(shapes);
+    for(const s of stands)if(s.geometry&&ownedProperties.has(s.property_id)){
       const layer=L.geoJSON(s.geometry,{style:{color:s.id===standId?'#fff':M.color(s,theme),weight:s.id===standId?4:2,fillColor:M.color(s,theme),fillOpacity:.36,bubblingMouseEvents:false}});
-      layer.eachLayer(l=>{l.bindTooltip(esc(s.number),{permanent:true,direction:'center',className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);quick=null;standId=s.id;render();});});layer.addTo(shapes);
+      savedStandBounds.extend(layer.getBounds());
+      layer.eachLayer(l=>{l.bindTooltip(esc(s.number),{permanent:true,direction:'center',className:'fp-stand-label'});l.on('click',e=>{if(draw||busy)return;L.DomEvent.stopPropagation(e);quick=null;propertyId=s.property_id;standId=s.id;render();});});layer.addTo(shapes);
     }
     if(draw)paintDraw();
     sizeMap(fit);
@@ -164,6 +175,34 @@
   function sharedList(){return `${areaWarning?`<p class="fp-form-error">${esc(areaWarning)}</p>`:''}<p class="fp-muted">Die Grenzen stammen aus der normalen Karte und werden beim Öffnen oder Aktualisieren neu geladen.</p>`+(sharedAreas.length?sharedAreas.map(a=>`<div class="fp-row">${button('select-area',a.name||'Fläche',a.id)}<span>${fmt(a.area_ha,2)} ha</span></div>`).join(''):'<p class="fp-muted">Noch keine Grundstücksgrenzen oder eingezeichneten Flächen vorhanden.</p>');}
   function areaSelection(a){return {name:a.name||'Fläche',source_id:a.id,area_id:a.area_id,geometry:a.geometry,area_ha:a.area_ha};}
   function selectArea(id){const a=sharedAreas.find(a=>a.id===id);if(!a||busy)return;cancelDraw();closeModal();quick=areaSelection(a);standId=null;render(true);}
+  function thinningView(s,recommendation){
+    const t=recommendation?.thinning||M.thinningAdvice(s),i=s.inventory||{};
+    if(t.status==='not-applicable')return '';
+    let headline='Noch keine belastbare Entnahmestärke',extra='';
+    if(t.status==='recommended'){
+      headline='Automatische Durchforstung: '+fmt(t.removal_pct,1)+' % der Grundfläche';
+      extra='<p>Grundfläche danach: <b>'+fmt(t.basal_after_m2_ha,1)+' m²/ha</b>. Keine direkte Holzvolumenberechnung.</p>';
+    }else if(t.status==='provisional'){
+      headline='Durchforstung vorläufig: '+fmt(t.removal_range_pct[0],1)+'–'+fmt(t.removal_range_pct[1],1)+' % der Grundfläche';
+    }else if(t.status==='uncertain'){
+      headline='Durchforstungsbedarf unsicher: 0–'+fmt(t.removal_range_pct[1],1)+' % (Modellspanne)';
+    }else if(t.status==='none')headline='Nach INGVAR derzeit keine Durchforstung';
+    const bounds=t.upper_range_m2_ha;
+    return '<section class="fp-scenario"><h3>Schwedische Gallringsmall · INGVAR</h3>'+
+      '<strong>'+esc(headline)+'</strong><p>'+esc(t.reason)+'</p>'+extra+
+      (bounds?'<p class="fp-muted">Obere Grundflächengrenze: '+fmt(bounds[0],1)+(bounds[0]===bounds[1]?'':'–'+fmt(bounds[1],1))+
+        ' m²/ha · untere Grenze: 60 % davon · aktueller Bestand: '+fmt(i.basal_area_m2_ha,1)+' m²/ha.</p>':'')+
+      (t.warnings?.length?'<p class="fp-muted">'+t.warnings.map(esc).join(' ')+'</p>':'')+
+      (t.missing?.length?'<p class="fp-muted">Für einen verlässlichen Prozentwert fehlen: '+t.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')+'.</p>':'')+
+      '<p class="fp-muted">Die 80-%-Zielgrundfläche und die vorsichtigen Obergrenzen von 30/35 % sind Lignum-Planungsannahmen, keine fertige INGVAR-Bewirtschaftungsplanung. Zahlen beziehen sich auf Grundfläche, nicht direkt auf m³sk. Vor Eingriff Bestandsstruktur, Naturschutz und Stabilität vor Ort prüfen.</p></section>';
+  }
+  function thinningPartLabel(part){
+    const t=part.structure?.thinningAdvice;
+    if(part.action!=='thinning')return '';
+    if(t?.status==='provisional')return ' · vorläufig '+fmt(t.removal_range_pct[0],1)+'–'+fmt(t.removal_range_pct[1],1)+' % Grundflächenentnahme';
+    if(t?.status==='recommended')return ' · '+fmt(t.removal_pct,1)+' % Grundflächenentnahme';
+    return ' · Prozentwert erst nach Standortindex/Oberhöhenprüfung';
+  }
   function recommendationView(s,spatial=null){
     const r=M.recommend(s);
     const localized=spatial?.parts?.filter(p=>p.action===r.action)||[];
@@ -176,7 +215,7 @@
         ?'<p class="fp-muted"><strong>Andere kartierte Prüfbereiche vorhanden:</strong> Die Karte zeigt geeignete Stellen für andere Maßnahmen als den Durchschnittshinweis. Welche Maßnahmen wo zu prüfen sind, steht in der Liste der farbigen Teilbereiche. Keine flächendeckende Maßnahme ableiten.</p>'
         :'<p class="fp-muted"><strong>Nicht räumlich zugeordnet:</strong> Diese Aussage stammt ausschließlich aus den Durchschnittswerten. Keine bestätigte Maßnahmenfläche auf der Karte. Keine flächendeckende Maßnahme daraus ableiten.</p>')
       :'<p class="fp-muted">Noch keine räumliche Prüfung vorhanden. Keine Maßnahmenfläche auf der Karte bestätigt.</p>';
-    return `<section class="fp-scenario"><h3>${mapped?'Räumlich geprüfter Maßnahmenhinweis':mappedOther.length?'Andere Maßnahmen in der Karte vorhanden':'Allgemeiner Bestands-Hinweis (nicht kartiert)'}</h3><strong>${mapped?esc(M.ACTIONS[r.action]):mappedOther.length?'Kartierte Prüfbereiche siehe Karte und Teilflächenliste':'Keine räumlich bestätigte Maßnahme'}</strong><p>${isAction?'Aus den Durchschnittswerten: '+esc(M.ACTIONS[r.action])+' – '+esc(r.reason):esc(r.reason)}</p>${status}${r.missing?.length?`<p class="fp-muted">Fehlende oder unzureichend abgedeckte Kennzahlen: ${r.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')}.</p>`:''}<p class="fp-muted">Vorläufige Empfehlung, keine Fällfreigabe: Bestand, Naturwerte, Boden, Nachwuchs und gesetzliches Mindestalter am Standort vor Ort prüfen. Teilflächen mit unterschiedlichen Bedingungen getrennt bewerten.</p></section>`;
+    return `<section class="fp-scenario"><h3>${mapped?'Räumlich geprüfter Maßnahmenhinweis':mappedOther.length?'Andere Maßnahmen in der Karte vorhanden':'Allgemeiner Bestands-Hinweis (nicht kartiert)'}</h3><strong>${mapped?esc(M.ACTIONS[r.action]):mappedOther.length?'Kartierte Prüfbereiche siehe Karte und Teilflächenliste':'Keine räumlich bestätigte Maßnahme'}</strong><p>${isAction?'Aus den Durchschnittswerten: '+esc(M.ACTIONS[r.action])+' – '+esc(r.reason):esc(r.reason)}</p>${status}${r.missing?.length?`<p class="fp-muted">Fehlende oder unzureichend abgedeckte Kennzahlen: ${r.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')}.</p>`:''}<p class="fp-muted">Vorläufige Empfehlung, keine Fällfreigabe: Bestand, Naturwerte, Boden, Nachwuchs und gesetzliches Mindestalter am Standort vor Ort prüfen. Teilflächen mit unterschiedlichen Bedingungen getrennt bewerten.</p></section>${thinningView(s,r)}`;
   }
   function speciesStockView(result){
     const i=result?.inventory||{},v=i.species_volume_m3sk,density=i.species_volume_m3sk_ha;
@@ -196,7 +235,7 @@
     const r=quick.result,i=r?.inventory||{};
     c.innerHTML=`${button('overview','← Übersicht')}<h2 style="margin-top:16px">${esc(quick.name)}</h2><p class="fp-muted">${quick.source_id?'Grenze aus der normalen Karte':'Frei gewählte Fläche'} · ${fmt(quick.area_ha,2)} ha</p>
       <div class="fp-actions">${button('quick-data',r?'Neu auswerten':'Walddaten anzeigen','','primary')}${r&&admin()?button('save-quick','Optional speichern'):''}${button('draw-quick','Andere Fläche zeichnen')}</div>
-      ${r?`${speciesStockView(r)}<h3>Kennzahlen des gesamten Bestandes (alle Baumarten)</h3><div class="fp-grid">${Object.entries(i).filter(([k,v])=>M.FIELDS[k]&&typeof v==='number').map(([k,v])=>stat(k==='volume_m3sk_ha'?'Gesamtvorrat je Hektar (alle Arten)':k==='volume_m3sk'?'Gesamtvorrat (alle Arten)':M.FIELDS[k][0],v,M.FIELDS[k][1],1)).join('')}${i.site_index?`<div class="fp-stat"><small>Standortindex</small><strong>${esc(i.site_index)}</strong></div>`:''}</div><h3>Baumarten</h3>${i.species_pct?bars(i.species_pct,M.SPECIES,'%'):'<p class="fp-muted">Keine Baumartenwerte für diese Fläche verfügbar.</p>'}<p class="fp-muted">Datengebiet: ${fmt(r.coverage_ha,2)} von ${fmt(r.area_ha,2)} ha. ${esc(r.note||'')} Fehlende Flächen werden nicht hochgerechnet.</p><details class="fp-source"><summary>Quellen je Kennzahl</summary>${Object.entries(i.sources||{}).map(([k,v])=>`<p>${esc(M.FIELDS[k]?.[0]||k)}: ${esc(v.name||v.source||'Quelle')} · ${esc(v.year||v.scan_date||'Jahr nicht angegeben')}${v.area_ha!=null?' · '+fmt(v.area_ha,2)+' ha':''}</p>`).join('')}</details><p class="fp-muted">Diese Auswertung ist noch nicht als Bestand gespeichert.</p>`:'<p class="fp-muted">Die Fläche ist ausgewählt. Mit „Walddaten anzeigen“ erhältst du die Kennzahlen, ohne ein Grundstück oder einen Bestand anzulegen.</p>'}${r?recommendationView({land_type:'forest',inventory:i,area_ha:quick.area_ha},r.subareas):''}${r?.subareas?`<section class="fp-scenario"><h3>Große zusammenhängende Maßnahmenbereiche</h3><p class="fp-muted">${esc(r.subareas.method)} ${fmt(r.subareas.analyzed_ha,2)} ha Rasterfläche untersucht; ${fmt(r.subareas.unshown_ha,2)} ha nicht einzeln dargestellt. Nur ausreichend große Bereiche sind eingefärbt. Nicht markierte Bereiche sind nicht automatisch zur Nutzung freigegeben.</p>${r.subareas.validation?`<p class="fp-muted">${esc(r.subareas.validation)}</p>`:""}${r.subareas.diagnostics?`<p class="fp-muted">Nicht als Bestand übernommen: ${r.subareas.diagnostics.rejectedHeterogeneous} strukturell uneinheitliche, ${r.subareas.diagnostics.rejectedSparse} unvollständig erfasste und ${r.subareas.diagnostics.rejectedSmall} zu kleine Rastergruppen.</p>`:""}${r.subareas.error?`<p class="fp-form-error">${esc(r.subareas.error)}</p>`:""}${r.subareas.parts.length?r.subareas.parts.map((p,n)=>`<p><strong>Bereich ${n+1} · ${fmt(p.area_ha,2)} ha</strong> ${p.action==='regeneration'&&p.structure?.harvestReference?`· nordschwedischer Altersrichtwert ${p.structure.harvestReference.years} Jahre (${esc(p.structure.harvestReference.referenceIndex)})`:''} · ${p.structure?`Alter Ø ${fmt(p.structure.age_years,0)} J., Höhe Ø ${fmt(p.structure.height_m,1)} m, Grundfläche Ø ${fmt(p.structure.basal_area_m2_ha,1)} m²/ha · `:""}${esc({thinning:'Durchforstung prüfen',tending:'Jungbestandspflege prüfen',regeneration:'Ernte / Verjüngung prüfen – keine Fällfreigabe',review:'Keine weitere Entnahme ohne Prüfung',unknown:'Daten unzureichend'}[p.action]||'Prüfen')}</p>`).join(''):(r.subareas.structureZones?.length?`<p><strong>Waldstruktur statt Maßnahme:</strong> Die strenge Maßnahmenprüfung hat keine Fläche bestätigt. Deshalb werden nur gemessene Vorratsunterschiede dargestellt – ohne Einschlagsempfehlung.</p>${r.subareas.structureZones.map((z,n)=>`<p>Vorratsbereich ${n+1}: ${fmt(z.area_ha,2)} ha · Ø ${fmt(z.volume_m3sk_ha,0)} m³sk/ha · ${esc({low:'unterdurchschnittlicher Holzvorrat',mid:'durchschnittlicher Holzvorrat',high:'überdurchschnittlicher Holzvorrat'}[z.zone])}</p>`).join('')}`:'<p>Keine belastbare Maßnahmenfläche oder ausreichend abgedeckte Vorratszone erkennbar. Prüfe die Rasterabdeckung und den gewählten Bereich.</p>')}</section>`:''}${r?.site_selection?`<p class="fp-muted">Standortindex-Typ: ${esc(r.site_selection.type)} · ${esc(r.site_selection.method)}</p>`:''}${r?.age_selection?`<p class="fp-muted">Alterskarte: ${esc(r.age_selection.type)} · ${esc(r.age_selection.method)}</p>`:''}${sources()}`;
+      ${r?`${speciesStockView(r)}<h3>Kennzahlen des gesamten Bestandes (alle Baumarten)</h3><div class="fp-grid">${Object.entries(i).filter(([k,v])=>M.FIELDS[k]&&typeof v==='number').map(([k,v])=>stat(k==='volume_m3sk_ha'?'Gesamtvorrat je Hektar (alle Arten)':k==='volume_m3sk'?'Gesamtvorrat (alle Arten)':M.FIELDS[k][0],v,M.FIELDS[k][1],1)).join('')}${i.site_index?`<div class="fp-stat"><small>Standortindex</small><strong>${esc(i.site_index)}</strong></div>`:''}</div><h3>Baumarten</h3>${i.species_pct?bars(i.species_pct,M.SPECIES,'%'):'<p class="fp-muted">Keine Baumartenwerte für diese Fläche verfügbar.</p>'}<p class="fp-muted">Datengebiet: ${fmt(r.coverage_ha,2)} von ${fmt(r.area_ha,2)} ha. ${esc(r.note||'')} Fehlende Flächen werden nicht hochgerechnet.</p><details class="fp-source"><summary>Quellen je Kennzahl</summary>${Object.entries(i.sources||{}).map(([k,v])=>`<p>${esc(M.FIELDS[k]?.[0]||k)}: ${esc(v.name||v.source||'Quelle')} · ${esc(v.year||v.scan_date||'Jahr nicht angegeben')}${v.area_ha!=null?' · '+fmt(v.area_ha,2)+' ha':''}</p>`).join('')}</details><p class="fp-muted">Diese Auswertung ist noch nicht als Bestand gespeichert.</p>`:'<p class="fp-muted">Die Fläche ist ausgewählt. Mit „Walddaten anzeigen“ erhältst du die Kennzahlen, ohne ein Grundstück oder einen Bestand anzulegen.</p>'}${r?recommendationView({land_type:'forest',inventory:i,area_ha:quick.area_ha},r.subareas):''}${r?.subareas?`<section class="fp-scenario"><h3>Große zusammenhängende Maßnahmenbereiche</h3><p class="fp-muted">${esc(r.subareas.method)} ${fmt(r.subareas.analyzed_ha,2)} ha Rasterfläche untersucht; ${fmt(r.subareas.unshown_ha,2)} ha nicht einzeln dargestellt. Nur ausreichend große Bereiche sind eingefärbt. Nicht markierte Bereiche sind nicht automatisch zur Nutzung freigegeben.</p>${r.subareas.validation?`<p class="fp-muted">${esc(r.subareas.validation)}</p>`:""}${r.subareas.diagnostics?`<p class="fp-muted">Nicht als Bestand übernommen: ${r.subareas.diagnostics.rejectedHeterogeneous} strukturell uneinheitliche, ${r.subareas.diagnostics.rejectedSparse} unvollständig erfasste und ${r.subareas.diagnostics.rejectedSmall} zu kleine Rastergruppen.</p>`:""}${r.subareas.error?`<p class="fp-form-error">${esc(r.subareas.error)}</p>`:""}${r.subareas.parts.length?r.subareas.parts.map((p,n)=>`<p><strong>Bereich ${n+1} · ${fmt(p.area_ha,2)} ha</strong> ${p.action==='regeneration'&&p.structure?.harvestReference?`· nordschwedischer Altersrichtwert ${p.structure.harvestReference.years} Jahre (${esc(p.structure.harvestReference.referenceIndex)})`:''} · ${p.structure?`Alter Ø ${fmt(p.structure.age_years,0)} J., Höhe Ø ${fmt(p.structure.height_m,1)} m, Grundfläche Ø ${fmt(p.structure.basal_area_m2_ha,1)} m²/ha · SI ${esc(p.structure.site_index||'unbekannt')} · `:""}${esc({thinning:'Durchforstung prüfen',tending:'Jungbestandspflege prüfen',regeneration:'Ernte / Verjüngung prüfen – keine Fällfreigabe',review:'Keine weitere Entnahme ohne Prüfung',unknown:'Daten unzureichend'}[p.action]||'Prüfen')}${thinningPartLabel(p)}</p>`).join(''):(r.subareas.structureZones?.length?`<p><strong>Waldstruktur statt Maßnahme:</strong> Die strenge Maßnahmenprüfung hat keine Fläche bestätigt. Deshalb werden nur gemessene Vorratsunterschiede dargestellt – ohne Einschlagsempfehlung.</p>${r.subareas.structureZones.map((z,n)=>`<p>Vorratsbereich ${n+1}: ${fmt(z.area_ha,2)} ha · Ø ${fmt(z.volume_m3sk_ha,0)} m³sk/ha · ${esc({low:'unterdurchschnittlicher Holzvorrat',mid:'durchschnittlicher Holzvorrat',high:'überdurchschnittlicher Holzvorrat'}[z.zone])}</p>`).join('')}`:'<p>Keine belastbare Maßnahmenfläche oder ausreichend abgedeckte Vorratszone erkennbar. Prüfe die Rasterabdeckung und den gewählten Bereich.</p>')}</section>`:''}${r?.site_selection?`<p class="fp-muted">Standortindex-Typ: ${esc(r.site_selection.type)} · ${esc(r.site_selection.method)}</p>`:''}${r?.age_selection?`<p class="fp-muted">Alterskarte: ${esc(r.age_selection.type)} · ${esc(r.age_selection.method)}</p>`:''}${sources()}`;
   }
   function saveQuick(){
     if(!quick?.result)return;
@@ -213,10 +252,10 @@
     if(!p){c.innerHTML=`<div class="fp-empty"><h2>Walddaten direkt ansehen</h2><p>Zeichne eine Fläche oder wähle eine vorhandene Grenze aus der normalen Karte. Ein Grundstück musst du dafür nicht anlegen.</p><div class="fp-actions">${button('draw-quick','Fläche auswerten','','primary')}${button('shared-areas','Vorhandene Fläche wählen')}</div></div>${sharedList()}${sources()}`;return;}
     if(s){const i=s.inventory||{},v=M.stock(s),r=M.scenario(s,new Date().getFullYear()+5);
       c.innerHTML=`${button('overview','← Grundstücksübersicht')}<h2 style="margin-top:16px">${esc(s.number)} · ${esc(s.name)}</h2><p class="fp-muted">${esc(M.LAND[s.land_type])} · ${esc(M.HK[s.hk_class]||'Klasse noch nicht erfasst')}${s._offline_pending?' · <span class="fp-pending">Synchronisierung ausstehend</span>':''}</p>
-      <div class="fp-grid">${stat('Bestandsfläche',s.area_ha,'ha',2)}${stat('Geschätzter Vorrat',v,'m³sk')}${stat('Vorrat je ausgewertetem Hektar',i.volume_m3sk_ha,'m³sk/ha',1)}${stat('Grundfläche',i.basal_area_m2_ha,'m²/ha',1)}${stat('Bestandsalter',i.age_years,'Jahre')}${stat('Mittlere Höhe',i.mean_height_m,'m',1)}${stat('Mittlerer Durchmesser',i.mean_diameter_cm,'cm',1)}<div class="fp-stat"><small>Standortindex</small><strong>${esc(i.site_index||'–')}</strong></div>${stat('Aufnahmejahr',i.scan_year)}${stat('Bezugsjahr / Fortschreibung',M.referenceYear(i))}</div>
+      <div class="fp-grid">${stat('Bestandsfläche',s.area_ha,'ha',2)}${stat('Geschätzter Vorrat',v,'m³sk')}${stat('Vorrat je ausgewertetem Hektar',i.volume_m3sk_ha,'m³sk/ha',1)}${stat('Grundfläche',i.basal_area_m2_ha,'m²/ha',1)}${stat('Bestandsalter',i.age_years,'Jahre')}${stat('Mittlere Höhe',i.mean_height_m,'m',1)}${stat('Oberhöhe',i.dominant_height_m,'m',1)}${stat('Mittlerer Durchmesser',i.mean_diameter_cm,'cm',1)}<div class="fp-stat"><small>Standortindex</small><strong>${esc(i.site_index||'–')}</strong></div>${stat('Aufnahmejahr',i.scan_year)}${stat('Bezugsjahr / Fortschreibung',M.referenceYear(i))}</div>
       ${i.stock_area_ha!=null?`<p class="fp-muted">Vorratsdaten für ${fmt(i.stock_area_ha,2)} von ${fmt(s.area_ha,2)} ha. Fehlende Flächen werden nicht als 0 gerechnet.</p>`:''}
       <h3>Baumarten</h3>${i.sources?.species_pct?.area_ha!=null?`<p class="fp-muted">Baumarten-Rasterabdeckung: ${fmt(i.sources.species_pct.area_ha,2)} von ${fmt(s.area_ha,2)} ha.</p>`:''}${i.species_pct?bars(i.species_pct,M.SPECIES,'%'): '<p class="fp-muted">Baumartenanteile noch nicht erfasst.</p>'}
-      <h3>Maßnahme und Szenario</h3><div class="fp-scenario">${esc(M.ACTIONS[s.action])} · geplante Entnahme ${fmt(s.removal_pct,1)} %<br>Entnahme: <b>${fmt(r.removal)} m³sk</b> · verbleibend: <b>${fmt(r.remaining)} m³sk</b>${r.projected!=null?`<br>Vorrat ${new Date().getFullYear()+5} vor Entnahme: ${fmt(r.projected)} m³sk`:''}${r.gross!=null?`<br>Angenommener Bruttoerlös der Entnahme: ${fmt(r.gross)} SEK`:''}<p class="fp-muted">Planungsszenario auf Basis der erfassten Werte. Zuwachs und Preis sind eigene Annahmen; Kosten und Grundstückswert sind darin nicht enthalten.</p></div>
+      <h3>Maßnahme und Szenario</h3><div class="fp-scenario">${esc(M.ACTIONS[s.action])} · manuell geplante Entnahme ${fmt(s.removal_pct,1)} %<br>Entnahme: <b>${fmt(r.removal)} m³sk</b> · verbleibend: <b>${fmt(r.remaining)} m³sk</b>${r.projected!=null?`<br>Vorrat ${new Date().getFullYear()+5} vor Entnahme: ${fmt(r.projected)} m³sk`:''}${r.gross!=null?`<br>Angenommener Bruttoerlös der Entnahme: ${fmt(r.gross)} SEK`:''}<p class="fp-muted">Planungsszenario auf Basis der erfassten Werte. Zuwachs und Preis sind eigene Annahmen; Kosten und Grundstückswert sind darin nicht enthalten.</p></div>
       ${recommendationView(s)}
       ${s.notes?`<p style="white-space:pre-wrap;line-height:1.6">${esc(s.notes)}</p>`:''}
       <div class="fp-actions">${admin()?button('edit-stand','Bestand bearbeiten',s.id)+button('draw-stand','Grenze zeichnen',s.id)+button('fetch-data','ZIP-Daten auswerten',s.id)+button('order','Auftrag vorbereiten',s.id)+button('delete-stand','Bestand löschen',s.id,'danger'):''}</div><p class="fp-muted">Quelle: ${esc(i.source_label||'Noch nicht erfasst')}</p>${i.sources?`<details class="fp-source"><summary>Quellen je Kennzahl</summary>${Object.entries(i.sources).map(([k,v])=>`<p>${esc(M.FIELDS[k]?.[0]||k)}: ${esc(v.name||v.source||'Quelle')} · ${esc(v.year||[v.scan_date,v.scan_date_end!==v.scan_date?v.scan_date_end:null].filter(Boolean).join(' – ')||'Jahr nicht angegeben')}${v.area_ha!=null?' · Abdeckung '+fmt(v.area_ha,2)+' ha':''}</p>`).join('')}</details>`:''}${sources()}`;
