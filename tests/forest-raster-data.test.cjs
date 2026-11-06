@@ -33,6 +33,26 @@ test('age and SIS require the explicit forest and site types',()=>{
   const out=R.evaluate(geo(),f.index,f.tiles,{ageType:'mixed',siteSpecies:'T'}).inventory;
   assert.equal(out.age_years,40);assert.equal(out.sources.age_years.year,2025);assert.equal(out.site_index,'T19');assert.equal(out.reference_year,undefined);
 });
+test('mixed forest exposes both real SIS raster values without inventing a single site-index type',()=>{
+  const f=fixture({volume_2:[100,120],height_2:[100,110],basal_area_2:[20,22],
+    site_pine:[18,20],site_spruce:[23,25],age_mixed:[70,90]});
+  const r=R.evaluate(geo(),f.index,f.tiles,{siteSpecies:'auto',ageType:'mixed'});
+  assert.equal(r.inventory.site_index_pine,19);
+  assert.equal(r.inventory.site_index_spruce,24);
+  assert.equal(r.inventory.site_index,undefined);
+  assert.equal(r.site_selection.type,'unknown');
+  assert.ok(r.inventory.sources.site_index_pine.area_ha>0);
+  assert.ok(r.inventory.sources.site_index_spruce.area_ha>0);
+  assert.equal(r.inventory.sources.age_years.year,2025);
+  assert.equal(r.inventory.scan_year,undefined,'source raster product year must not be presented as laser acquisition year');
+});
+test('explicit site-indicating species also retains the other Swedish SIS reference separately',()=>{
+  const f=fixture({site_pine:[17,19],site_spruce:[25,27]});
+  const i=R.evaluate(geo(),f.index,f.tiles,{siteSpecies:'T'}).inventory;
+  assert.equal(i.site_index,'T18');
+  assert.equal(i.site_index_pine,18);
+  assert.equal(i.site_index_spruce,26);
+});
 test('species include contorta, oak, beech and broadleaf and share the same valid cells',()=>{
   const i=fixture({species_pine:[50,50],species_spruce:[0,-1],species_birch:[10,10],species_broadleaf:[10,10],species_contorta:[20,20],species_oak:[5,5],species_beech:[5,5]}).result().inventory;
   assert.ok(Math.abs(i.sources.species_pct.area_ha-.01)<1e-6);

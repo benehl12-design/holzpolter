@@ -142,7 +142,7 @@ test('ZIP inventory is calculated offline from native cells, reviewed and saved 
   await h.w.ForestPlanning.open();h.click('[data-act="select"]');h.click('[data-act="fetch-data"]');
   h.d.getElementById('fp-age-type').value='pine';h.d.getElementById('fp-site-species').value='T';h.click('[data-act="calculate-zip"]');
   await until(()=>h.d.querySelector('[data-act="apply-zip"]'));assert.equal(h.writes.length,0);h.click('[data-act="apply-zip"]');await until(()=>!h.d.querySelector('.fp-dialog'));
-  const i=h.tables.forest_stands[0].inventory;assert.ok(Math.abs(i.volume_m3sk_ha-200)<.001);assert.ok(Math.abs(i.mean_height_m-18)<.001);assert.equal(i.age_years,50);assert.equal(i.site_index,'T19');assert.equal(i.reference_year,undefined);assert.equal(requests.length,2);
+  const i=h.tables.forest_stands[0].inventory;assert.ok(Math.abs(i.volume_m3sk_ha-200)<.001);assert.ok(Math.abs(i.mean_height_m-18)<.001);assert.equal(i.age_years,50);assert.equal(i.site_index,'T19');assert.equal(i.reference_year,undefined);assert.ok(requests.length>=2&&requests.length<=3,'a saved stand may prefetch SIS in parallel with explicit ZIP evaluation');
   assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/Zugang noch einzurichten/);assert.deepEqual(h.errors,[]);
 });
 test('a map first opened with zero size recovers when its layout becomes visible',async t=>{
