@@ -384,6 +384,37 @@
     const poly=global.map(p=>p.map(r=>r.map(([x,y])=>[x-origin[0],y-origin[1]])));
     return {poly,origin,needed:info.tiles.filter(t=>boundsOverlap(t.bounds,b)&&area(clip.intersection(poly,localRectangle(t.bounds,origin)))>1e-7)};
   }
+  function evaluateScanDates(geometry,metadata){
+    if(metadata?.schema!=='lignum-scan-metadata-v1'||!Array.isArray(metadata.grids))throw Error('Das Laserscan-Datenpaket ist ungültig.');
+    const global=projected(geometry),b=bounds(global);
+    const origin=[Math.floor(b[0]/1000)*1000,Math.floor(b[1]/1000)*1000];
+    const poly=global.map(p=>p.map(r=>r.map(([x,y])=>[x-origin[0],y-origin[1]])));
+    const selectedArea=area(poly),groups=new Map();
+    for(const record of metadata.grids){
+      if(![1,2,3].includes(record.cycle)||!/^\d{4}-\d{2}-\d{2}$/.test(record.date)||!record.rings?.length)continue;
+      const ringBounds=bounds([record.rings]);if(!boundsOverlap(b,ringBounds))continue;
+      const local=[record.rings.map(r=>r.map(([x,y])=>[x-origin[0],y-origin[1]]))];
+      let squareMetres=0;
+      try{squareMetres=area(clip.intersection(poly,local));}catch{continue;}
+      if(squareMetres<=1e-7)continue;
+      const group=groups.get(record.cycle)||{cycle:record.cycle,dates:new Set(),covered:0,grids:0};
+      group.covered+=squareMetres;group.dates.add(record.date);group.grids++;
+      groups.set(record.cycle,group);
+    }
+    const cycles=[...groups.values()].sort((a,b)=>b.cycle-a.cycle).map(g=>{
+      const dates=[...g.dates].sort(),years=[...new Set(dates.map(d=>Number(d.slice(0,4))))];
+      return {cycle:g.cycle,scan_date_start:dates[0],scan_date_end:dates.at(-1),
+        year:years.length===1?years[0]:null,coverage_ha:Math.min(g.covered,selectedArea)/10000,
+        grids:g.grids};
+    });
+    const current=cycles.find(x=>x.year!=null&&x.coverage_ha>=selectedArea/10000*.7)||null;
+    return {current,cycles,area_ha:selectedArea/10000,source:metadata.source,
+      method:'Amtliche Laserscan-Metadaten auf 2,5-km-Gittern, geometrisch verschnitten; nicht das Aufnahmejahr jeder einzelnen Rasterzelle.'};
+  }
+  async function scanDates(geometry){
+    const info=await jsonFile(new URL('scan-metadata.json',baseURL()).href);
+    return evaluateScanDates(geometry,info);
+  }
   async function coverage(geometry){
     const info=await index(),{poly,needed,origin}=selection(geometry,info);
     return {name:info.name||info.region||'Sarvisvaara',area_ha:area(poly)/10000,
@@ -409,5 +440,5 @@
     for(const key of result.fields){delete out[key];delete out.sources[key];}
     return {...out,...result.inventory,sources:{...out.sources,...result.inventory.sources}};
   }
-  return {inventory,index,coverage,evaluate,subareas,decode,merge};
+  return {inventory,index,coverage,evaluate,subareas,decode,merge,scanDates,evaluateScanDates};
 });

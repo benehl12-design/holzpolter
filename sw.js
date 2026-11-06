@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.62';
+const APP_VERSION  = '13.63';
 // New shell cache for standalone mixed-forest SIS enrichment and planning updates.
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION + '-workerfix1';
 const TILE_CACHE   = 'lignum-tiles-v5';
@@ -25,6 +25,7 @@ const APP_SHELL = [
   '/index.html',
   '/offline.js',
   '/forest-planning.css', '/forest-harvest-rules.js', '/forest-thinning.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
+  '/data/forest-rasters/scan-metadata.json', // public scan dates available offline
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
