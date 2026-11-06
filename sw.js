@@ -7,7 +7,8 @@
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
 const APP_VERSION  = '13.61';
-const APP_CACHE    = 'lignum-app-v'  + APP_VERSION;
+// Hotfix cache namespace: refresh devices that already installed the initial 13.61 build.
+const APP_CACHE    = 'lignum-app-v'  + APP_VERSION + '-workerfix1';
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
 const SAT_OFFLINE_CACHE = 'lignum-sat-offline-v1';
