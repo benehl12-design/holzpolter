@@ -277,3 +277,33 @@ Offizielle Grundlagen:
 [Datenqualität](https://www.skogsstyrelsen.se/skogligagrunddata),
 [API 1.1](https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/skogsstyrelsens-api/),
 [Konto für Rasterdaten](https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/anvandarkonto/).
+
+
+### 13.62 – zwei Standortindex-Referenzen bei Mischbeständen
+
+Die lokalen Skogsstyrelsen-SIS-Raster für Kiefer (T) und Fichte (G) sind unabhängig
+voneinander auswertbar. Lignum zeigt beide Referenzwerte samt tatsächlich
+geschnittener Rasterabdeckung an, selbst wenn aus einer Mischwald-Baumartenkarte
+keine eindeutige standortanzeigende Baumart abgeleitet werden kann. Ein nicht
+belegtes einziges `site_index` bleibt unbekannt; es wird nicht durch den
+höheren Wert oder durch eine willkürliche Holzvorratsmehrheit ersetzt.
+
+Bei einem bereits gespeicherten Bestand mit vorhandener Grenze lädt die
+Bestandsansicht fehlende SIS-Referenzen im Hintergrund aus dem regionalen
+Datenpaket nach. Diese Ergänzung ist eine *Anzeige*, die keine vorhandenen
+Manuelleingaben oder Supabase-Daten überschreibt. Beim bewussten Neuauswerten
+und Übernehmen werden die SIS-Referenzen dauerhaft im Bestand gespeichert.
+
+Soweit beide SIS-Referenzen vorhanden sind, zeigt die Durchforstung mögliche
+Kiefer- und Fichte-Szenarien nur bedingt an. Die eindeutige Standortzuordnung
+ist weiter vor Ort zu bestätigen. Eine verlässliche Oberhöhe ist in den
+regionalen ZIP-Kacheln noch **nicht** enthalten; die derzeitige mittlere Höhe
+ist keine Oberhöhe. Es erfolgt ausdrücklich keine automatische Ersetzung oder
+fiktive Höhenberechnung. Skogsstyrelsen veröffentlicht separat P95-Karten,
+die für eine künftige Ergänzung anhand tatsächlicher Originalzellen erst
+aufbereitet werden müssten. P95 ist zudem nicht automatisch Hdom.
+
+Das Bezugsjahr des Altersmodells ist aus der Altersraster-Quelle als
+**2025** verfügbar. Ein standortspezifisches Laserscan-Aufnahmejahr ist in den
+gegenwärtigen Kacheln nicht vorhanden und wird deshalb weiterhin als unbekannt
+ausgewiesen. ZIP-Bereitstellungsdatum und Produktjahr sind keine Aufnahmejahre.
