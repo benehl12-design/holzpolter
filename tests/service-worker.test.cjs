@@ -40,7 +40,7 @@ function harness(failedURL, scope = 'https://lignum.test/') {
 }
 test('raster worker loads the thinning model before spatial evaluation', () => {
   const worker=fs.readFileSync(path.join(__dirname,'../forest-raster-worker.js'),'utf8');
-  assert.match(worker,/forest-thinning\\.js/);
+  assert.ok(worker.includes("'forest-thinning.js'"));
   assert.ok(worker.indexOf('forest-thinning.js')<worker.indexOf('forest-raster-data.js'));
 });
 test('the app shell and offline module are cached with the same version', async () => {
