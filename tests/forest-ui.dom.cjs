@@ -47,6 +47,23 @@ test('create property and stand through the actual forms, then show their summar
   assert.match(h.d.getElementById('fp-content').textContent,/600/);assert.match(h.d.getElementById('fp-content').textContent,/2022/);assert.doesNotMatch(h.d.getElementById('fp-content').textContent,/2\.022/);
   h.click('[data-act="overview"]');assert.match(h.d.getElementById('fp-content').textContent,/Bekannter Holzvorrat/);assert.match(h.d.getElementById('fp-content').textContent,/600/);assert.deepEqual(h.errors,[]);
 });
+test('real mixed-forest T17/G14 page shows conditional comparison instead of claiming site_index raster is missing',async t=>{
+  const inventory={age_years:80,volume_m3sk_ha:106,basal_area_m2_ha:18.1,
+    mean_height_m:10.1,p95_height_m:10.1,site_index_pine:17,site_index_spruce:14,
+    sources:{site_index_pine:{area_ha:8.71},site_index_spruce:{area_ha:8.71},p95_height_m:{area_ha:8.71}}};
+  const h=fixture(t,{props:[prop],stands:[{...stand,area_ha:8.71,inventory,hk_class:''}]});
+  await h.w.ForestPlanning.open();
+  h.click('[data-act="select"]');
+  const page=h.d.getElementById('fp-content').textContent;
+  assert.match(page,/Standortreferenzen vorhanden/);
+  assert.match(page,/Kiefer · T17/);
+  assert.match(page,/Fichte · G14/);
+  assert.match(page,/außerhalb/);
+  assert.match(page,/0–30 % Grundflächenentnahme/);
+  assert.doesNotMatch(page,/Für einen verlässlichen Prozentwert fehlen: site_index/);
+  assert.equal(h.tables.forest_stands[0].inventory.site_index,undefined);
+  assert.deepEqual(h.errors,[]);
+});
 test('a second property can be smaller than the stands in the first property',async t=>{
   const h=fixture(t,{props:[prop],stands:[stand]});await h.w.ForestPlanning.open();h.click('[data-act="new-property"]');h.set('name','Klein');h.set('area_ha','0,5');h.submit();await until(()=>h.tables.forest_properties.length===2);assert.equal(h.tables.forest_properties[1].area_ha,.5);
 });
