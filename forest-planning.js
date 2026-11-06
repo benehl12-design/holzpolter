@@ -218,30 +218,43 @@
     const i={...s.inventory,sources:{...(s.inventory?.sources||{})}},signature=JSON.stringify(s.geometry||null);
     const prior=siteSupplements.get(s.id);
     if(prior?.signature===signature){
+      if(i.scan_year==null&&prior.scan?.current?.year){i.scan_year=prior.scan.current.year;i._scanMetadata=prior.scan;}
       for(const key of ['site_index_pine','site_index_spruce']){
         if(i[key]==null&&prior.inventory?.[key]!=null){i[key]=prior.inventory[key];if(prior.inventory.sources?.[key])i.sources[key]=prior.inventory.sources[key];}
       }
     }
     if(s.id&&s.geometry&&window.ForestRasterData&&!siteLoads.has(s.id)&&
-      (!prior||prior.signature!==signature)&&
-      (i.site_index_pine==null||i.site_index_spruce==null)){
+       (!prior||prior.signature!==signature)){
       const who=ctx();siteLoads.add(s.id);
-      window.ForestRasterData.inventory(s.geometry,{ageType:'',siteSpecies:'',includeSubareas:false})
-        .then(result=>{
-          if(same(who))siteSupplements.set(s.id,{signature,inventory:result.inventory||{}});
-        },error=>{
-          if(same(who))siteSupplements.set(s.id,{signature,inventory:{},error:String(error.message||error)});
-        }).finally(()=>{
+      const needSite=i.site_index_pine==null||i.site_index_spruce==null;
+      const site=needSite?window.ForestRasterData.inventory(s.geometry,{ageType:'',siteSpecies:'',includeSubareas:false}):Promise.resolve(null);
+      const scan=window.ForestRasterData.scanDates?window.ForestRasterData.scanDates(s.geometry):Promise.resolve(null);
+      Promise.allSettled([site,scan]).then(results=>{
+        if(!same(who))return;
+        siteSupplements.set(s.id,{signature,
+          inventory:results[0].status==='fulfilled'?results[0].value?.inventory||{}:{},
+          scan:results[1].status==='fulfilled'?results[1].value:null,
+          error:results.filter(r=>r.status==='rejected').map(r=>String(r.reason)).join('; ')});
+      }).finally(()=>{
           siteLoads.delete(s.id);
-          // A background lookup can finish after the user has left the screen
-          // or a test/browser view has been destroyed. Never render into it.
           try{
             if(window.document?.getElementById?.('fp-content')&&screen?.isConnected&&
                 same(who)&&selected()?.id===s.id&&visible())renderDetail();
-          }catch(error){console.warn('SIS-Anzeige konnte nicht aktualisiert werden:',error);}
-        }).catch(error=>console.warn('SIS-Nachladen beendet:',error));
+          }catch(error){console.warn('Forst-Metadaten-Anzeige konnte nicht aktualisiert werden:',error);}
+        }).catch(error=>console.warn('Forst-Metadaten-Nachladen beendet:',error));
     }
     return i;
+  }
+  function scanMetadataView(info){
+    if(!info?.cycles?.length)return '';
+    const list=info.cycles.map(c=>{
+      const start=c.scan_date_start,end=c.scan_date_end;
+      const interval=start===end?start:start+' bis '+end;
+      return '<p><strong>Laserscan Omdrev '+c.cycle+':</strong> '+esc(interval)+
+        ' · Abdeckung ca. '+fmt(c.coverage_ha,2)+' von '+fmt(info.area_ha,2)+' ha.</p>';
+    }).join('');
+    return '<section class="fp-scenario"><h3>Amtliche Laserscan-Aufnahmejahre</h3>'+list+
+      '<p class="fp-muted">Lantmäteriet/Skogsstyrelsen: räumlich verschnittene 2,5-km-Metadatengitter. Die neueste überwiegend abgedeckte Scan-Generation ist kein Beweis, dass jede Vorratskennzahl aus genau diesem Scan stammt. Diese Datierung ist nicht das Bezugsjahr des Altersmodells (2025).</p></section>';
   }
   function alternativeSiteAdvice(s){
     const i=s.inventory||{};
@@ -311,11 +324,11 @@
     if(!p){c.innerHTML=`<div class="fp-empty"><h2>Walddaten direkt ansehen</h2><p>Zeichne eine Fläche oder wähle eine vorhandene Grenze aus der normalen Karte. Ein Grundstück musst du dafür nicht anlegen.</p><div class="fp-actions">${button('draw-quick','Fläche auswerten','','primary')}${button('shared-areas','Vorhandene Fläche wählen')}</div></div>${sharedList()}${sources()}`;return;}
     if(s){const i=supplementalInventory(s),v=M.stock(s),r=M.scenario(s,new Date().getFullYear()+5);
       c.innerHTML=`${button('overview','← Grundstücksübersicht')}<h2 style="margin-top:16px">${esc(s.number)} · ${esc(s.name)}</h2><p class="fp-muted">${esc(M.LAND[s.land_type])} · ${esc(M.HK[s.hk_class]||'Klasse noch nicht erfasst')}${s._offline_pending?' · <span class="fp-pending">Synchronisierung ausstehend</span>':''}</p>
-      <div class="fp-grid">${stat('Bestandsfläche',s.area_ha,'ha',2)}${stat('Geschätzter Vorrat',v,'m³sk')}${stat('Vorrat je ausgewertetem Hektar',i.volume_m3sk_ha,'m³sk/ha',1)}${stat('Grundfläche',i.basal_area_m2_ha,'m²/ha',1)}${stat('Bestandsalter',i.age_years,'Jahre')}${stat('Mittlere Höhe',i.mean_height_m,'m',1)}${stat('Oberhöhe',i.dominant_height_m,'m',1)}${stat('Mittlerer Durchmesser',i.mean_diameter_cm,'cm',1)}${siteReferenceCards(i)}<div class="fp-stat"><small>Standortindex · standortanzeigende Baumart</small><strong>${esc(i.site_index||'–')}</strong></div>${stat('Aufnahmejahr Laserscan',i.scan_year)}${stat('Bezugsjahr Altersmodell',i.sources?.age_years?.year)}${stat('Bezugsjahr Vorrat / Fortschreibung',M.referenceYear(i))}</div>
+      <div class="fp-grid">${stat('Bestandsfläche',s.area_ha,'ha',2)}${stat('Geschätzter Vorrat',v,'m³sk')}${stat('Vorrat je ausgewertetem Hektar',i.volume_m3sk_ha,'m³sk/ha',1)}${stat('Grundfläche',i.basal_area_m2_ha,'m²/ha',1)}${stat('Bestandsalter',i.age_years,'Jahre')}${stat('Mittlere Höhe',i.mean_height_m,'m',1)}${stat('Oberhöhe',i.dominant_height_m,'m',1)}${stat('Mittlerer Durchmesser',i.mean_diameter_cm,'cm',1)}${siteReferenceCards(i)}<div class="fp-stat"><small>Standortindex · standortanzeigende Baumart</small><strong>${esc(i.site_index||'–')}</strong></div>${stat('Laserscan-Jahr (Metadatengitter)',i.scan_year)}${stat('Bezugsjahr Altersmodell',i.sources?.age_years?.year)}${stat('Bezugsjahr Vorrat / Fortschreibung',M.referenceYear(i))}</div>
       ${i.stock_area_ha!=null?`<p class="fp-muted">Vorratsdaten für ${fmt(i.stock_area_ha,2)} von ${fmt(s.area_ha,2)} ha. Fehlende Flächen werden nicht als 0 gerechnet.</p>`:''}
       <h3>Baumarten</h3>${i.sources?.species_pct?.area_ha!=null?`<p class="fp-muted">Baumarten-Rasterabdeckung: ${fmt(i.sources.species_pct.area_ha,2)} von ${fmt(s.area_ha,2)} ha.</p>`:''}${i.species_pct?bars(i.species_pct,M.SPECIES,'%'): '<p class="fp-muted">Baumartenanteile noch nicht erfasst.</p>'}
       <h3>Maßnahme und Szenario</h3><div class="fp-scenario">${esc(M.ACTIONS[s.action])} · manuell geplante Entnahme ${fmt(s.removal_pct,1)} %<br>Entnahme: <b>${fmt(r.removal)} m³sk</b> · verbleibend: <b>${fmt(r.remaining)} m³sk</b>${r.projected!=null?`<br>Vorrat ${new Date().getFullYear()+5} vor Entnahme: ${fmt(r.projected)} m³sk`:''}${r.gross!=null?`<br>Angenommener Bruttoerlös der Entnahme: ${fmt(r.gross)} SEK`:''}<p class="fp-muted">Planungsszenario auf Basis der erfassten Werte. Zuwachs und Preis sind eigene Annahmen; Kosten und Grundstückswert sind darin nicht enthalten.</p></div>
-      ${recommendationView({...s,inventory:i})}<p class="fp-muted">Hinweis: Aufnahmejahr der Laserscans ist in den aktuellen regionalen Rasterkacheln nicht standortgenau hinterlegt und wird nicht aus dem Dateinamen geraten. Das Altersmodell verwendet die Karte 2025. Oberhöhe fehlt, solange kein eigener Messwert vorhanden ist; die mittlere Höhe ist keine gemessene Oberhöhe.</p>
+      ${scanMetadataView(i._scanMetadata)}${recommendationView({...s,inventory:i})}<p class="fp-muted">Hinweis: Aufnahmejahr der Laserscans ist in den aktuellen regionalen Rasterkacheln nicht standortgenau hinterlegt und wird nicht aus dem Dateinamen geraten. Das Altersmodell verwendet die Karte 2025. Oberhöhe fehlt, solange kein eigener Messwert vorhanden ist; die mittlere Höhe ist keine gemessene Oberhöhe.</p>
       ${s.notes?`<p style="white-space:pre-wrap;line-height:1.6">${esc(s.notes)}</p>`:''}
       <div class="fp-actions">${admin()?button('edit-stand','Bestand bearbeiten',s.id)+button('draw-stand','Grenze zeichnen',s.id)+button('fetch-data','ZIP-Daten auswerten',s.id)+button('order','Auftrag vorbereiten',s.id)+button('delete-stand','Bestand löschen',s.id,'danger'):''}</div><p class="fp-muted">Quelle: ${esc(i.source_label||'Noch nicht erfasst')}</p>${i.sources?`<details class="fp-source"><summary>Quellen je Kennzahl</summary>${Object.entries(i.sources).map(([k,v])=>`<p>${esc(M.FIELDS[k]?.[0]||k)}: ${esc(v.name||v.source||'Quelle')} · ${esc(v.year||[v.scan_date,v.scan_date_end!==v.scan_date?v.scan_date_end:null].filter(Boolean).join(' – ')||'Jahr nicht angegeben')}${v.area_ha!=null?' · Abdeckung '+fmt(v.area_ha,2)+' ha':''}</p>`).join('')}</details>`:''}${sources()}`;
     }else{const sum=M.summary(rows(),p);
