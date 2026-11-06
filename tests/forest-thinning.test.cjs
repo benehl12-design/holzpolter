@@ -54,6 +54,40 @@ test('no Si or height does not invent a percent',()=>{
   assert.equal(x.removal_pct,null);
 });
 
+test('mixed stand T17 and G14 has two public site references, not missing raw SIS data',()=>{
+  const i={age_years:80,basal_area_m2_ha:18.1,mean_height_m:10.1,p95_height_m:10.1,
+    site_index_pine:17,site_index_spruce:14,
+    sources:{site_index_pine:{area_ha:8.71},site_index_spruce:{area_ha:8.71},p95_height_m:{area_ha:8.71}}};
+  const s=stand(i,{area_ha:8.71,hk_class:''});
+  const base=T.evaluate(s);
+  assert.equal(base.status,'needs-data');
+  assert.deepEqual(base.missing,['site_type_confirmation']);
+  assert.match(base.reason,/vorhanden/);
+  const alternatives=T.siteAlternatives(s);
+  assert.equal(alternatives.length,2);
+  assert.equal(alternatives[0].site_index,'T17');
+  assert.equal(alternatives[0].status,'conditional');
+  assert.equal(alternatives[0].advice.status,'uncertain');
+  assert.deepEqual(alternatives[0].advice.removal_range_pct,[0,30]);
+  assert.equal(alternatives[0].advice.removal_pct,null);
+  assert.equal(alternatives[1].site_index,'G14');
+  assert.equal(alternatives[1].status,'outside-table');
+  assert.equal(alternatives[1].advice,null);
+  assert.equal(i.site_index,undefined,'no reference can overwrite the user-validated site type');
+});
+test('T reference with insufficient overlap does not produce a whole-area percentage',()=>{
+  const s=stand({basal_area_m2_ha:38,mean_height_m:14,site_index_pine:19,
+    sources:{site_index_pine:{area_ha:.4}}},{area_ha:2});
+  const a=T.siteAlternatives(s);
+  assert.equal(a[0].status,'insufficient-coverage');
+  assert.equal(a[0].advice,null);
+});
+test('an unsupported confirmed G14 is clearly outside the reference range',()=>{
+  const a=T.evaluate(stand({basal_area_m2_ha:24,mean_height_m:12,site_index:'G14'}));
+  assert.deepEqual(a.missing,['site_index_unsupported']);
+  assert.match(a.reason,/G14/);
+  assert.match(a.reason,/außerhalb/);
+});
 test('site index outside published chart is not extrapolated',()=>{
   const r=T.evaluate(stand({basal_area_m2_ha:37,dominant_height_m:14,site_index:'T12'}));
   assert.equal(r.status,'needs-data');
