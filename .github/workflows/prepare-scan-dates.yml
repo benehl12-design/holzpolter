@@ -1,0 +1,29 @@
+name: Prepare Sarvisvaara laser scan dates
+on:
+  push:
+    branches: [lignum-13-63-scan-metadata]
+    paths:
+      - '.github/workflows/prepare-scan-dates.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download official 2.5 km scan metadata (no credentials)
+        run: python tools/prepare_forest_scan_metadata.py
+      - name: Commit reviewed metadata on source branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/forest-rasters/scan-metadata.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: public Skogsstyrelsen scan dates [skip ci]'
+            git push origin HEAD:lignum-13-63-scan-metadata
+          fi
