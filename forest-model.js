@@ -1,14 +1,14 @@
 /* LIGNUM — © 2026 Benedikt Holz. Forest planning, quantities in m³sk. */
 (function(root,factory){
-  if(typeof module==='object'&&module.exports) module.exports=factory(require('./vendor/proj4-2.11.0.js'),require('./vendor/polygon-clipping-0.15.7.js'),require('./forest-harvest-rules.js'));
-  else root.ForestModel=factory(root.proj4,root.polygonClipping,root.ForestHarvestRules);
-})(typeof globalThis!=='undefined'?globalThis:this,function(proj4,clip,harvestRules){
+  if(typeof module==='object'&&module.exports) module.exports=factory(require('./vendor/proj4-2.11.0.js'),require('./vendor/polygon-clipping-0.15.7.js'),require('./forest-harvest-rules.js'),require('./forest-thinning.js'));
+  else root.ForestModel=factory(root.proj4,root.polygonClipping,root.ForestHarvestRules,root.ForestThinning);
+})(typeof globalThis!=='undefined'?globalThis:this,function(proj4,clip,harvestRules,thinning){
   'use strict';
   const SWEREF='+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs';
   const LAND={forest:'Wald',unproductive:'Unproduktiver Wald',wetland:'Moor / Feuchtgebiet',other:'Sonstige Fläche',water:'Wasser',agriculture:'Landwirtschaft'};
   const HK={K:'Kahlfläche',R:'Jungbestand / Pflege',G1:'Erstdurchforstung',G2:'Weitere Durchforstung',S1:'Älterer Bestand',S2:'Verjüngungsreifer Bestand',E:'Ungleichaltriger Bestand',NS:'Naturschutz mit Pflege',NO:'Naturschutz ohne Eingriff'};
   const ACTIONS={none:'Keine Maßnahme',thinning:'Durchforstung',regeneration:'Verjüngung / Ernte',tending:'Kulturpflege',planting:'Pflanzung',nature:'Naturpflege'};
-  const FIELDS={volume_m3sk_ha:['Vorrat je Hektar','m³sk/ha',0,3000],volume_m3sk:['Vorrat gesamt','m³sk',0,1e8],stock_area_ha:['Ausgewertete Vorratsfläche','ha',0,1e6],mean_height_m:['Mittlere Höhe','m',0,100],mean_diameter_cm:['Mittlerer Durchmesser','cm',0,300],basal_area_m2_ha:['Grundfläche','m²/ha',0,150],age_years:['Bestandsalter','Jahre',0,1000],scan_year:['Aufnahmejahr','',1900,2200],reference_year:['Bezugsjahr','',1900,2200],projected_to_year:['Fortgeschrieben bis','',1900,2200],annual_growth_m3sk_ha:['Angenommener jährlicher Zuwachs','m³sk/ha/Jahr',0,100],price_sek_m3sk:['Angenommener Preis','SEK/m³sk',0,10000]};
+  const FIELDS={volume_m3sk_ha:['Vorrat je Hektar','m³sk/ha',0,3000],volume_m3sk:['Vorrat gesamt','m³sk',0,1e8],stock_area_ha:['Ausgewertete Vorratsfläche','ha',0,1e6],mean_height_m:['Mittlere Höhe','m',0,100],dominant_height_m:['Oberhöhe (gemessen)','m',0,100],mean_diameter_cm:['Mittlerer Durchmesser','cm',0,300],basal_area_m2_ha:['Grundfläche','m²/ha',0,150],age_years:['Bestandsalter','Jahre',0,1000],scan_year:['Aufnahmejahr','',1900,2200],reference_year:['Bezugsjahr','',1900,2200],projected_to_year:['Fortgeschrieben bis','',1900,2200],annual_growth_m3sk_ha:['Angenommener jährlicher Zuwachs','m³sk/ha/Jahr',0,100],price_sek_m3sk:['Angenommener Preis','SEK/m³sk',0,10000]};
   const SOURCE_LINKS={downloads:'https://www.skogsstyrelsen.se/laddanergeodata',api:'https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/skogsstyrelsens-api/',rasterAccount:'https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/anvandarkonto/',quality:'https://www.skogsstyrelsen.se/skogligagrunddata'};
   const SPECIES={pine:'Kiefer',spruce:'Fichte',birch:'Birke',other:'Weitere Baumarten'};
   function number(value){
@@ -138,6 +138,7 @@
   // Advisory rules based on observed stand structure; missing values never become zero.
   function recommend(s){
     const i=s.inventory||{},age=number(i.age_years),basal=number(i.basal_area_m2_ha),height=number(i.mean_height_m),diameter=number(i.mean_diameter_cm);
+    const thinningAdvice=thinning.evaluate(s);
     const result=(action,reason,confidence='low',missing=[])=>({action,reason,confidence,missing,review:true});
     if(s.land_type==='wetland'||s.land_type==='water')return result('none','Wasser- oder Feuchtgebiet: keine automatische Holzerntemaßnahme.','high');
     if(s.land_type!=='forest')return result('none','Keine bestätigte produktive Waldfläche; Flächentyp vor Ort prüfen.');
@@ -149,7 +150,10 @@
     const coverage=['age_years','basal_area_m2_ha','mean_height_m'].filter(k=>i[k]!=null&&i.sources?.[k]?.area_ha!=null&&s.area_ha!=null&&i.sources[k].area_ha<s.area_ha*.7);
     if(coverage.length)return result('none','Wichtige Rasterwerte decken weniger als 70 % der Fläche ab; keine flächendeckende Empfehlung.', 'low',coverage);
     if(basal!=null&&basal<12)return result('none','Niedrige Grundfläche: vor weiterer Entnahme Bestockung und Stabilität prüfen.','medium',missing);
-    if(s.hk_class==='G1'||s.hk_class==='G2')return result('thinning','Durchforstungsklasse: Dichte, Kronen und Stabilität vor Eingriff prüfen.',basal!=null?'medium':'low',missing);
+    if(s.hk_class==='G1'||s.hk_class==='G2'){
+      if(thinningAdvice.status==='none')return {...result('none','Die INGVAR-Grenze spricht derzeit gegen eine weitere Durchforstung. '+thinningAdvice.reason,'medium',missing),thinning:thinningAdvice};
+      return {...result('thinning',thinningAdvice.action==='thinning'?thinningAdvice.reason:'Durchforstungsklasse: Dichte, Kronen und Stabilität vor Eingriff prüfen.',basal!=null?'medium':'low',missing),thinning:thinningAdvice};
+    }
     if(s.hk_class==='S2')return result('regeneration','Verjüngungsreifer Bestand: Naturverjüngung, Dauerwaldoptionen und Schutzwerte prüfen.','low',missing);
     const sourceCoverageOk=['volume_m3sk_ha','mean_diameter_cm','site_index','species_pct'].every(k=>
       i.sources?.[k]?.area_ha==null||s.area_ha==null||i.sources[k].area_ha>=s.area_ha*.7);
@@ -163,6 +167,10 @@
         review.reference?[]:['site_index']),screening:review};
     }
     if(age!=null&&age<20)return result('tending','Junger Bestand nach Altersraster: Pflegebedarf vor Ort kontrollieren.',height!=null?'medium':'low',missing);
+    if(thinningAdvice.status==='recommended'||thinningAdvice.status==='provisional')
+      return {...result('thinning',thinningAdvice.reason,thinningAdvice.confidence,missing),thinning:thinningAdvice};
+    if(thinningAdvice.status==='none'||thinningAdvice.status==='uncertain')
+      return {...result('none',thinningAdvice.reason,thinningAdvice.confidence,missing),thinning:thinningAdvice};
     if(age!=null&&age>=20&&age<65&&basal!=null&&basal>=22&&height!=null&&height>=10)return result('thinning','Alter, Grundfläche und Höhe sprechen für die Prüfung einer Durchforstung; keine automatische Entnahmefreigabe.','medium',missing);
     if(age!=null&&age>=65&&basal!=null&&basal>=22&&height!=null&&height>=14)return result('thinning','Älterer dichter Bestand: vorsichtige Durchforstung oder einzelstammweise Nutzung prüfen, nicht pauschal kahlschlagen.','low',missing);
     if(age!=null&&age>=20&&height!=null&&height<10)return result('tending','Geringe Bestandshöhe: Pflegebedarf und Altersdaten vor Ort abgleichen.','low',missing);
@@ -217,5 +225,5 @@
     });
   }
   function featureCollection(stands){return {type:'FeatureCollection',lignum_schema:'forest-stands-v1',features:stands.map(s=>({type:'Feature',geometry:s.geometry,properties:{...stand(s),geometry:undefined}}))};}
-  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,color,wkt,parseGeoJSON,parseCSV,featureCollection};
+  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
 });
