@@ -37,6 +37,23 @@ test('public laser P95 decimetres are shown as metres, not silently as measured 
   assert.equal(i.dominant_height_m,undefined);
   assert.ok(i.sources.p95_height_m.area_ha>0);
 });
+test('new shipped official P95 tile covers real Sarvisvaara forest without inventing a dominant height',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const root=path.join(__dirname,'../data/forest-rasters');
+  const index=JSON.parse(fs.readFileSync(path.join(root,'index.json'),'utf8'));
+  assert.equal(index.sources.p95_2.scale,.1);
+  const entry=index.tiles.find(t=>t.bounds[0]===785000&&t.bounds[1]===7417000);
+  assert.ok(entry);
+  const tile=JSON.parse(fs.readFileSync(path.join(root,entry.file),'utf8'));
+  assert.ok(tile.layers.p95_2);
+  assert.equal(tile.layers.p95_2.step,10);
+  assert.ok(tile.layers.p95_2.runs.some(([v])=>v>0));
+  const r=R.evaluate(geo(785020,7417020,785420,7417420),index,[{file:entry.file,data:tile}],{ageType:'mixed',siteSpecies:'T'});
+  assert.ok(Number.isFinite(r.inventory.p95_height_m)&&r.inventory.p95_height_m>1);
+  assert.ok(r.inventory.p95_height_m<50);
+  assert.equal(r.inventory.dominant_height_m,undefined);
+  assert.ok(r.inventory.sources.p95_height_m.area_ha>0);
+});
 test('native fractional cells give weighted means and true covered stock',()=>{
   const i=fixture().result(geo(780000,7410000,780015,7410010)).inventory;
   assert.ok(Math.abs(i.volume_m3sk_ha-500/3)<1e-4);assert.ok(Math.abs(i.volume_m3sk-2.5)<1e-5);assert.ok(Math.abs(i.stock_area_ha-.015)<1e-6);
