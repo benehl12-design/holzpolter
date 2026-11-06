@@ -321,3 +321,41 @@ keinen verbindlichen INGVAR-Entnahmeprozentsatz.
 Das neue regionale P95-Raster wird mit derselben echten Zell-Polygon-
 Verschneidung ausgewertet wie die übrigen ZIP-Raster. Fehlt das
 P95-Raster im lokalen Datenpaket, bleibt der Wert unbekannt.
+
+
+### 13.65 – Oberhöhe/Hdom ohne falschen Laserscan-Messwert
+
+Die schwedische Oberhöhe (övre höjd, Hdom) wird als mittlere Höhe der
+100 stärksten Bäume je Hektar definiert. Für die praktikable Aufnahme
+empfiehlt Skogskunskap je 10-m-Radius-Probekreis die zwei stärksten
+unbeschädigten Bäume zu messen und daraus einen Mittelwert zu bilden.
+Mehrere repräsentative Probekreise auf einer heterogenen Fläche liefern
+eine bessere Grundlage.
+
+Im bestehenden Formular **Bestand bearbeiten** können dazu je Probekreis
+zwei gemessene Höhen auf einer Zeile mit Semikolon eingetragen werden.
+Lignum validiert die Höhen (je 3–60 m), berechnet den Mittelwert und
+speichert sowohl die beiden Originalhöhen pro Probekreis als auch die
+resultierende Oberhöhe und die Provenienz. Vorhandene händische
+Oberhöhen-Werte bleiben unberührt, sofern keine Probekreismessungen
+eingetragen werden.
+
+Die örtliche Skogsstyrelsen-P95-Laserkarte (2021/omdrev 2) enthält
+**kein** gemessenes Hdom. Ohne Feldwert wird der P95-Wert nur als
+qualitativer Kronenhöhenindikator und in INGVAR als bewusst weit
+angelegter **±20-%-Sensitivitätsbereich** verwendet. Die ±20 % sind
+eine *Modellannahme für die Szenarien*, keine empirisch kalibrierte
+Vertrauensgrenze. Das Ergebnis ist ein vorläufiger **Bereich** der
+möglichen Grundflächenentnahme, niemals eine verbindliche
+Einzelprozentzahl. Eine zu geringe P95-Abdeckung (unter 70 %),
+unplausibles Verhältnis zur mittleren Höhe oder fehlende Eignung
+führt zum Rückgriff auf die vorhandene Mittelhöhen-Sensitivität bzw.
+einer Meldung zur Geländevermessung.
+
+Für kartierte Teilflächen wird der P95-Indikator nur verwendet,
+wenn die P95-Rasterabdeckung dieser Teilfläche mindestens 70 % beträgt.
+Die tatsächliche Baumarten- und Standortszuordnung bleibt auch hier
+zu bestätigen.
+
+Fachliche Definition und Geländepraxis:
+https://www.skogskunskap.se/aga-skog/fakta-om-skogen/skogstermer/
