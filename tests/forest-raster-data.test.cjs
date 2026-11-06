@@ -12,6 +12,22 @@ function fixture(values={volume_2:[100,300]},options={}){
   const tiles=[{file:'tile.json',data:{schema:'lignum-raster-tile-v1',bounds:b,layers}}];
   return {index,tiles,result:(g=geo())=>R.evaluate(g,index,tiles,options)};
 }
+test('official Skogsstyrelsen laser metadata dates Sarvisvaara 2021 without inventing 2025 scan',()=>{
+  const metadata=require('../data/forest-rasters/scan-metadata.json');
+  const result=R.evaluateScanDates(geo(785000,7417000,785100,7417100),metadata);
+  assert.equal(result.current.year,2021);
+  assert.equal(result.current.cycle,2);
+  assert.ok(result.current.coverage_ha>=result.area_ha*.99);
+  assert.deepEqual(result.cycles.map(c=>c.cycle),[2,1]);
+  assert.equal(result.cycles[1].year,2013);
+  assert.match(result.current.scan_date_start,/^2021-07-0[56]$/);
+});
+test('scan dates outside official grids remain unavailable, not a guessed year',()=>{
+  const metadata=require('../data/forest-rasters/scan-metadata.json');
+  const result=R.evaluateScanDates(geo(750000,7350000,750100,7350100),metadata);
+  assert.equal(result.current,null);
+  assert.deepEqual(result.cycles,[]);
+});
 test('native fractional cells give weighted means and true covered stock',()=>{
   const i=fixture().result(geo(780000,7410000,780015,7410010)).inventory;
   assert.ok(Math.abs(i.volume_m3sk_ha-500/3)<1e-4);assert.ok(Math.abs(i.volume_m3sk-2.5)<1e-5);assert.ok(Math.abs(i.stock_area_ha-.015)<1e-6);
