@@ -118,7 +118,7 @@ test('sparse P95 is ignored when mean height is adequately covered',()=>{
   assert.equal(r.removal_pct,null);
 });
 test('actual plot-based field Hdom overrides P95 and enables measured-input thinning',()=>{
-  const measure=M.dominantHeightFromPlots('12,5; 13,5\\n14; 14');
+  const measure=M.dominantHeightFromPlots(['12,5; 13,5','14; 14'].join(String.fromCharCode(10)));
   assert.deepEqual(measure.plots,[[12.5,13.5],[14,14]]);
   assert.equal(measure.height_m,13.5);
   const inv=M.inventory({basal_area_m2_ha:38,site_index:'T19',
