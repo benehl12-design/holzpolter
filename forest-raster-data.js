@@ -60,6 +60,7 @@
         }});
       }
       if(options.ageType){const id='age_'+options.ageType,layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('age_years',v,w,id);});}
+      for(const kind of ['pine','spruce']){const id='site_'+kind,layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index_'+kind,v,w,id);});}
       if(['T','G'].includes(options.siteSpecies)){const id='site_'+(options.siteSpecies==='T'?'pine':'spruce'),layer=layers[id];if(layer)cells(layer,part,(v,w)=>{if(v>0)accumulate('site_index',v,w,id);});}
       const recent=!!layers.species2018_pine,prefix=recent?'species2018_':'species_';
       const ids=['pine','spruce','birch','broadleaf','contorta','oak','beech'].map(k=>prefix+k),base=layers[prefix+'pine'];
@@ -93,7 +94,8 @@
       }
     }
     if(options.ageType&&!fields.includes('age_years'))fields.push('age_years');
-    if(options.siteSpecies&&!fields.includes('site_index'))fields.push('site_index');
+    if(['T','G'].includes(options.siteSpecies)&&!fields.includes('site_index'))fields.push('site_index');
+    for(const key of ['site_index_pine','site_index_spruce'])if(!fields.includes(key))fields.push(key);
     // A refreshed stock source with no valid cells clears obsolete stock values.
     for(const key of Object.values(metricKeys))if(!fields.includes(key))fields.push(key);
     if(!('volume_m3sk_ha' in inventory))fields.push('volume_m3sk','stock_area_ha','reference_year','scan_year','projected_to_year');
@@ -134,7 +136,7 @@
       const share=inventory.species_pct,known=inventory.sources.species_pct?.area_ha||0,
         sufficient=share&&known>=fullArea/10000*.7;
       const type=sufficient&&share.pine>=75?'T':sufficient&&share.spruce>=75?'G':'';
-      const selected=evaluate(geometry,index,tiles,{...options,siteSpecies:type,siteTypeInferred:true});
+      const selected=evaluate(geometry,index,tiles,{...options,siteSpecies:type||'cell-auto',siteTypeInferred:true});
       selected.site_selection={
         type:type||'unknown',reliable:false,
         method:type?'Standortanzeigende Baumart aus Baumarten-Vorratsanteilen angenähert; für eine Ernteprüfung vor Ort bestätigen.':'Baumartenverteilung reicht für eine zuverlässige automatische Standortindex-Typwahl nicht aus.'
@@ -176,9 +178,6 @@
         if(++inspected>6000)throw Error('Zu viele Rasterzellen für die Teilflächenanalyse. Bitte eine kleinere Fläche auswählen.');
         const sample=(key)=>{for(const suffix of ['_3','_2']){const layer=layers[key+suffix],v=valueAt(layer,x,y);if(v>=0)return v>0?v*(index.sources[key+suffix]?.scale??1):null;}return null;};
         const basal=sample('basal_area'),height=sample('height'),volume=sample('volume'),diameter=sample('diameter');
-        const siteKey=options.siteSpecies==='T'?'site_pine':options.siteSpecies==='G'?'site_spruce':null;
-        const rawSite=siteKey?valueAt(layers[siteKey],x,y):-1;
-        const siteIndex=rawSite>0?options.siteSpecies+Math.round(rawSite*(index.sources[siteKey]?.scale??1)):null;
         const speciesPrefix=layers.species2018_pine?'species2018_':layers.species_pine?'species_':null;
         const speciesKeys=['pine','spruce','birch','broadleaf','contorta','oak','beech'];
         const speciesValues=speciesPrefix?speciesKeys.map(k=>valueAt(layers[speciesPrefix+k],x,y)):[];
@@ -186,6 +185,12 @@
           ?speciesValues.reduce((a,b)=>a+b,0):0;
         const pinePct=speciesTotal>0?speciesValues[0]/speciesTotal*100:null;
         const sprucePct=speciesTotal>0?speciesValues[1]/speciesTotal*100:null;
+        // A mixed stand has no definitive site-indicating species. Only use the
+        // per-cell majority as an explicitly provisional local reference.
+        const localType=options.siteSpecies==='cell-auto'?(pinePct>=75?'T':sprucePct>=75?'G':''):options.siteSpecies;
+        const siteKey=localType==='T'?'site_pine':localType==='G'?'site_spruce':null;
+        const rawSite=siteKey?valueAt(layers[siteKey],x,y):-1;
+        const siteIndex=rawSite>0?localType+Math.round(rawSite*(index.sources[siteKey]?.scale??1)):null;
         const ageLayer=layers['age_'+ageType],rawAge=valueAt(ageLayer,x,y);
         const age=rawAge>0?rawAge*(index.sources['age_'+ageType]?.scale??1):null;
         // Mean height is not dominant height: INGVAR is advisory, not an automatic harvest permit.
