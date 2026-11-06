@@ -230,9 +230,17 @@
     }
     for(const c of all)if(revised.has(c.key))c.action=revised.get(c.key);
     const cellsByAction=new Map(),seen=new Set();
-    for(const c of all){if(!cellsByAction.has(c.action))cellsByAction.set(c.action,[]);cellsByAction.get(c.action).push(c);}
+    // Keep spatially distinct thinning strengths separate: contiguous areas
+    // that both need thinning can still require very different intensity.
+    const groupKey=c=>{
+      if(c.action!=='thinning'||!c.thin?.removal_range_pct)return c.action;
+      const [a,b]=c.thin.removal_range_pct;
+      return c.action+':'+Math.floor(((a+b)/2)/10);
+    };
+    for(const c of all){const key=groupKey(c);if(!cellsByAction.has(key))cellsByAction.set(key,[]);cellsByAction.get(key).push(c);}
     const components=[];
-    for(const [action,group] of cellsByAction){
+    for(const [actionKey,group] of cellsByAction){
+      const action=actionKey.split(':')[0];
       // Unclassified cells remain a neutral background, not hundreds of polygons.
       if(action==='unknown'||action==='review')continue;
       const groupLookup=new Map(group.map(c=>[c.key,c]));
