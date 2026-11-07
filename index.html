@@ -3947,6 +3947,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 <script src="forest-thinning.js"></script>
 <script src="forest-model.js"></script>
 <script src="forest-raster-data.js"></script>
+<script src="forest-lanes.js"></script>
 <script src="forest-planning.js"></script>
 <script>
 // ================================================================
@@ -9768,18 +9769,20 @@ function _renderTrailPreview() {
   _trailRoute          = Array.isArray(route) ? route : [];
   _trailEntryConnector = entryConnector || null;
 
-  // Hauptgassen / Rippen
+  // Hauptgassen / Rippen: 4 Meter breite Flächen, keine Pixel-Linienstärke.
   lines.forEach(seg => {
-    const poly = L.polyline(seg, {
-      color: '#e8b070', weight: 2.5, opacity: .85, dashArray: '4,4'
-    }).addTo(map);
+    const footprint = window.ForestLanes?.corridor(seg);
+    const poly = footprint
+      ? L.geoJSON(footprint,{style:{stroke:false,fillColor:'#e8b070',fillOpacity:.75},interactive:false}).addTo(map)
+      : L.polyline(seg,{color:'#e8b070',weight:2}).addTo(map);
     _trailLineLayers.push(poly);
   });
   // Eckgassen (Coverage-Garantie)
   edges.forEach(seg => {
-    const poly = L.polyline(seg, {
-      color: '#ff6b3d', weight: 3, opacity: .9, dashArray: '8,3'
-    }).addTo(map);
+    const footprint = window.ForestLanes?.corridor(seg);
+    const poly = footprint
+      ? L.geoJSON(footprint,{style:{stroke:false,fillColor:'#ff6b3d',fillOpacity:.78},interactive:false}).addTo(map)
+      : L.polyline(seg,{color:'#ff6b3d',weight:2}).addTo(map);
     _trailEdgeLayers.push(poly);
   });
   // Vorgeschlagene Weg-Verlängerung (gestrichelt rot)
@@ -9830,7 +9833,8 @@ function _renderTrailPreview() {
     info.innerHTML =
       pathBadge +
       '<b>Richtung:</b> ' + orientationLabel + ' (' + Math.round(aDisplay) + '°)<br>' +
-      '<b>Abstand:</b> ' + _trailSpacing + ' m · <b>Ø Gassenlänge:</b> ' + Math.round(avgLen) + ' m' +
+      '<b>Gassenbreite:</b> 4 m · <b>Abstand Mitte–Mitte:</b> ' + _trailSpacing +
+      ' m (lichter Abstand ca. ' + Math.max(0,_trailSpacing - 4) + ' m) · <b>Ø Länge:</b> ' + Math.round(avgLen) + ' m' +
       edgeBadge +
       driveBadge +
       (note ? '<br><span style="color:#ffd080;font-size:11px;">ℹ ' + note + '</span>' : '');
@@ -9938,7 +9942,9 @@ function _renderSavedTrailPlan(plan) {
         layers.push(pl);
       }
       (Array.isArray(cmp.lines) ? cmp.lines : []).forEach(seg => {
-        layers.push(L.polyline(seg, { color: col, weight: 2, opacity: .9, interactive: false }).addTo(map));
+        const footprint = window.ForestLanes?.corridor(seg);
+        layers.push((footprint ? L.geoJSON(footprint,{style:{stroke:false,fillColor:col,fillOpacity:.8},interactive:false}) :
+          L.polyline(seg,{color:col,weight:2,interactive:false})).addTo(map));
       });
       // Verbindungsstücke (Punkt 3) — beide Formate unterstützen
       (Array.isArray(cmp.connectors) ? cmp.connectors : []).forEach(conn => {
@@ -9982,12 +9988,13 @@ function _renderSavedTrailPlan(plan) {
         fillColor: '#c87020', fillOpacity: .03, interactive: false
       }).addTo(map)
     : null;
-  const lineLayers = lines.map(seg =>
-    L.polyline(seg, { color: '#e8b070', weight: 2, opacity: .8, interactive: false }).addTo(map)
-  );
-  const edgeLayers = edges.map(seg =>
-    L.polyline(seg, { color: '#ff6b3d', weight: 2.5, opacity: .85, dashArray: '6,2', interactive: false }).addTo(map)
-  );
+  const drawLane=(seg,color)=>{
+    const footprint=window.ForestLanes?.corridor(seg);
+    return (footprint?L.geoJSON(footprint,{style:{stroke:false,fillColor:color,fillOpacity:.8},interactive:false}):
+      L.polyline(seg,{color,weight:2,interactive:false})).addTo(map);
+  };
+  const lineLayers=lines.map(seg=>drawLane(seg,'#e8b070'));
+  const edgeLayers=edges.map(seg=>drawLane(seg,'#ff6b3d'));
   const pathLayers = accPaths
     .filter(p => Array.isArray(p) && p.length >= 2)
     .map(p => L.polyline(p, { color: '#5294d0', weight: 4, opacity: .85, dashArray: '8,4', interactive: false }).addTo(map));
@@ -10704,7 +10711,11 @@ function cmpRender(cmp) {
   cmp._laneHits = [];
   cmp.lines.forEach((seg, idx) => {
     const isActive = cmp.manual && cmp._activeLane === idx;
-    const pl = L.polyline(seg, { color: col, weight: isActive ? 5 : 2, opacity: .9, interactive: false }).addTo(map);
+    const footprint=window.ForestLanes?.corridor(seg);
+    const pl=(footprint
+      ? L.geoJSON(footprint,{style:{color:isActive?'#ffffff':col,weight:isActive?1:0,
+          fillColor:col,fillOpacity:isActive?.95:.78},interactive:false})
+      : L.polyline(seg,{color:col,weight:isActive?5:2,interactive:false})).addTo(map);
     cmp._lineLayers.push(pl);
     if (selected) {
       // Jede Gasse antippbar: erstes Antippen startet (falls nötig) den Einzel-Modus
@@ -11927,10 +11938,11 @@ function cmpUpdatePanel() {
       '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
         '<button onclick="cmpToggleSplit()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:13px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
         '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 12px;">' +
-          '<span style="font-size:12px;color:#a0c8a0;">Abstand</span>' +
+          '<span style="font-size:12px;color:#a0c8a0;">Mitte–Mitte</span>' +
           '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:48px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>' +
         '</div>' +
       '</div>' +
+      '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;">4 m echte Gassenbreite · ' + c.spacing + ' m Mitte–Mitte · ca. ' + Math.max(0,c.spacing-4) + ' m zwischen den Gassen (bei geradem Verlauf)</div>' +
       '<div style="font-size:12px;color:#8fe0b0;margin-bottom:6px;line-height:1.4;">✏️ <b>Tipp:</b> Eine Gasse antippen, um sie einzeln zu bearbeiten (Enden + Mitte ziehen, ✕ löscht).</div>' +
       '<button onclick="cmpEnterManual()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(70,185,122,.5);background:rgba(70,185,122,.15);color:#8fe0b0;font-size:14px;font-weight:700;cursor:pointer;">&#9999;&#65039; Gassen einzeln bearbeiten</button>' +
       '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">🗑 Abteil löschen</button>' +
