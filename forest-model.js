@@ -185,7 +185,15 @@
       }
       return {...result('thinning',thinningAdvice.reason,thinningAdvice.confidence,missing,'candidate'),thinning:thinningAdvice};
     }
-    if(s.hk_class==='S2')return result('regeneration','Verjüngungsreifer Bestand: Naturverjüngung, Dauerwaldoptionen und Schutzwerte prüfen.','low',missing);
+    if(s.hk_class==='S2'){
+      // S2 is a recorded class, not proof of legal maturity or economics.
+      const maturity=endUseAssessment(s);
+      if(maturity.candidate){
+        return {...result('regeneration','Bestandsklasse S2 und Endnutzungs-Prüfkriterien sprechen für einen Vor-Ort-Vergleich von Ernte, Dauerwald und weiterem Wachstum. '+maturity.reason,'low',missing),endUse:maturity};
+      }
+      return {...result('none','Bestandsklasse S2 ist eingetragen, aber eine Endnutzung ist aus den aktuellen Kennzahlen noch nicht ausreichend belegt. '+maturity.reason,'low',
+        [...new Set([...missing,...(maturity.missing||[])])],'uncertain'),endUse:maturity};
+    }
     const sourceCoverageOk=['volume_m3sk_ha','mean_diameter_cm','site_index','species_pct'].every(k=>
       i.sources?.[k]?.area_ha==null||s.area_ha==null||i.sources[k].area_ha>=s.area_ha*.7);
     const review=harvestRules.harvestReview({
