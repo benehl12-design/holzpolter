@@ -114,6 +114,10 @@
     }
     const valid=result.references.filter(r=>r.min_age_years!=null&&r.coverage_ok);
     const hasReference=valid.length>0;
+    if(!hasReference&&candidates.length){
+      return {...result,status:'needs-review',missing:[...result.missing,'site_index'],
+        reason:'Die vorhandenen Standortindex-Referenzen sind nicht ausreichend abgedeckt oder außerhalb der nordschwedischen Nadelholz-Alterstabelle. Keine automatische Endnutzungsreife ableiten.'};
+    }
     if(!hasReference){
       // 100 years is an internal cautious search filter, NEVER a legal-age
       // judgement. This lets mature stands without a species diagnosis surface
