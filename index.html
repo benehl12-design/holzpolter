@@ -8437,7 +8437,7 @@ function trailSurfaceLayer(seg,color,active=false) {
   const footprint=window.ForestLanes?.corridor(seg);
   return (footprint
     ? L.geoJSON(footprint,{style:{stroke:!!active,color:active?'#ffffff':color,weight:active?1:0,
-        fillColor:color,fillOpacity:active?0.95:0.78},interactive:false})
+        fillColor:color,fillOpacity:active?0.75:0.42},interactive:false})
     : L.polyline(seg,{color,weight:active?5:2,interactive:false})).addTo(map);
 }
 
@@ -9783,7 +9783,7 @@ function _renderTrailPreview() {
   lines.forEach(seg => {
     const footprint = window.ForestLanes?.corridor(seg);
     const poly = footprint
-      ? L.geoJSON(footprint,{style:{stroke:false,fillColor:'#e8b070',fillOpacity:.75},interactive:false}).addTo(map)
+      ? L.geoJSON(footprint,{style:{stroke:false,fillColor:'#e8b070',fillOpacity:.42},interactive:false}).addTo(map)
       : L.polyline(seg,{color:'#e8b070',weight:2}).addTo(map);
     _trailLineLayers.push(poly);
   });
@@ -9791,7 +9791,7 @@ function _renderTrailPreview() {
   edges.forEach(seg => {
     const footprint = window.ForestLanes?.corridor(seg);
     const poly = footprint
-      ? L.geoJSON(footprint,{style:{stroke:false,fillColor:'#ff6b3d',fillOpacity:.78},interactive:false}).addTo(map)
+      ? L.geoJSON(footprint,{style:{stroke:false,fillColor:'#ff6b3d',fillOpacity:.42},interactive:false}).addTo(map)
       : L.polyline(seg,{color:'#ff6b3d',weight:2}).addTo(map);
     _trailEdgeLayers.push(poly);
   });
@@ -9953,7 +9953,7 @@ function _renderSavedTrailPlan(plan) {
       }
       (Array.isArray(cmp.lines) ? cmp.lines : []).forEach(seg => {
         const footprint = window.ForestLanes?.corridor(seg);
-        layers.push((footprint ? L.geoJSON(footprint,{style:{stroke:false,fillColor:col,fillOpacity:.8},interactive:false}) :
+        layers.push((footprint ? L.geoJSON(footprint,{style:{stroke:false,fillColor:col,fillOpacity:.42},interactive:false}) :
           L.polyline(seg,{color:col,weight:2,interactive:false})).addTo(map));
       });
       // Verbindungsstücke (Punkt 3) — beide Formate unterstützen
@@ -10000,7 +10000,7 @@ function _renderSavedTrailPlan(plan) {
     : null;
   const drawLane=(seg,color)=>{
     const footprint=window.ForestLanes?.corridor(seg);
-    return (footprint?L.geoJSON(footprint,{style:{stroke:false,fillColor:color,fillOpacity:.8},interactive:false}):
+    return (footprint?L.geoJSON(footprint,{style:{stroke:false,fillColor:color,fillOpacity:.42},interactive:false}):
       L.polyline(seg,{color,weight:2,interactive:false})).addTo(map);
   };
   const lineLayers=lines.map(seg=>drawLane(seg,'#e8b070'));
@@ -10724,7 +10724,7 @@ function cmpRender(cmp) {
     const footprint=window.ForestLanes?.corridor(seg);
     const pl=(footprint
       ? L.geoJSON(footprint,{style:{color:isActive?'#ffffff':col,weight:isActive?1:0,
-          fillColor:col,fillOpacity:isActive ? .95 : .78},interactive:false})
+          fillColor:col,fillOpacity:isActive ? .75 : .42},interactive:false})
       : L.polyline(seg,{color:col,weight:isActive?5:2,interactive:false})).addTo(map);
     cmp._lineLayers.push(pl);
     if (selected) {
