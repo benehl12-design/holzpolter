@@ -8431,6 +8431,16 @@ let _cmpIdSeq        = 1;         // fortlaufende ID
 let _cmpEditingPlanId = null;     // gesetzt wenn ein gespeicherter Plan re-editiert wird
 const _CMP_COLORS    = ['#e8b070', '#7ec8a0', '#c89cd8', '#d89090', '#90c0e0', '#d8c870'];
 
+// 4 m real-world corridors for dynamic dragging/rotation as well as saved lanes.
+// The large invisible centerline touch target remains separate for editing.
+function trailSurfaceLayer(seg,color,active=false) {
+  const footprint=window.ForestLanes?.corridor(seg);
+  return (footprint
+    ? L.geoJSON(footprint,{style:{stroke:!!active,color:active?'#ffffff':color,weight:active?1:0,
+        fillColor:color,fillOpacity:active?0.95:0.78},interactive:false})
+    : L.polyline(seg,{color,weight:active?5:2,interactive:false})).addTo(map);
+}
+
 // ── ENDE ABTEIL-EDITOR STATE ──
 
 // ── GEODÄSIE-HILFEN ───────────────────────────────────────────────────
@@ -10714,7 +10724,7 @@ function cmpRender(cmp) {
     const footprint=window.ForestLanes?.corridor(seg);
     const pl=(footprint
       ? L.geoJSON(footprint,{style:{color:isActive?'#ffffff':col,weight:isActive?1:0,
-          fillColor:col,fillOpacity:isActive?.95:.78},interactive:false})
+          fillColor:col,fillOpacity:isActive ? .95 : .78},interactive:false})
       : L.polyline(seg,{color:col,weight:isActive?5:2,interactive:false})).addTo(map);
     cmp._lineLayers.push(pl);
     if (selected) {
@@ -10823,7 +10833,7 @@ function cmpRenderBendHandles(cmp) {
       (cmp._lineLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}});
       cmp.lines = cmpComputeLines(cmp);
       const col = cmp.color||'#e8b070';
-      cmp._lineLayers = cmp.lines.map(seg=>L.polyline(seg,{color:col,weight:2,opacity:.9}).addTo(map));
+      cmp._lineLayers = cmp.lines.map(seg=>trailSurfaceLayer(seg,col));
       if (typeof _cmpRenderConnectors==='function') _cmpRenderConnectors(cmp);
     });
     m.on('dragend', () => { cmpRender(cmp); cmpUpdatePanel(); });
@@ -10839,8 +10849,7 @@ function cmpRegenLines(cmp) {
   const col = cmp.color || '#e8b070';
   cmp._lineLayers = [];
   cmp.lines.forEach(seg => {
-    const pl = L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map);
-    cmp._lineLayers.push(pl);
+    cmp._lineLayers.push(trailSurfaceLayer(seg,col));
   });
   // Verbindungen an die (evtl. veränderten) Gassen-Enden neu andocken
   if (typeof _cmpRenderConnectors === 'function') _cmpRenderConnectors(cmp);
@@ -11065,7 +11074,7 @@ function cmpManualCtrlHtml(c){
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">'+
       '<button onclick="cmpApplySpacing()" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(120,180,255,.5);background:rgba(58,160,255,.18);color:#bfe0ff;font-size:13px;font-weight:600;cursor:pointer;">&#8596; Abstand angleichen</button>'+
       '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 10px;">'+
-        '<input type="number" value="'+c.spacing+'" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:46px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>'+
+        '<input type="number" value="'+c.spacing+'" min="4" step="1" onchange="cmpSetSpacing(this.value)" style="width:46px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>'+
       '</div>'+
     '</div>'+
     '<div style="font-size:11px;color:#7ea0c8;margin-bottom:8px;line-height:1.4;">&#8596; verschiebt jede Gasse nur senkrecht auf den gleichen Abstand (Form &amp; Biegungen bleiben), Enden am Rand bleiben erhalten.</div>'+
@@ -11457,7 +11466,7 @@ function cmpSetAngleLive(deg) {
   (c._lineLayers || []).forEach(l => { try { map.removeLayer(l); } catch {} });
   c.lines = cmpComputeLines(c);
   const col = c.color || '#e8b070';
-  c._lineLayers = c.lines.map(seg => L.polyline(seg, { color: col, weight: 2, opacity: .9 }).addTo(map));
+  c._lineLayers = c.lines.map(seg => trailSurfaceLayer(seg,col));
   // nur die Gradanzeige direkt updaten (kein innerHTML-Rebuild → Regler bleibt greifbar)
   const lbl = document.getElementById('cmp-angle-val'); if (lbl) lbl.textContent = Math.round(c.angleDeg) + '°';
   const cnt = document.getElementById('cmp-rotate-count'); if (cnt) cnt.textContent = c.lines.length + ' Gassen';
@@ -11739,7 +11748,7 @@ function cmpRedrawLinesOnly(c) {
   (c._lineLayers||[]).forEach(l=>{try{map.removeLayer(l);}catch{}});
   c.lines=cmpComputeLines(c);
   const col=c.color||'#e8b070';
-  c._lineLayers=c.lines.map(seg=>L.polyline(seg,{color:col,weight:2,opacity:.9}).addTo(map));
+  c._lineLayers=c.lines.map(seg=>trailSurfaceLayer(seg,col));
 }
 
 function cmpResetGuide() {
@@ -11781,9 +11790,9 @@ window.cmpEndBend=cmpEndBend;
 
 function cmpSetSpacing(v) {
   const c = cmpGetSelected(); if (!c) return;
-  const s = parseFloat(v); if (!isFinite(s) || s < 3) return;
+  const s = parseFloat(v); if (!isFinite(s) || s < 4) return;
   c.spacing = s;
-  cmpRegenLines(c);
+  if(c.manual)cmpApplySpacing(); else cmpRegenLines(c);
 }
 
 function cmpToggleSplit() {
