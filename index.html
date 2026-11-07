@@ -8402,7 +8402,13 @@ let _trailSuggestedRoad = [];     // [[ [lat,lng],... ], ...] vorgeschlagene Weg
 let _trailConnectors   = [];      // [[ [lat,lng],[lat,lng] ], ...] Fahrlogik-Verbinder (Schlangenlinie)
 let _trailRoute        = [];      // [ [lat,lng], ... ] durchgehende Fahrroute für GPX
 let _trailEntryConnector = null;  // [[lat,lng],[lat,lng]] Einfahrt vom Weg
-let _trailSpacing      = 20;      // Meter
+// Geometry/persisted spacing_m ALWAYS remains center-to-center for backward
+// compatibility. User input now means a completely clear forest strip (edge
+// to edge); 20 m usable forest + 4 m lane = 24 m axis-to-axis.
+const TRAIL_LANE_WIDTH_M = 4;
+const trailCenterSpacing = clear => Number(clear) + TRAIL_LANE_WIDTH_M;
+const trailClearSpacing = center => Math.max(0, Number(center) - TRAIL_LANE_WIDTH_M);
+let _trailSpacing      = trailCenterSpacing(20); // physical centre-to-centre, metres
 let _trailOrientationMode = 'smart'; // 'smart'|'auto'|'road'|'ns'|'ew'
 let _trailPattern      = 'serpentine'; // 'serpentine' | 'fishbone' (Fahrmuster)
 
@@ -9684,8 +9690,8 @@ function cancelTrailPlanning() {
 }
 
 function setTrailSpacing(m) {
-  const v = Math.max(5, Math.min(100, Number(m) || 20));
-  _trailSpacing = v;
+  const v = Math.max(5, Math.min(100, Number(m) || 20)); // input is clear forest width
+  _trailSpacing = trailCenterSpacing(v);
   // Chips synchronisieren
   document.querySelectorAll('.tspc-chip').forEach(c => {
     c.classList.toggle('on', Number(c.dataset.spc) === v);
@@ -9709,7 +9715,7 @@ function setTrailSpacingCustom(raw) {
       if (result) result.textContent = '⚠️ Abstand muss zwischen 5 und 100 m liegen';
       return;
     }
-    _trailSpacing = v;
+    _trailSpacing = trailCenterSpacing(v);
     // Chips: nur dann markieren wenn der Wert exakt einem Chip entspricht
     document.querySelectorAll('.tspc-chip').forEach(c => {
       c.classList.toggle('on', Number(c.dataset.spc) === v);
@@ -9843,8 +9849,8 @@ function _renderTrailPreview() {
     info.innerHTML =
       pathBadge +
       '<b>Richtung:</b> ' + orientationLabel + ' (' + Math.round(aDisplay) + '°)<br>' +
-      '<b>Gassenbreite:</b> 4 m · <b>Abstand Mitte–Mitte:</b> ' + _trailSpacing +
-      ' m (lichter Abstand ca. ' + Math.max(0,_trailSpacing - 4) + ' m) · <b>Ø Länge:</b> ' + Math.round(avgLen) + ' m' +
+      '<b>Gassenbreite:</b> 4 m · <b>Freier Wald (Rand–Rand):</b> ' + trailClearSpacing(_trailSpacing) +
+      ' m · <b>Mitte–Mitte:</b> ' + _trailSpacing + ' m · <b>Ø Länge:</b> ' + Math.round(avgLen) + ' m' +
       edgeBadge +
       driveBadge +
       (note ? '<br><span style="color:#ffd080;font-size:11px;">ℹ ' + note + '</span>' : '');
@@ -10082,7 +10088,10 @@ async function renderTrailPlansList() {
           <div class="trail-card-name">🚜 ${safeName}</div>
         </div>
         <div class="trail-card-meta">
-          ${p.trail_count} Fahrgassen · ${p.spacing_m} m Abstand · erfasst am ${date}
+          ${p.trail_count} Fahrgassen · ${Array.isArray(p.compartments)&&p.compartments.length>1
+            && new Set(p.compartments.map(c=>Number(c.spacing_m))).size>1
+            ? 'Freie Abstände je Abteil unterschiedlich'
+            : (trailClearSpacing((p.compartments?.[0]?.spacing_m||p.spacing_m||24))+' m freier Wald (Rand–Rand)')} · erfasst am ${date}
         </div>
         <div class="trail-card-actions">
           <button class="trail-card-btn" onclick="cmpEditPlan('${p.id}')">✏️ Bearbeiten</button>
@@ -11061,7 +11070,7 @@ function cmpApplySpacing(){
   if(!out.length){ if(typeof showToast==='function') showToast('Abstand konnte nicht angewendet werden'); return; }
   cmp.lines = out; cmp._laneCtrl = {}; cmp._activeLane = null; cmp.manual = true;
   cmpRender(cmp); cmpUpdatePanel();
-  if(typeof showToast==='function') showToast('↔ Abstand auf '+spacingM+' m angeglichen ('+out.length+' Gassen)');
+  if(typeof showToast==='function') showToast('↔ Freier Wald: '+trailClearSpacing(spacingM)+' m, Mitte–Mitte: '+spacingM+' m ('+out.length+' Gassen)');
 }
 window.cmpApplySpacing = cmpApplySpacing;
 
@@ -11074,10 +11083,10 @@ function cmpManualCtrlHtml(c){
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">'+
       '<button onclick="cmpApplySpacing()" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(120,180,255,.5);background:rgba(58,160,255,.18);color:#bfe0ff;font-size:13px;font-weight:600;cursor:pointer;">&#8596; Abstand angleichen</button>'+
       '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 10px;">'+
-        '<input type="number" value="'+c.spacing+'" min="4" step="1" onchange="cmpSetSpacing(this.value)" style="width:46px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>'+
+        '<input type="number" value="'+trailClearSpacing(c.spacing)+'" min="5" step="1" onchange="cmpSetSpacing(this.value)" style="width:46px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>'+
       '</div>'+
     '</div>'+
-    '<div style="font-size:11px;color:#7ea0c8;margin-bottom:8px;line-height:1.4;">&#8596; verschiebt jede Gasse nur senkrecht auf den gleichen Abstand (Form &amp; Biegungen bleiben), Enden am Rand bleiben erhalten.</div>'+
+    '<div style="font-size:11px;color:#7ea0c8;margin-bottom:8px;line-height:1.4;">Der eingestellte Wert ist der freie Wald zwischen den Rändern der 4-m-Gassen; in starken Kurven bitte Mindestabstand kontrollieren. &#8596; verschiebt jede Gasse quer (Form &amp; Biegungen bleiben).</div>'+
     (hasActive ? '<button onclick="cmpAddCurve()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.45);background:rgba(255,208,112,.14);color:#ffd070;font-size:13px;font-weight:600;cursor:pointer;">+ Kurve in dieser Gasse</button>' : '')+
     (hasActive ? '<button onclick="cmpDeleteActiveLane()" style="width:100%;padding:12px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">&#128465; Aktive Gasse l&ouml;schen</button>' : '')+
     '<button onclick="cmpExitManual()" style="width:100%;padding:11px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(255,208,112,.4);background:rgba(255,208,112,.12);color:#ffd070;font-size:13px;cursor:pointer;">&#8634; Auto-Layout (verwirft manuell)</button>'+
@@ -11790,8 +11799,8 @@ window.cmpEndBend=cmpEndBend;
 
 function cmpSetSpacing(v) {
   const c = cmpGetSelected(); if (!c) return;
-  const s = parseFloat(v); if (!isFinite(s) || s < 4) return;
-  c.spacing = s;
+  const s = parseFloat(v); if (!isFinite(s) || s < 5 || s > 100) return;
+  c.spacing = trailCenterSpacing(s);
   if(c.manual)cmpApplySpacing(); else cmpRegenLines(c);
 }
 
@@ -11858,7 +11867,7 @@ async function cmpSave() {
       lines: [],
       access_path: _trailPaths.length ? _trailPaths : null,
       compartments: comps,
-      spacing_m: _trailSpacing,
+      spacing_m: comps[0].spacing_m, // physical centre spacing; keep old stored-format semantics
       orientation_deg: 0,
       trail_count: total
     };
@@ -11947,11 +11956,11 @@ function cmpUpdatePanel() {
       '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
         '<button onclick="cmpToggleSplit()" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:' + (c.splitAtRoad?'rgba(58,160,255,.25)':'rgba(255,255,255,.05)') + ';color:#e8e8e8;font-size:13px;cursor:pointer;">' + (c.splitAtRoad?'✓ ':'') + 'Am Weg teilen</button>' +
         '<div style="display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:0 12px;">' +
-          '<span style="font-size:12px;color:#a0c8a0;">Mitte–Mitte</span>' +
-          '<input type="number" value="' + c.spacing + '" min="3" step="1" onchange="cmpSetSpacing(this.value)" style="width:48px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>' +
+          '<span style="font-size:12px;color:#a0c8a0;">Freier Wald</span>' +
+          '<input type="number" value="' + trailClearSpacing(c.spacing) + '" min="5" step="1" onchange="cmpSetSpacing(this.value)" style="width:48px;padding:10px 4px;border:none;background:transparent;color:#fff;font-size:15px;text-align:center;"><span style="font-size:12px;color:#a0c8a0;">m</span>' +
         '</div>' +
       '</div>' +
-      '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;">4 m echte Gassenbreite · ' + c.spacing + ' m Mitte–Mitte · ca. ' + Math.max(0,c.spacing-4) + ' m zwischen den Gassen (bei geradem Verlauf)</div>' +
+      '<div style="font-size:12px;color:#a0c8a0;margin-bottom:10px;">4 m Gassenbreite · <b>' + trailClearSpacing(c.spacing) + ' m freier Wald (Rand–Rand)</b> · ' + c.spacing + ' m Mitte–Mitte bei geradem Verlauf</div>' +
       '<div style="font-size:12px;color:#8fe0b0;margin-bottom:6px;line-height:1.4;">✏️ <b>Tipp:</b> Eine Gasse antippen, um sie einzeln zu bearbeiten (Enden + Mitte ziehen, ✕ löscht).</div>' +
       '<button onclick="cmpEnterManual()" style="width:100%;padding:13px;border-radius:12px;margin-bottom:8px;border:1px solid rgba(70,185,122,.5);background:rgba(70,185,122,.15);color:#8fe0b0;font-size:14px;font-weight:700;cursor:pointer;">&#9999;&#65039; Gassen einzeln bearbeiten</button>' +
       '<button onclick="cmpDeleteSelected()" style="width:100%;padding:11px;border-radius:12px;border:1px solid rgba(220,80,60,.4);background:rgba(220,80,60,.15);color:#ffb0a0;font-size:13px;cursor:pointer;">🗑 Abteil löschen</button>' +
@@ -14874,7 +14883,7 @@ window.runPdfExport = runPdfExport;
     <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Name</label>
     <input type="text" id="trail-plan-name" placeholder="z.B. Nordfläche Sarvisvaara" style="width:100%;font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#c8e6c0;font-family:inherit;-webkit-appearance:none;margin-bottom:14px;">
 
-    <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Gassen-Abstand</label>
+    <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Freier Wald zwischen den Gassen (Rand–Rand)</label>
     <div style="display:flex;gap:6px;margin-bottom:8px;">
       <button class="tspc-chip" data-spc="15" onclick="setTrailSpacing(15)">15 m</button>
       <button class="tspc-chip on" data-spc="20" onclick="setTrailSpacing(20)">20 m</button>
