@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.73';
+const APP_VERSION  = '13.74';
 // Mutable app files are fetched fresh before the offline copy is considered.
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION + '-workerfix1';
 const TILE_CACHE   = 'lignum-tiles-v5';
