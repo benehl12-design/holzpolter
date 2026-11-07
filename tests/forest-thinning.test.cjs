@@ -149,7 +149,7 @@ test('a supported measured INGVAR no-thinning case differs from missing-data unc
   const unresolved=M.recommend(stand({age_years:45,basal_area_m2_ha:23,
     mean_height_m:13},{hk_class:'G1'}));
   assert.equal(unresolved.assessment,'uncertain');
-  assert.equal(M.recommendParts([unresolved]).uniform,false);
+  assert.equal(M.recommendParts([stand({age_years:45,basal_area_m2_ha:23,mean_height_m:13},{hk_class:'G1'})]).uniform,false);
 });
 test('percentage of basal area is not silently written into saved logging scenario',()=>{
   const s=stand({basal_area_m2_ha:38,dominant_height_m:14,site_index:'T19',volume_m3sk_ha:200});
