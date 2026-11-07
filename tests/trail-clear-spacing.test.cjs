@@ -27,7 +27,7 @@ test('entered 20 m is clear edge-to-edge; generated centre spacing is 24 m',()=>
   h.value('setTrailSpacing(20)');
   assert.equal(h.value('_trailSpacing'),24);
   assert.equal(h.customInput.value,20);
-  assert.equal(h.chips[1].on,true);
+  assert.equal(h.chips[1].classList.on,true);
   h.value('setTrailSpacingCustom("25")');
   assert.equal(h.value('_trailSpacing'),29);
   assert.ok(h.updates.includes('preview'));
