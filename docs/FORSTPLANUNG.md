@@ -389,3 +389,71 @@ Erntevolumen-Szenarien.
 Bei unbekanntem Standorttyp können Baumartenvolumenanteile die
 Vor-Ort-Prüfung unterstützen, nicht aber eine bestätigte Standortwahl
 ersetzen.
+
+
+### 13.68 – Automatische Endnutzungs-/Verjüngungsernte-Reifeprüfung
+
+In jeder gespeicherten Bestandsansicht und bei jeder freien Flächenauswertung
+erscheint **automatisch ohne zusätzlichen Button** eine eigene, eindeutig
+als *vorläufig* gekennzeichnete Reifeprüfung zur **Endnutzung / Föryngringsavverkning**.
+Sie ist unabhängig vom gespeicherten manuellen Maßnahmenplan und unabhängig
+vom Durchforstungsmodell.
+
+Die Auswertung unterscheidet:
+- **Als Maßnahme prüfen:** geschätztes Alter erreicht einen *bedingten*
+  Orientierungswert und vorsichtige zusätzliche Lignum-Strukturkriterien
+  (Grundfläche ≥16 m²/ha, mittlere Höhe ≥12 m, Durchmesser ≥18 cm,
+  Vorrat ≥120 m³sk/ha). Diese Zusatzwerte sind **keine schwedischen
+  gesetzlichen Kriterien** und garantieren nicht, dass die Ernte sinnvoll ist.
+- **Reife rückt näher:** innerhalb von 15 geschätzten Jahren bis zur
+  bedingten Referenz. Weder ein festes Erntedatum noch eine Erntefreigabe.
+- **Altersorientierung erreicht, Struktur unklar:** weitere Prüfung nötig.
+- **Noch nicht:** Altersorientierung nicht erreicht.
+- **Ungeklärt:** Alter, Stockdaten oder Referenzen fehlen bzw. decken
+  weniger als 70 % der Fläche ab; die App darf nicht fälschlich
+  „keine Endnutzung nötig“ behaupten.
+- **Nicht anwendbar:** Wasser-/Feuchtfläche, Schutzklassen NO/NS,
+  ungleichaltrige Klasse E, Jungwuchs R oder Kulturfläche K.
+
+Die Norrbotten-Referenz aus der schwedischen Tabelle richtet sich bei
+Nadelholzbeständen nach bestätigtem Standorttyp und Baumart:
+G/T12 = 100 Jahre; G/T16 = 90; G/T20 = 80; G/T24 = 70;
+G/T28 = 65. Zwischenwerte werden für die Orientierung
+**vorsichtig** nach der niedrigeren Bonitätsklasse abgerundet.
+Ein vorläufiges SIS-T/G-Raster bildet **zwei bedingte Szenarien**,
+nicht automatisch eine behördlich bestätigte Standorteinstufung.
+Für einen mittels Baumartenvorratsraster zu mindestens 50 %
+birken-dominierten Bestand wird die grundsätzlich abweichende
+35-Jahre-Laubholzregel nur als **bedingte Vor-Ort-Prüfung** verwendet.
+Fehlt eine passende Referenz komplett, verwendet die App
+100 Jahre ausschließlich als konservativen **eigenen Suchwert**,
+nicht als gesetzliches Mindestalter. Unzureichende oder außerhalb der
+Altersregel liegende SIS-Referenzen führen dagegen ausdrücklich zu
+keinem Kandidaten.
+
+Die Bildschirmkarte markiert zusätzlich räumlich zusammenhängende,
+hinreichend große und strukturähnliche Bereiche für eine
+**Endnutzungsprüfung** (bisher „Ernte / Verjüngung prüfen“).
+Die Räumlichkeit ist ein Prüfkandidat und **keine Fällfreigabe**.
+
+**Hauptunterschied:**
+Ein möglicherweise erreichtes gesetzliches Mindestalter bedeutet
+noch lange nicht, dass eine Endnutzung *wirtschaftlich sinnvoll* ist.
+Hierzu fehlen in Lignum aktuell aktuelle Wert-/Volumenzuwächse,
+Holzqualität und Sortimente, Nettopreise, Holzernte-/Rückekosten,
+Wiederbewaldungskosten, Naturschutzprüfung und der persönliche
+Zielzins. Im Nordschweden können Bestände wirtschaftlich noch
+deutlich über das Mindestalter hinaus wachsen. Das wird im
+Reifeprüfungsfeld ausdrücklich benannt; Dauerwald- und
+Einzelstammalternativen werden eingeschlossen.
+
+Föryngringsavverkning ab 0,5 ha muss nach den allgemeinen Regeln
+mindestens sechs Wochen im Voraus gemeldet werden. In fjällnära skog,
+bei besonderen Waldtypen oder Naturschutzvorgaben gelten weitere
+Genehmigungspflichten. Der Nutzer muss die Rechtslage im Einzelfall
+prüfen; keinerlei automatischer Freigabestatus.
+
+Offizielle Grundlagen:
+- https://www.skogsstyrelsen.se/lag-och-tillsyn/skogsvardslagen/
+- https://www.skogsstyrelsen.se/bruka-skog/avverkning/foryngringsavverkning/
+- https://www.skogskunskap.se/skota-skog/slutavverka/slutavverkningens-grunder/nar-ska-jag-slutavverka/

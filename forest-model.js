@@ -185,7 +185,15 @@
       }
       return {...result('thinning',thinningAdvice.reason,thinningAdvice.confidence,missing,'candidate'),thinning:thinningAdvice};
     }
-    if(s.hk_class==='S2')return result('regeneration','Verjüngungsreifer Bestand: Naturverjüngung, Dauerwaldoptionen und Schutzwerte prüfen.','low',missing);
+    if(s.hk_class==='S2'){
+      // S2 is a recorded class, not proof of legal maturity or economics.
+      const maturity=endUseAssessment(s);
+      if(maturity.candidate){
+        return {...result('regeneration','Bestandsklasse S2 und Endnutzungs-Prüfkriterien sprechen für einen Vor-Ort-Vergleich von Ernte, Dauerwald und weiterem Wachstum. '+maturity.reason,'low',missing),endUse:maturity};
+      }
+      return {...result('none','Bestandsklasse S2 ist eingetragen, aber eine Endnutzung ist aus den aktuellen Kennzahlen noch nicht ausreichend belegt. '+maturity.reason,'low',
+        [...new Set([...missing,...(maturity.missing||[])])],'uncertain'),endUse:maturity};
+    }
     const sourceCoverageOk=['volume_m3sk_ha','mean_diameter_cm','site_index','species_pct'].every(k=>
       i.sources?.[k]?.area_ha==null||s.area_ha==null||i.sources[k].area_ha>=s.area_ha*.7);
     const review=harvestRules.harvestReview({
@@ -213,6 +221,8 @@
     if(age!=null&&age>=20&&height!=null&&height<10)return result('tending','Geringe Bestandshöhe: Pflegebedarf und Altersdaten vor Ort abgleichen.','low',missing);
     return result('none','Aus den vorhandenen Kennzahlen lässt sich noch keine belastbare Maßnahme ableiten. Fehlende Werte und Bestandsstruktur prüfen.','low',missing);
   }
+  // Keep legal/economic maturity distinct from thinning and the saved manual treatment.
+  function endUseAssessment(s){return harvestRules.endUseAssessment(s);}
   function recommendParts(stands){
     const parts=stands.map(s=>({id:s.id??null,name:s.name,area_ha:s.area_ha,...recommend(s)}));
     const actions=[...new Set(parts.map(p=>p.action))];
@@ -265,5 +275,5 @@
     });
   }
   function featureCollection(stands){return {type:'FeatureCollection',lignum_schema:'forest-stands-v1',features:stands.map(s=>({type:'Feature',geometry:s.geometry,properties:{...stand(s),geometry:undefined}}))};}
-  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,dominantHeightFromPlots,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
+  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,dominantHeightFromPlots,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,endUseAssessment,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
 });

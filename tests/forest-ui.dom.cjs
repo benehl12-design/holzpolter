@@ -82,6 +82,26 @@ test('manual 0 percent does not masquerade as an automatic no-measure decision',
   assert.equal(h.writes.length,0);
   assert.deepEqual(h.errors,[]);
 });
+test('real 8.87 ha stand shows automated Endnutzung as approaching under T17/G15, not a harvesting permit',async t=>{
+  const inventory={age_years:89,volume_m3sk_ha:132.3,basal_area_m2_ha:19.8,
+    mean_height_m:13,mean_diameter_cm:18,p95_height_m:13,
+    site_index_pine:17,site_index_spruce:15,scan_year:2021,
+    species_pct:{pine:53,spruce:28,birch:19,other:0},
+    sources:{site_index_pine:{area_ha:8.87},site_index_spruce:{area_ha:8.87}}};
+  const h=fixture(t,{props:[prop],stands:[{...stand,area_ha:8.87,
+    hk_class:'',action:'none',removal_pct:0,inventory}]});
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');
+  const page=h.d.getElementById('fp-content').textContent;
+  assert.match(page,/Endnutzung \/ Verjüngungsernte \(automatische Reifeprüfung\)/);
+  assert.match(page,/Endnutzungsreife rückt näher/);
+  assert.match(page,/T17/);assert.match(page,/G15/);
+  assert.match(page,/90 Jahre/);assert.match(page,/100 Jahre/);
+  assert.match(page,/nicht automatisch, dass eine Endnutzung wirtschaftlich/);
+  assert.match(page,/mindestens sechs Wochen/);
+  assert.match(page,/Noch keine manuelle Maßnahme festgelegt/);
+  assert.equal(h.writes.length,0,'a recommendation must not mutate the saved stand');
+  assert.deepEqual(h.errors,[]);
+});
 test('a second property can be smaller than the stands in the first property',async t=>{
   const h=fixture(t,{props:[prop],stands:[stand]});await h.w.ForestPlanning.open();h.click('[data-act="new-property"]');h.set('name','Klein');h.set('area_ha','0,5');h.submit();await until(()=>h.tables.forest_properties.length===2);assert.equal(h.tables.forest_properties[1].area_ha,.5);
 });
@@ -323,7 +343,7 @@ test('a spatial harvest-review candidate appears both on map and in the legend',
  for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))
    h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
  h.click('[data-act="finish-draw"]');h.click('[data-act="calculate-zip"]');
- await until(()=>h.d.getElementById('fp-legend').textContent.includes('Ernte / Verjüngung'));
+ await until(()=>h.d.getElementById('fp-legend').textContent.includes('Endnutzung / Verjüngung'));
  assert.match(h.d.getElementById('fp-content').textContent,/Räumlich geprüfter Maßnahmenhinweis/);
  assert.match(h.d.getElementById('fp-content').textContent,/KEINE Fällfreigabe/);
  let colored=false;
