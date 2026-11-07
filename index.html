@@ -3904,7 +3904,7 @@ body.sunmode #map{margin-left:-4px;margin-right:-4px;}
 
         <div class="hstep"><div class="hnum">7</div><div class="hstep-txt"><b>🔗 Gassen verbinden</b><span><b>🔗 Gassen verbinden</b> → die Gassen-Enden erscheinen als türkise Punkte. Tippe <b>zwei Enden nacheinander</b> an → ein Verbindungsstück entsteht (für die durchgehende Rücke-Fahrlinie). <b>↶ Letzte</b> nimmt die letzte Verbindung zurück, <b>✓ Fertig</b> übernimmt.</span></div></div>
 
-        <div class="hstep"><div class="hnum">8</div><div class="hstep-txt"><b>Am Weg teilen & Abstand</b><span>Pro Abteil: <b>Am Weg teilen</b> trennt die Gassen dort wo der Weg durchläuft (mit kleiner Lücke). <b>Abstand</b> stellt den Gassenabstand in Metern ein — für jedes Abteil getrennt.</span></div></div>
+        <div class="hstep"><div class="hnum">8</div><div class="hstep-txt"><b>Am Weg teilen & Abstand</b><span>Pro Abteil: <b>Am Weg teilen</b> trennt die Gassen am Weg. Die Eingabe <b>Abstand</b> bedeutet den freien Wald zwischen zwei Gassenrändern: beispielsweise 20 m freier Wald + 4 m Gassenbreite = 24 m Abstand von Mitte zu Mitte. In Kurven und bei frei verschobenen Gassen den Abstand vor Ort überprüfen. Gespeicherte ältere Gassen bleiben an ihren Positionen.</span></div></div>
 
         <div class="hstep"><div class="hnum">9</div><div class="hstep-txt"><b>Speichern & exportieren</b><span>Oranger <span class="hicon amber">💾</span> speichert den Plan (alle Abteile + Wege). Gespeicherte Pläne findest du über <span class="hicon">☰</span> Menü → <b>Fahrgassen-Pläne</b>: dort <b>🗺 Karte</b> (anzeigen), <b>⬇ GPX</b> (für GPS-Gerät) oder <b>🗑 Löschen</b>.</span></div></div>
 
@@ -14884,6 +14884,7 @@ window.runPdfExport = runPdfExport;
     <input type="text" id="trail-plan-name" placeholder="z.B. Nordfläche Sarvisvaara" style="width:100%;font-size:16px;padding:10px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#c8e6c0;font-family:inherit;-webkit-appearance:none;margin-bottom:14px;">
 
     <label style="display:block;font-size:11px;font-weight:600;color:#a0c8a0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Freier Wald zwischen den Gassen (Rand–Rand)</label>
+    <p style="font-size:11px;color:#adca9f;margin:0 0 10px;line-height:1.5;">Bei 20 m freiem Wald und 4 m Gassenbreite liegen die Gassenmitten 24 m auseinander. In engen Kurven und bei manuell verschobenen Gassen bitte den örtlichen Abstand kontrollieren.</p>
     <div style="display:flex;gap:6px;margin-bottom:8px;">
       <button class="tspc-chip" data-spc="15" onclick="setTrailSpacing(15)">15 m</button>
       <button class="tspc-chip on" data-spc="20" onclick="setTrailSpacing(20)">20 m</button>
