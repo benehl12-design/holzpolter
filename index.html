@@ -9232,6 +9232,7 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
   // Wenn die Kante annähernd parallel zur Gassen-Richtung verläuft UND zu weit von der nächsten Gasse weg ist,
   // füge eine zusätzliche Gasse direkt am Polygon-Rand ein (versetzt um spacing/2 nach innen).
   let edges = [];
+  const addedEdgeRows = []; // Additional edge lanes must preserve free forest spacing.
   const yLinesR = [];  // y-Werte der Hauptgassen im rotierten System
   if (direction === +1) {
     for (let y = yStart; y < maxY; y += spacingM) yLinesR.push(y);
@@ -9261,8 +9262,13 @@ function trailGenerateParallels(polygonLatLng, spacingM, orientationMode, access
       const innerSign = (cYPoly > midY) ? +1 : -1;
       const offset = spacingM * 0.5;
       const edgeY = midY + offset * innerSign;
-      // Gasse y = edgeY am Polygon clippen
-      trailClipLineToPolygon(minX - 1, edgeY, maxX + 1, edgeY, polyR).forEach(seg => {
+      // Do not create extra edge lanes that would reduce the user's selected
+      // minimum clear forest width: adjacent 4 m corridors need full
+      // spacingM (clear width + lane width) between their centre lines.
+      if ([...yLinesR, ...addedEdgeRows].some(y => Math.abs(y - edgeY) < spacingM - 1e-6)) continue;
+      const edgeSegments = trailClipLineToPolygon(minX - 1, edgeY, maxX + 1, edgeY, polyR);
+      if (edgeSegments.length) addedEdgeRows.push(edgeY);
+      edgeSegments.forEach(seg => {
         edges.push(_trailBackRotate(seg, a, proj, cLat, cLng));
       });
     }
