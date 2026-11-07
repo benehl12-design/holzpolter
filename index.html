@@ -22,7 +22,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="app-version" content="13.68">
+  <meta name="app-version" content="13.70">
   <link rel="stylesheet" href="forest-planning.css">
   <script id="app-version-display">
     document.addEventListener('DOMContentLoaded', function() {
@@ -14185,16 +14185,25 @@ function helpTab(btn){document.querySelectorAll('.htab').forEach(t=>t.classList.
 
 // ── SERVICE WORKER ────────────────────────────────────────────────
 if('serviceWorker' in navigator){
+  // A newly activated worker must display the files from that release, not
+  // continue running the currently open page loaded from an older cache.
+  if(navigator.serviceWorker.controller){
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      window.location.reload();
+    },{once:true});
+  }
   navigator.serviceWorker.register('sw.js')
     .then(reg=>{
       document.getElementById('sw-dot').className='ok';
       document.getElementById('sw-txt').textContent='✓ Offline-Cache aktiv';
+      // Force a worker update check on launch (do not wait for browser cadence).
+      reg.update().catch(error=>console.warn('Lignum Updateprüfung:',error));
       reg.addEventListener('updatefound',()=>{
         const nw=reg.installing;
         nw.addEventListener('statechange',()=>{
           if(nw.state==='installed'&&navigator.serviceWorker.controller){
             nw.postMessage({type:'SKIP_WAITING'});
-            showToast('✓ Aktualisierung bereit. App zum Übernehmen neu öffnen.', 6000);
+            showToast('✓ Neue Lignum-Version installiert. Ansicht wird aktualisiert.', 4500);
           }
         });
       });
