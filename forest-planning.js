@@ -134,7 +134,7 @@
     if(quick?.result?.subareas?.parts)for(const [n,part] of quick.result.subareas.parts.entries()){
       const colors={thinning:'#e5a44a',tending:'#7dbb77',regeneration:'#ba7064',review:'#b7a0cb',unknown:'#999999'};
       const layer=L.geoJSON(part.geometry,{style:{color:colors[part.action]||'#999',weight:2,fillColor:colors[part.action]||'#999',fillOpacity:.3,bubblingMouseEvents:false}});
-      const popup='<strong>Teilfläche '+(n+1)+' · '+fmt(part.area_ha,2)+' ha</strong><p>'+esc(M.ACTIONS[part.action]||part.action)+
+      const popup='<strong>Teilfläche '+(n+1)+' · '+fmt(part.area_ha,2)+' ha</strong><p>'+esc(part.action==='regeneration'?'Endnutzung / Verjüngung prüfen':M.ACTIONS[part.action]||part.action)+
         '</p><p>Grundfläche: '+fmt(part.structure?.basal_area_m2_ha,1)+' m²/ha'+
         (part.structure?.site_index?' · Standortindex '+esc(part.structure.site_index):'')+
         '</p><p>'+esc(thinningPartLabel(part)||'Keine gesicherte Entnahmestärke')+'</p>';
@@ -379,7 +379,7 @@
         ?'<p class="fp-muted"><strong>Andere kartierte Prüfbereiche vorhanden:</strong> Die Karte zeigt geeignete Stellen für andere Maßnahmen als den Durchschnittshinweis. Welche Maßnahmen wo zu prüfen sind, steht in der Liste der farbigen Teilbereiche. Keine flächendeckende Maßnahme ableiten.</p>'
         :'<p class="fp-muted"><strong>Nicht räumlich zugeordnet:</strong> Diese Aussage stammt ausschließlich aus den Durchschnittswerten. Keine bestätigte Maßnahmenfläche auf der Karte. Keine flächendeckende Maßnahme daraus ableiten.</p>')
       :'<p class="fp-muted">Noch keine räumliche Prüfung vorhanden. Keine Maßnahmenfläche auf der Karte bestätigt.</p>';
-    return `<section class="fp-scenario"><h3>${mapped?'Räumlich geprüfter Maßnahmenhinweis · automatische Bewertung':mappedOther.length?'Automatische Bestandsbewertung · andere kartierte Maßnahmen':'Automatische Bestandsbewertung (getrennt vom manuellen Plan)'}</h3><strong>${esc(summary)}</strong><p>${esc(r.reason)}</p>${status}${next}${r.missing?.length?`<p class="fp-muted">Fehlende oder zu prüfende Voraussetzungen: ${r.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')}.</p>`:''}<p class="fp-muted">Fachlicher Prüfhinweis, keine Fällfreigabe: Bestand, Naturwerte, Boden, Nachwuchs und gesetzliches Mindestalter am Standort vor Ort prüfen. Teilflächen mit unterschiedlichen Bedingungen getrennt bewerten.</p></section>${thinningView(s,r)}${endUseView(s)}`;
+    return `<section class="fp-scenario"><h3>${mapped?'Räumlich geprüfter Maßnahmenhinweis · automatische Bewertung':mappedOther.length?'Automatische Bestandsbewertung · andere kartierte Maßnahmen':'Automatische Bestandsbewertung (getrennt vom manuellen Plan)'}</h3><strong>${esc(summary)}</strong><p>${esc(r.reason)}</p>${status}${next}${r.missing?.length?`<p class="fp-muted">Fehlende oder zu prüfende Voraussetzungen: ${r.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')}.</p>`:''}<p class="fp-muted">Fachlicher Prüfhinweis, keine Fällfreigabe: Bestand, Naturwerte, Boden, Nachwuchs und gesetzliches Mindestalter am Standort vor Ort prüfen. Teilflächen mit unterschiedlichen Bedingungen getrennt bewerten.</p></section>${endUseView(s)}${thinningView(s,r)}`;
   }
   function speciesStockView(result){
     const i=result?.inventory||{},v=i.species_volume_m3sk,density=i.species_volume_m3sk_ha;
