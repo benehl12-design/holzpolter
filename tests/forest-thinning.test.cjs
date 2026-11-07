@@ -122,6 +122,35 @@ test('existing heuristic must not override contrary INGVAR limit when all inputs
   assert.equal(r.thinning.status,'none');
 });
 
+test('an unconfirmed stand is uncertain, not a no-action recommendation',()=>{
+  const s=stand({age_years:89,basal_area_m2_ha:19.8,mean_height_m:13,p95_height_m:13,
+    site_index_pine:17,site_index_spruce:15},{area_ha:8.87,hk_class:'',action:'none',removal_pct:0});
+  const a=M.recommend(s);
+  assert.equal(a.action,'none');
+  assert.equal(a.assessment,'uncertain');
+  assert.equal(M.scenario(s,2027).removal,null);
+  assert.equal(s.action,'none','automatic review does not write the user plan');
+  assert.equal(s.inventory.site_index,undefined);
+});
+test('G1/G2 class without decisive INGVAR evidence does not promise thinning',()=>{
+  for(const hk_class of ['G1','G2']){
+    const a=M.recommend(stand({age_years:45,basal_area_m2_ha:30,mean_height_m:12,
+      site_index_pine:19,site_index_spruce:24},{hk_class}));
+    assert.equal(a.assessment,'uncertain');
+    assert.equal(a.action,'none');
+    assert.equal(a.thinning.status,'needs-data');
+  }
+});
+test('a supported measured INGVAR no-thinning case differs from missing-data uncertainty',()=>{
+  const safe=M.recommend(stand({age_years:45,basal_area_m2_ha:23,
+    mean_height_m:13,dominant_height_m:15,site_index:'G26'},{hk_class:'G1'}));
+  assert.equal(safe.assessment,'no-thinning');
+  assert.equal(safe.action,'none');
+  const unresolved=M.recommend(stand({age_years:45,basal_area_m2_ha:23,
+    mean_height_m:13},{hk_class:'G1'}));
+  assert.equal(unresolved.assessment,'uncertain');
+  assert.equal(M.recommendParts([stand({age_years:45,basal_area_m2_ha:23,mean_height_m:13},{hk_class:'G1'})]).uniform,false);
+});
 test('percentage of basal area is not silently written into saved logging scenario',()=>{
   const s=stand({basal_area_m2_ha:38,dominant_height_m:14,site_index:'T19',volume_m3sk_ha:200});
   s.removal_pct=0;
