@@ -64,6 +64,23 @@ test('real mixed-forest T17/G14 page shows conditional comparison instead of cla
   assert.equal(h.tables.forest_stands[0].inventory.site_index,undefined);
   assert.deepEqual(h.errors,[]);
 });
+test('Bestandskennzahlen remain directly visible in the original grid, without an accordion',async t=>{
+  const h=fixture(t,{props:[prop],stands:[{...stand,area_ha:8.87,inventory:{
+    age_years:89,volume_m3sk_ha:132.3,basal_area_m2_ha:19.8,
+    mean_height_m:13,mean_diameter_cm:18,site_index_pine:17,
+    site_index_spruce:15,scan_year:2021
+  }}]});
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');
+  const content=h.d.getElementById('fp-content');
+  const grid=content.querySelector(':scope > .fp-grid');
+  assert.ok(grid,'inventory cards appear directly in the details view');
+  assert.ok(grid.querySelectorAll('.fp-stat').length>=10,'all metrics are visible');
+  assert.equal(content.querySelector('details .fp-grid'),null,'no accordion around inventory cards');
+  assert.equal(content.querySelector('.fp-accordion > summary .fp-accordion-title')?.textContent,'Automatische Bewertung');
+  assert.match(grid.textContent,/89/);
+  assert.match(grid.textContent,/132,3/);
+  assert.deepEqual(h.errors,[]);
+});
 test('manual 0 percent does not masquerade as an automatic no-measure decision',async t=>{
   const inventory={age_years:89,volume_m3sk_ha:132.3,basal_area_m2_ha:19.8,
     mean_height_m:13,p95_height_m:13,site_index_pine:17,site_index_spruce:15,

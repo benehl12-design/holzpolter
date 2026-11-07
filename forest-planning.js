@@ -404,14 +404,8 @@
       const grid=content.querySelector('.fp-grid');
       if(grid)grid.before(assessment);
     }
-    const grid=content.querySelector(':scope > .fp-grid');
-    if(grid&&grid.children.length>6){
-      const section=document.createElement('details');section.className='fp-accordion fp-secondary';
-      const heading=grid.previousElementSibling;
-      if(heading?.tagName==='H3'&&heading.textContent.includes('Kennzahlen'))heading.remove();
-      section.innerHTML='<summary><span class="fp-accordion-title">Alle Bestandskennzahlen</span><small>Weitere Höhen, Durchmesser, Standortindizes und Quellen</small></summary>';
-      grid.before(section);section.appendChild(grid);
-    }
+    // Keep all inventory metrics directly visible in their original two-column
+    // grid. Only technical evidence belongs in expandable sections.
     for(const section of [...content.children]){
       if(!section.classList.contains('fp-scenario'))continue;
       const title=section.querySelector('h3')?.textContent||'';
