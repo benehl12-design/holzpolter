@@ -343,7 +343,7 @@ test('a spatial harvest-review candidate appears both on map and in the legend',
  for(const [lng,lat] of geometry.coordinates[0].slice(0,-1))
    h.maps[0].fire('click',{latlng:h.w.L.latLng(lat,lng)});
  h.click('[data-act="finish-draw"]');h.click('[data-act="calculate-zip"]');
- await until(()=>h.d.getElementById('fp-legend').textContent.includes('Ernte / Verjüngung'));
+ await until(()=>h.d.getElementById('fp-legend').textContent.includes('Endnutzung / Verjüngung'));
  assert.match(h.d.getElementById('fp-content').textContent,/Räumlich geprüfter Maßnahmenhinweis/);
  assert.match(h.d.getElementById('fp-content').textContent,/KEINE Fällfreigabe/);
  let colored=false;
