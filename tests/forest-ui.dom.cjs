@@ -4,7 +4,7 @@ const dir=path.join(__dirname,'..');let leaflet;
 test.before(async()=>{leaflet=process.env.LIGNUM_TEST_LEAFLET?fs.readFileSync(process.env.LIGNUM_TEST_LEAFLET,'utf8'):await(await fetch('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')).text();});
 const tick=()=>new Promise(r=>setTimeout(r,5));
 async function until(check){for(let i=0;i<100;i++){if(check())return;await tick();}assert.ok(check(),'expected UI transition completed');}
-function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],mapSize=[500,400]}={}){
+function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],trailPlans=[],mapSize=[500,400]}={}){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
   const dom=new JSDOM(fs.readFileSync(path.join(dir,'index.html'),'utf8'),{runScripts:'outside-only',pretendToBeVisual:true,url:'https://lignum.test/',virtualConsole:vc});
   const w=dom.window,d=w.document;
@@ -17,7 +17,7 @@ function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],mapSize=
   w.HTMLElement.prototype.getBoundingClientRect=function(){return {left:0,top:0,right:500,bottom:400,width:500,height:400,x:0,y:0};};
   Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});
   w.eval(leaflet);const maps=[];w.L.Map.addInitHook(function(){maps.push(this);});
-  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas),geojson_layers:structuredClone(geojson)},writes=[];
+  const tables={forest_properties:structuredClone(props),forest_stands:structuredClone(stands),areas:structuredClone(areas),geojson_layers:structuredClone(geojson),trail_plans:structuredClone(trailPlans)},writes=[];
   w.newRecordId=()=>webcrypto.randomUUID();w.confirm=()=>true;
   w.currentUser={id:'admin-a'};w.currentProfile={id:'admin-a',company_id:'company-a',role,is_admin:role==='admin'};
   w.isAdminUser=()=>w.currentProfile.is_admin;w.OfflineQueue={size:()=>0};
@@ -32,7 +32,7 @@ function fixture(t,{role='admin',props=[],stands=[],areas=[],geojson=[],mapSize=
     if(method==='PATCH'){const row=data.find(match);Object.assign(row,structuredClone(options.body));return [structuredClone(row)];}
     if(method==='DELETE'){tables[table]=data.filter(x=>!match(x));return data.filter(match);}
   };
-  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-harvest-rules.js','forest-thinning.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
+  for(const file of ['vendor/proj4-2.11.0.js','vendor/polygon-clipping-0.15.7.js','forest-lanes.js','forest-harvest-rules.js','forest-thinning.js','forest-model.js','forest-raster-data.js','forest-planning.js'])w.eval(fs.readFileSync(path.join(dir,file),'utf8'));
   t.after(()=>{for(const m of maps)m.remove();dom.window.close();});
   const click=sel=>{const b=d.querySelector(sel);assert.ok(b,'button exists: '+sel);b.click();};
   const set=(name,value)=>{const input=d.querySelector(`[name="${name}"]`);assert.ok(input,'input exists '+name);input.value=value;};
@@ -79,6 +79,28 @@ test('Bestandskennzahlen remain directly visible in the original grid, without a
   assert.equal(content.querySelector('.fp-accordion > summary .fp-accordion-title')?.textContent,'Automatische Bewertung');
   assert.match(grid.textContent,/89/);
   assert.match(grid.textContent,/132,3/);
+  assert.deepEqual(h.errors,[]);
+});
+test('saved skid lanes appear in forest planning as 4-metre corridors with a stock estimate',async t=>{
+  const lanes=require('../forest-lanes.js');
+  const proj=lanes.makeProjection(67,20);
+  const ll=(x,y)=>proj.toLL(x,y);
+  const shape={type:'Polygon',coordinates:[[[0,0],[100,0],[100,100],[0,100],[0,0]].map(([x,y])=>{
+    const [lat,lng]=ll(x,y);return [lng,lat];
+  })]};
+  const roadPlan={id:'lane-1',company_id:'company-a',name:'Testgassen',deleted_at:null,
+    compartments:[{polygon:[ll(0,0),ll(100,0),ll(100,100),ll(0,100)],spacing_m:20,lines:[[ll(0,30),ll(100,30)]]}]};
+  const h=fixture(t,{props:[prop],stands:[{...stand,geometry:shape,inventory:{
+    volume_m3sk_ha:200,basal_area_m2_ha:20,age_years:80
+  }}],trailPlans:[roadPlan]});
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');
+  const page=h.d.getElementById('fp-content').textContent;
+  assert.match(page,/Geplante Rückegassen/);
+  assert.match(page,/Gassenfläche im Bestand/);
+  assert.match(page,/Rechnerischer Vorrat in den Gassen/);
+  assert.match(page,/8 m³sk/);
+  assert.match(h.d.getElementById('fp-legend').textContent,/4 m breit/);
+  assert.ok(h.w.ForestLanes.planFeatures(roadPlan).features.length>0);
   assert.deepEqual(h.errors,[]);
 });
 test('manual 0 percent does not masquerade as an automatic no-measure decision',async t=>{
