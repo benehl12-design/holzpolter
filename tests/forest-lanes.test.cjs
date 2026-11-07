@@ -13,7 +13,7 @@ test('map footprint width is 4 metres irrespective of latitude or zoom',()=>{
   const poly=Lanes.corridor(line(30));
   assert.equal(poly.type,'Polygon');
   const coords=poly.coordinates[0].map(p=>projection.toXY(p[1],p[0]));
-  assert.ok(Math.abs(coords[0][1]-coords[coords.length-2][1])-4<.005);
+  assert.ok(Math.abs(Math.abs(coords[0][1]-coords[coords.length-2][1])-4)<.005);
   const a=Lanes.estimate([plan([line(30)])],boundary(0,0,100,100),200,polygonClipping);
   assert.ok(Math.abs(a.area_ha-.04)<.0001,JSON.stringify(a));
   assert.ok(Math.abs(a.stock_m3sk-8)<.03);
