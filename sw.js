@@ -6,7 +6,7 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.71';
+const APP_VERSION  = '13.72';
 // Mutable app files are fetched fresh before the offline copy is considered.
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION + '-workerfix1';
 const TILE_CACHE   = 'lignum-tiles-v5';
@@ -24,7 +24,7 @@ const APP_SHELL = [
   '/',
   '/index.html',
   '/offline.js',
-  '/forest-planning.css', '/forest-harvest-rules.js', '/forest-thinning.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
+  '/forest-planning.css', '/forest-lanes.js', '/forest-harvest-rules.js', '/forest-thinning.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   '/data/forest-rasters/scan-metadata.json', // public scan dates available offline
   '/manifest.json',
   '/icon-192.png',
@@ -44,7 +44,7 @@ const APP_SHELL = [
 const LOCAL_SHELL_PATHS = new Set(APP_SHELL.filter(p=>p.startsWith('/')).map(p=>new URL(p.slice(1),self.registration.scope).pathname));
 const REQUIRED_SHELL = new Set([
   '/index.html', '/offline.js', '/forwarder-icon.png',
-  '/forest-planning.css', '/forest-thinning.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
+  '/forest-planning.css', '/forest-lanes.js', '/forest-thinning.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'

@@ -74,3 +74,11 @@
   .fp-accordion-body{padding:0 10px 10px}
   .fp-accordion-body>.fp-scenario{padding:12px}
 }
+
+/* Geometrically scaled, 4 m wide planned skid-lane overview. */
+.fp-lanes-summary{border:1px solid #b8924f6e;background:linear-gradient(145deg,#302b1b,#203020);border-radius:14px;padding:16px 18px;margin:14px 0;color:#e9f0df}
+.fp-lanes-summary h3{margin:0 0 10px;color:#f2dca5}
+.fp-lanes-summary .fp-grid{margin:10px 0}
+.fp-lanes-summary .fp-stat{background:#1b291d;border-color:#c4a26752}
+.fp-lanes-summary .fp-stat strong{font-size:18px}
+.fp-lanes-summary p{font-size:12px;line-height:1.65}
