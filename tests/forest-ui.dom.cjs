@@ -64,6 +64,24 @@ test('real mixed-forest T17/G14 page shows conditional comparison instead of cla
   assert.equal(h.tables.forest_stands[0].inventory.site_index,undefined);
   assert.deepEqual(h.errors,[]);
 });
+test('manual 0 percent does not masquerade as an automatic no-measure decision',async t=>{
+  const inventory={age_years:89,volume_m3sk_ha:132.3,basal_area_m2_ha:19.8,
+    mean_height_m:13,p95_height_m:13,site_index_pine:17,site_index_spruce:15,
+    scan_year:2021,sources:{site_index_pine:{area_ha:8.87},site_index_spruce:{area_ha:8.87},p95_height_m:{area_ha:8.87}}};
+  const h=fixture(t,{props:[prop],stands:[{...stand,area_ha:8.87,inventory,hk_class:'',action:'none',removal_pct:0}]});
+  await h.w.ForestPlanning.open();h.click('[data-act="select"]');
+  const page=h.d.getElementById('fp-content').textContent;
+  assert.match(page,/Manueller Planungsstand/);
+  assert.match(page,/Noch keine manuelle Maßnahme festgelegt/);
+  assert.match(page,/nicht, dass keine Maßnahme erforderlich wäre/);
+  assert.match(page,/Automatische Bestandsbewertung/);
+  assert.match(page,/Noch nicht sicher beurteilbar/);
+  assert.match(page,/Standortanzeigende Baumart/);
+  assert.match(page,/Oberhöhe.*messen/);
+  assert.match(page,/INGVAR-Standortvergleich/);
+  assert.equal(h.writes.length,0);
+  assert.deepEqual(h.errors,[]);
+});
 test('a second property can be smaller than the stands in the first property',async t=>{
   const h=fixture(t,{props:[prop],stands:[stand]});await h.w.ForestPlanning.open();h.click('[data-act="new-property"]');h.set('name','Klein');h.set('area_ha','0,5');h.submit();await until(()=>h.tables.forest_properties.length===2);assert.equal(h.tables.forest_properties[1].area_ha,.5);
 });
