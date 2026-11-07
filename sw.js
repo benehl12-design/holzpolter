@@ -6,8 +6,8 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.68';
-// Offline app shell includes new P95 laser height support and scan-date metadata.
+const APP_VERSION  = '13.69';
+// Offline app shell includes clearer planning assessment cards and collapsible evidence.
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION + '-workerfix1';
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';

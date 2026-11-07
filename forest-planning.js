@@ -126,7 +126,7 @@
   function controls(){screen.querySelectorAll('[data-admin]').forEach(b=>b.hidden=!admin());}
   function render(fit=false){
     el('fp-property').innerHTML=properties.length?properties.map(p=>`<option value="${p.id}" ${p.id===propertyId?'selected':''}>${esc(p.cadastral_ref||p.name)}</option>`).join(''):'<option value="">Noch kein Grundstück</option>';
-    el('fp-subtitle').textContent=stands.some(s=>s.geometry)?`${stands.filter(s=>s.geometry).length} Bestandsflächen · alle Grundstücke`:(property()?.name||'Grundstücke · Bestände · Maßnahmen');renderMap(fit);renderDetail();controls();
+    el('fp-subtitle').textContent=stands.some(s=>s.geometry)?`${stands.filter(s=>s.geometry).length} Bestandsflächen · alle Grundstücke`:(property()?.name||'Grundstücke · Bestände · Maßnahmen');renderMap(fit);renderDetail();organizeAssessment();controls();
   }
   function renderMap(fit=false){
     if(!map)return;shapes.clearLayers();savedStandBounds=L.latLngBounds([]);const ownedProperties=new Set(properties.map(p=>p.id));
@@ -174,7 +174,7 @@
   function stat(label,value,unit='',digits=0){return `<div class="fp-stat"><small>${esc(label)}</small><strong>${/jahr|Fortschreibung/i.test(label)?esc(value??'–'):fmt(value,digits)}</strong> <span>${esc(unit)}</span></div>`;}
   const button=(act,label,id='',cls='')=>`<button class="fp-btn ${cls}" data-act="${act}" data-id="${esc(id)}">${esc(label)}</button>`;
   function bars(data,labels,unit,colors={}){const max=Math.max(1,...Object.values(data));return Object.entries(data).map(([k,n])=>`<div class="fp-bar-row"><span>${esc(labels[k]||k)}</span><div class="fp-bar"><i style="width:${Math.max(0,n/max*100)}%;background:${colors[k]||'#74a560'}"></i></div><span>${fmt(n,1)} ${esc(unit)}</span></div>`).join('')||'<p class="fp-muted">Noch keine Daten.</p>';}
-  function sources(){return `<div class="fp-source"><b>Datenquellen und Datenstand</b><p>Die Walddaten werden aus heruntergeladenen Skogsstyrelsen-/SLU-ZIP-Dateien ausgewertet. Dafür wird kein Skogsstyrelsen-API-Zugang benötigt.</p><p>Das regionale Datenpaket für Sarvisvaara wird beim Auswerten geladen und für weitere Offline-Auswertungen gespeichert. Für andere Gebiete lassen sich weitere Ausschnitte aus den Norrbotten-Originaldaten aufbereiten.</p><p>Aufnahmejahr und Abdeckung stehen an jeder Kennzahl. Alter: Bezugsjahr 2025, Karte nach tatsächlichem Waldtyp auswählen. Baumarten bei Sarvisvaara: SLU Trädslag 2018 mit Bildern aus 2017–2019. Die ältere SLU-Karte 2015 deckt den Ort nicht ab. Eingriffe nach der Aufnahme bitte ergänzen.</p><p>Bearbeitung: native Rasterzellen ausgeschnitten und flächengewichtet ausgewertet. Quellen: Skogsstyrelsen / SLU. Alter und SIS: <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; weitere Quellen nach <a href="https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/" target="_blank" rel="noopener">Originalbedingungen</a>.</p><a href="${M.SOURCE_LINKS.downloads}" target="_blank" rel="noopener">Originaldaten</a> · <a href="${M.SOURCE_LINKS.quality}" target="_blank" rel="noopener">Datenqualität</a></div>`;}
+  function sources(){return `<details class="fp-source fp-expand"><summary>Datenquellen und Datenstand</summary><p>Die Walddaten werden aus heruntergeladenen Skogsstyrelsen-/SLU-ZIP-Dateien ausgewertet. Dafür wird kein Skogsstyrelsen-API-Zugang benötigt.</p><p>Das regionale Datenpaket für Sarvisvaara wird beim Auswerten geladen und für weitere Offline-Auswertungen gespeichert. Für andere Gebiete lassen sich weitere Ausschnitte aus den Norrbotten-Originaldaten aufbereiten.</p><p>Aufnahmejahr und Abdeckung stehen an jeder Kennzahl. Alter: Bezugsjahr 2025, Karte nach tatsächlichem Waldtyp auswählen. Baumarten bei Sarvisvaara: SLU Trädslag 2018 mit Bildern aus 2017–2019. Die ältere SLU-Karte 2015 deckt den Ort nicht ab. Eingriffe nach der Aufnahme bitte ergänzen.</p><p>Bearbeitung: native Rasterzellen ausgeschnitten und flächengewichtet ausgewertet. Quellen: Skogsstyrelsen / SLU. Alter und SIS: <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; weitere Quellen nach <a href="https://www.skogsstyrelsen.se/e-tjanster-och-kartor/karttjanster/geodatatjanster/villkor/" target="_blank" rel="noopener">Originalbedingungen</a>.</p><a href="${M.SOURCE_LINKS.downloads}" target="_blank" rel="noopener">Originaldaten</a> · <a href="${M.SOURCE_LINKS.quality}" target="_blank" rel="noopener">Datenqualität</a></details>`;}
   function sharedList(){return `${areaWarning?`<p class="fp-form-error">${esc(areaWarning)}</p>`:''}<p class="fp-muted">Die Grenzen stammen aus der normalen Karte und werden beim Öffnen oder Aktualisieren neu geladen.</p>`+(sharedAreas.length?sharedAreas.map(a=>`<div class="fp-row">${button('select-area',a.name||'Fläche',a.id)}<span>${fmt(a.area_ha,2)} ha</span></div>`).join(''):'<p class="fp-muted">Noch keine Grundstücksgrenzen oder eingezeichneten Flächen vorhanden.</p>');}
   function areaSelection(a){return {name:a.name||'Fläche',source_id:a.id,area_id:a.area_id,geometry:a.geometry,area_ha:a.area_ha};}
   function selectArea(id){const a=sharedAreas.find(a=>a.id===id);if(!a||busy)return;cancelDraw();closeModal();quick=areaSelection(a);standId=null;render(true);}
@@ -251,7 +251,7 @@
           siteLoads.delete(s.id);
           try{
             if(window.document?.getElementById?.('fp-content')&&screen?.isConnected&&
-                same(who)&&selected()?.id===s.id&&visible())renderDetail();
+                same(who)&&selected()?.id===s.id&&visible()){renderDetail();organizeAssessment();}
           }catch(error){console.warn('Forst-Metadaten-Anzeige konnte nicht aktualisiert werden:',error);}
         }).catch(error=>console.warn('Forst-Metadaten-Nachladen beendet:',error));
     }
@@ -350,6 +350,81 @@
       permit+
       '<p class="fp-muted">Grundlagen: <a href="https://www.skogskunskap.se/skota-skog/slutavverka/slutavverkningens-grunder/nar-ska-jag-slutavverka/" target="_blank" rel="noopener">Skogskunskap – Zeitpunkt</a> · <a href="https://www.skogsstyrelsen.se/bruka-skog/avverkning/foryngringsavverkning/" target="_blank" rel="noopener">Skogsstyrelsen – Föryngringsavverkning</a>.</p></section>';
   }
+
+  // Readable overview layered on top of the existing conservative model.
+  // These labels never turn a screening result into a harvest authorization.
+  function assessmentPanel(title,subtitle,html){
+    return '<details class="fp-accordion"><summary><span class="fp-accordion-title">'+esc(title)+'</span><small>'+esc(subtitle)+'</small></summary><div class="fp-accordion-body">'+html+'</div></details>';
+  }
+  function assessmentOverview(s,spatial){
+    const i=s.inventory||{},r=M.recommend(s),end=M.endUseAssessment(s),parts=spatial?.parts||[];
+    const mapped=parts.filter(p=>['thinning','tending','regeneration'].includes(p.action));
+    const hasStructure=!!spatial?.structureZones?.length;
+    const headline=mapped.length?'Maßnahmenbereiche zur Prüfung erkannt':
+      hasStructure?'Waldstruktur erkannt – keine Maßnahme bestätigt':
+      spatial?'Keine Maßnahmenfläche sicher bestätigt':'Maßnahme erst nach Bestandsprüfung festlegen';
+    const explanation=mapped.length?'Die farbigen Teilflächen sind mögliche Prüfflächen, keine Erntefreigabe.':
+      hasStructure?'Die Karte zeigt Vorratsunterschiede. Daraus folgt noch keine Einschlagsempfehlung.':
+      spatial?'Die Bestandswerte ergeben aktuell keine räumlich belastbare Maßnahmenempfehlung.':
+      'Diese Bewertung nutzt Bestandsmittelwerte. Welche Teilflächen betroffen sind, ist noch nicht räumlich bestätigt.';
+    const thinning=r.assessment==='no-thinning'?'Kein weiterer Bedarf abgeleitet':
+      r.assessment==='candidate'&&r.action==='thinning'?'Durchforstung prüfen':
+      !i.site_index&&i.site_index_pine!=null?'Standorttyp klären':
+      r.assessment==='uncertain'?'Weitere Messungen nötig':'Individuell prüfen';
+    const harvest=end.status==='candidate'?'Endnutzung prüfen':
+      end.status==='approaching'?'Reife nähert sich':
+      end.status==='structure-review'?'Bestandsqualität prüfen':
+      end.status==='not-yet'?'Derzeit kein Kandidat':'Weitere Prüfung nötig';
+    const mapLabel=mapped.length?fmt(mapped.length)+' Prüfbereich'+(mapped.length===1?'':'e'):
+      hasStructure?'Nur Vorratszonen':spatial?'Keine Maßnahmenfläche':'Noch nicht räumlich geprüft';
+    const metric=(label,value,unit)=>'<div class="fp-decision-metric"><small>'+esc(label)+'</small><strong>'+esc(value)+' <em>'+esc(unit)+'</em></strong></div>';
+    return '<div class="fp-decision">'+
+      '<div class="fp-decision-top"><span class="fp-eyebrow">AUTOMATISCHE BESTANDSBEWERTUNG</span><span class="fp-decision-tag">Vorprüfung · keine Freigabe</span></div>'+
+      '<h3>'+esc(headline)+'</h3><p class="fp-decision-intro">'+esc(explanation)+'</p>'+
+      '<div class="fp-decision-metrics">'+
+        metric('Fläche',fmt(s.area_ha,2),'ha')+
+        metric('Alter (geschätzt)',fmt(i.age_years,0),'J.')+
+        metric('Grundfläche',fmt(i.basal_area_m2_ha,1),'m²/ha')+
+        metric('Vorrat',fmt(i.volume_m3sk_ha,0),'m³sk/ha')+
+      '</div>'+
+      '<div class="fp-decision-findings">'+
+        '<div><span>Durchforstung</span><strong>'+esc(thinning)+'</strong></div>'+
+        '<div><span>Endnutzung</span><strong>'+esc(harvest)+'</strong></div>'+
+        '<div><span>Teilflächen / Karte</span><strong>'+esc(mapLabel)+'</strong></div>'+
+      '</div><p class="fp-decision-foot">Die Schätzwerte beruhen auf Raster- und Bestandsdaten. Maßnahmen, Standort, Schutzbelange und Wirtschaftlichkeit müssen vor Ort geprüft werden.</p></div>';
+  }
+  function organizeAssessment(){
+    const content=el('fp-content'),assessment=content?.querySelector('.fp-assessment');
+    if(!content||!assessment)return;
+    // Put the decision first; move only existing nodes, never recalculate data.
+    if(quick){
+      const actions=content.querySelector('.fp-actions');
+      if(actions)actions.after(assessment);
+    }else{
+      const grid=content.querySelector('.fp-grid');
+      if(grid)grid.before(assessment);
+    }
+    const grid=content.querySelector(':scope > .fp-grid');
+    if(grid&&grid.children.length>6){
+      const section=document.createElement('details');section.className='fp-accordion fp-secondary';
+      const heading=grid.previousElementSibling;
+      if(heading?.tagName==='H3'&&heading.textContent.includes('Kennzahlen'))heading.remove();
+      section.innerHTML='<summary><span class="fp-accordion-title">Alle Bestandskennzahlen</span><small>Weitere Höhen, Durchmesser, Standortindizes und Quellen</small></summary>';
+      grid.before(section);section.appendChild(grid);
+    }
+    for(const section of [...content.children]){
+      if(!section.classList.contains('fp-scenario'))continue;
+      const title=section.querySelector('h3')?.textContent||'';
+      let text=null,sub='';
+      if(title.startsWith('Große zusammenhängende Maßnahmenbereiche')){text='Teilflächen & Kartenanalyse';sub='Räumliche Abgrenzung, Hinweise und nicht bestätigte Rastergruppen';}
+      else if(title.startsWith('Amtliche Laserscan-Aufnahmejahre')){text='Laserscan & Aufnahmejahre';sub='Herkunft und Alter der Messdaten';}
+      if(!text)continue;
+      const details=document.createElement('details');details.className='fp-accordion fp-secondary';
+      details.innerHTML='<summary><span class="fp-accordion-title">'+esc(text)+'</span><small>'+esc(sub)+'</small></summary>';
+      section.before(details);details.appendChild(section);
+    }
+  }
+
   function recommendationView(s,spatial=null){
     const r=M.recommend(s);
     const assessment=r.assessment|| (r.action==='none'?'uncertain':'candidate');
@@ -379,7 +454,11 @@
         ?'<p class="fp-muted"><strong>Andere kartierte Prüfbereiche vorhanden:</strong> Die Karte zeigt geeignete Stellen für andere Maßnahmen als den Durchschnittshinweis. Welche Maßnahmen wo zu prüfen sind, steht in der Liste der farbigen Teilbereiche. Keine flächendeckende Maßnahme ableiten.</p>'
         :'<p class="fp-muted"><strong>Nicht räumlich zugeordnet:</strong> Diese Aussage stammt ausschließlich aus den Durchschnittswerten. Keine bestätigte Maßnahmenfläche auf der Karte. Keine flächendeckende Maßnahme daraus ableiten.</p>')
       :'<p class="fp-muted">Noch keine räumliche Prüfung vorhanden. Keine Maßnahmenfläche auf der Karte bestätigt.</p>';
-    return `<section class="fp-scenario"><h3>${mapped?'Räumlich geprüfter Maßnahmenhinweis · automatische Bewertung':mappedOther.length?'Automatische Bestandsbewertung · andere kartierte Maßnahmen':'Automatische Bestandsbewertung (getrennt vom manuellen Plan)'}</h3><strong>${esc(summary)}</strong><p>${esc(r.reason)}</p>${status}${next}${r.missing?.length?`<p class="fp-muted">Fehlende oder zu prüfende Voraussetzungen: ${r.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')}.</p>`:''}<p class="fp-muted">Fachlicher Prüfhinweis, keine Fällfreigabe: Bestand, Naturwerte, Boden, Nachwuchs und gesetzliches Mindestalter am Standort vor Ort prüfen. Teilflächen mit unterschiedlichen Bedingungen getrennt bewerten.</p></section>${endUseView(s)}${thinningView(s,r)}`;
+    const body = `<section class="fp-scenario"><h3>${mapped?'Räumlich geprüfter Maßnahmenhinweis · automatische Bewertung':mappedOther.length?'Automatische Bestandsbewertung · andere kartierte Maßnahmen':'Automatische Bestandsbewertung (getrennt vom manuellen Plan)'}</h3><strong>${esc(summary)}</strong><p>${esc(r.reason)}</p>${status}${next}${r.missing?.length?`<p class="fp-muted">Fehlende oder zu prüfende Voraussetzungen: ${r.missing.map(k=>esc(M.FIELDS[k]?.[0]||k)).join(', ')}.</p>`:''}<p class="fp-muted">Fachlicher Prüfhinweis, keine Fällfreigabe: Bestand, Naturwerte, Boden, Nachwuchs und gesetzliches Mindestalter am Standort vor Ort prüfen. Teilflächen mit unterschiedlichen Bedingungen getrennt bewerten.</p></section>`;
+    return '<section class="fp-assessment">'+assessmentOverview(s,spatial)+
+      assessmentPanel('Automatische Bewertung','Begründung, offene Daten und erforderliche Prüfungen',body)+
+      assessmentPanel('Endnutzung / Verjüngungsernte','Altersrichtwerte, wirtschaftliche Abwägung und rechtliche Hinweise',endUseView(s))+
+      assessmentPanel('Durchforstung · INGVAR','Standortvergleich, Grundflächen und Entnahmeannahmen',thinningView(s,r))+'</section>';
   }
   function speciesStockView(result){
     const i=result?.inventory||{},v=i.species_volume_m3sk,density=i.species_volume_m3sk_ha;
