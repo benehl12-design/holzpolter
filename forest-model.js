@@ -163,20 +163,27 @@
   function recommend(s){
     const i=s.inventory||{},age=number(i.age_years),basal=number(i.basal_area_m2_ha),height=number(i.mean_height_m),diameter=number(i.mean_diameter_cm);
     const thinningAdvice=thinning.evaluate(s);
-    const result=(action,reason,confidence='low',missing=[])=>({action,reason,confidence,missing,review:true});
-    if(s.land_type==='wetland'||s.land_type==='water')return result('none','Wasser- oder Feuchtgebiet: keine automatische Holzerntemaßnahme.','high');
+    // The stored action is a manual plan. An automatic assessment must also
+    // explain whether the model actually found an intervention candidate,
+    // ruled out further thinning, or simply lacks decisive evidence.
+    const result=(action,reason,confidence='low',missing=[],assessment=action==='none'?'uncertain':'candidate')=>
+      ({action,reason,confidence,missing,assessment,review:true});
+    if(s.land_type==='wetland'||s.land_type==='water')return result('none','Wasser- oder Feuchtgebiet: keine automatische Holzerntemaßnahme.','high',[],'not-applicable');
     if(s.land_type!=='forest')return result('none','Keine bestätigte produktive Waldfläche; Flächentyp vor Ort prüfen.');
     if(s.hk_class==='NO'||s.hk_class==='NS')return result('nature','Naturschutzklasse: Schutzvorgaben und Pflegebedarf fachlich prüfen.','medium');
     if(s.hk_class==='K')return result('planting','Kahlfläche: natürliche Verjüngung und Pflanzbedarf prüfen.','medium');
     if(s.hk_class==='R')return result('tending','Jungbestand: Kulturpflege oder Läuterung prüfen.','medium');
-    if(s.hk_class==='E')return result('none','Ungleichaltriger Bestand: einzelstammweise Maßnahmen gesondert beurteilen.');
+    if(s.hk_class==='E')return result('none','Ungleichaltriger Bestand: einzelstammweise Maßnahmen gesondert beurteilen.','low',[],'uncertain');
     const missing=['age_years','basal_area_m2_ha','mean_height_m'].filter(k=>i[k]==null);
     const coverage=['age_years','basal_area_m2_ha','mean_height_m'].filter(k=>i[k]!=null&&i.sources?.[k]?.area_ha!=null&&s.area_ha!=null&&i.sources[k].area_ha<s.area_ha*.7);
     if(coverage.length)return result('none','Wichtige Rasterwerte decken weniger als 70 % der Fläche ab; keine flächendeckende Empfehlung.', 'low',coverage);
-    if(basal!=null&&basal<12)return result('none','Niedrige Grundfläche: vor weiterer Entnahme Bestockung und Stabilität prüfen.','medium',missing);
+    if(basal!=null&&basal<12)return result('none','Niedrige Grundfläche: vor weiterer Entnahme Bestockung und Stabilität prüfen.','medium',missing,'no-thinning');
     if(s.hk_class==='G1'||s.hk_class==='G2'){
-      if(thinningAdvice.status==='none')return {...result('none','Die INGVAR-Grenze spricht derzeit gegen eine weitere Durchforstung. '+thinningAdvice.reason,'medium',missing),thinning:thinningAdvice};
-      return {...result('thinning',thinningAdvice.action==='thinning'?thinningAdvice.reason:'Durchforstungsklasse: Dichte, Kronen und Stabilität vor Eingriff prüfen.',basal!=null?'medium':'low',missing),thinning:thinningAdvice};
+      if(thinningAdvice.status==='none')return {...result('none','Die INGVAR-Grenze spricht derzeit gegen eine weitere Durchforstung. '+thinningAdvice.reason,'medium',missing,'no-thinning'),thinning:thinningAdvice};
+      if(['uncertain','needs-data','not-applicable'].includes(thinningAdvice.status)){
+        return {...result('none','Durchforstungsklasse erfasst, aber der Eingriffsbedarf ist mit den vorhandenen INGVAR-Daten noch nicht sicher entscheidbar. '+thinningAdvice.reason,'low',[...new Set([...missing,...thinningAdvice.missing])],'uncertain'),thinning:thinningAdvice};
+      }
+      return {...result('thinning',thinningAdvice.reason,thinningAdvice.confidence,missing,'candidate'),thinning:thinningAdvice};
     }
     if(s.hk_class==='S2')return result('regeneration','Verjüngungsreifer Bestand: Naturverjüngung, Dauerwaldoptionen und Schutzwerte prüfen.','low',missing);
     const sourceCoverageOk=['volume_m3sk_ha','mean_diameter_cm','site_index','species_pct'].every(k=>
@@ -194,7 +201,13 @@
     if(thinningAdvice.status==='recommended'||thinningAdvice.status==='provisional')
       return {...result('thinning',thinningAdvice.reason,thinningAdvice.confidence,missing),thinning:thinningAdvice};
     if(thinningAdvice.status==='none'||thinningAdvice.status==='uncertain')
-      return {...result('none',thinningAdvice.reason,thinningAdvice.confidence,missing),thinning:thinningAdvice};
+      return {...result('none',thinningAdvice.reason,thinningAdvice.confidence,missing,
+        thinningAdvice.status==='none'?'no-thinning':'uncertain'),thinning:thinningAdvice};
+    if(thinningAdvice.status==='needs-data'&&
+      (i.site_index||i.site_index_pine!=null||i.site_index_spruce!=null)){
+      return {...result('none','Die vorhandenen Standortreferenzen erlauben noch keine eindeutige Maßnahmenentscheidung. '+thinningAdvice.reason,
+        'low',[...new Set([...missing,...thinningAdvice.missing])],'uncertain'),thinning:thinningAdvice};
+    }
     if(age!=null&&age>=20&&age<65&&basal!=null&&basal>=22&&height!=null&&height>=10)return result('thinning','Alter, Grundfläche und Höhe sprechen für die Prüfung einer Durchforstung; keine automatische Entnahmefreigabe.','medium',missing);
     if(age!=null&&age>=65&&basal!=null&&basal>=22&&height!=null&&height>=14)return result('thinning','Älterer dichter Bestand: vorsichtige Durchforstung oder einzelstammweise Nutzung prüfen, nicht pauschal kahlschlagen.','low',missing);
     if(age!=null&&age>=20&&height!=null&&height<10)return result('tending','Geringe Bestandshöhe: Pflegebedarf und Altersdaten vor Ort abgleichen.','low',missing);
@@ -203,7 +216,10 @@
   function recommendParts(stands){
     const parts=stands.map(s=>({id:s.id??null,name:s.name,area_ha:s.area_ha,...recommend(s)}));
     const actions=[...new Set(parts.map(p=>p.action))];
-    return {uniform:parts.length>0&&actions.length===1,action:actions.length===1?actions[0]:null,parts,requiresReview:true};
+    const assessments=[...new Set(parts.map(p=>p.assessment))];
+    // Equal placeholder actions ('none') do not amount to a uniform decision.
+    const uniform=parts.length>0&&actions.length===1&&assessments.length===1&&assessments[0]!=='uncertain';
+    return {uniform,action:uniform?actions[0]:null,assessment:uniform?assessments[0]:null,parts,requiresReview:true};
   }
   function color(s,theme='class'){
     if(s.land_type==='water')return '#58b5d6';if(s.land_type==='wetland')return '#967aaf';if(!['forest','unproductive'].includes(s.land_type))return '#a29375';
