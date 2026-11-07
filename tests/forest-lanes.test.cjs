@@ -42,6 +42,25 @@ test('old-style plans still work and connectors are not treated as harvested for
   assert.equal(r.stock_m3sk,null);
   assert.ok(Math.abs(r.area_ha-.08)<.0002);
 });
+
+test('90 degree and tighter turns never protrude beyond a 2 m lateral buffer',()=>{
+  const nearestDistance=(p,a,b)=>{
+    const ax=p[0]-a[0],ay=p[1]-a[1],bx=b[0]-a[0],by=b[1]-a[1];
+    const t=Math.max(0,Math.min(1,(ax*bx+ay*by)/(bx*bx+by*by)));
+    return Math.hypot(p[0]-a[0]-t*bx,p[1]-a[1]-t*by);
+  };
+  for(const turnEnd of [[60,60],[20,50],[20,-30]]){
+    const central=[[10,10],[60,10],turnEnd],lane=central.map(p=>LL(...p));
+    const drawn=Lanes.corridor(lane);
+    assert.ok(drawn&&drawn.coordinates[0].length>10);
+    const vertices=drawn.coordinates[0].map(ll=>projection.toXY(ll[1],ll[0]));
+    for(const p of vertices){
+      const nearest=Math.min(...central.slice(1).map((b,i)=>nearestDistance(p,central[i],b)));
+      assert.ok(nearest<=2.02,'outer bend exceeded half width: '+nearest.toFixed(3)+'m at '+turnEnd);
+    }
+  }
+});
+
 test('plan feature collections can render every saved compartment',()=>{
   const result=Lanes.planFeatures(plan([line(30),line(50)]));
   assert.equal(result.features.length,2);

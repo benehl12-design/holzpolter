@@ -42,23 +42,38 @@
       normals.push([-dy/len,dx/len]);
     }
     const half=width/2;
-    const offset=pts.map((p,i)=>{
-      const a=normals[Math.max(0,i-1)],b=normals[Math.min(i,normals.length-1)];
-      const sum=[a[0]+b[0],a[1]+b[1]],m=Math.hypot(sum[0],sum[1]);
-      if(i===0||i===pts.length-1||m<0.01)return [p[0]+b[0]*half,p[1]+b[1]*half];
-      const n=[sum[0]/m,sum[1]/m],dot=Math.abs(n[0]*b[0]+n[1]*b[1]);
-      const length=Math.min(half/Math.max(dot,0.01),half*3);
-      return [p[0]+n[0]*length,p[1]+n[1]*length];
-    });
-    const other=pts.map((p,i)=>{
-      const a=normals[Math.max(0,i-1)],b=normals[Math.min(i,normals.length-1)];
-      const sum=[a[0]+b[0],a[1]+b[1]],m=Math.hypot(sum[0],sum[1]);
-      if(i===0||i===pts.length-1||m<0.01)return [p[0]-b[0]*half,p[1]-b[1]*half];
-      const n=[sum[0]/m,sum[1]/m],dot=Math.abs(n[0]*b[0]+n[1]*b[1]);
-      const length=Math.min(half/Math.max(dot,0.01),half*3);
-      return [p[0]-n[0]*length,p[1]-n[1]*length];
-    });
-    const ring=[...offset,...other.reverse(),offset[0]].map(p=>projection.toGeo(p[0],p[1]));
+    // A miter on the OUTER side of a tight turn protrudes outside the chosen
+    // corridor width. Use a radius-2 m round join there; preserve the
+    // intersection of offsets on the inside to avoid gaps in the corridor.
+    const sidePoints=(sign)=>{
+      const out=[[pts[0][0]+sign*normals[0][0]*half,pts[0][1]+sign*normals[0][1]*half]];
+      for(let i=1;i<pts.length-1;i++){
+        const p=pts[i],a=normals[i-1],b=normals[i],turn=a[0]*b[1]-a[1]*b[0];
+        const isOutside=turn*sign < -1e-9;
+        if(isOutside){
+          const a0=Math.atan2(sign*a[1],sign*a[0]);
+          let a1=Math.atan2(sign*b[1],sign*b[0]);
+          if(turn>0){while(a1<a0)a1+=Math.PI*2;}
+          else{while(a1>a0)a1-=Math.PI*2;}
+          const steps=Math.max(2,Math.ceil(Math.abs(a1-a0)/(Math.PI/16)));
+          for(let k=0;k<=steps;k++){
+            const theta=a0+(a1-a0)*k/steps;
+            out.push([p[0]+Math.cos(theta)*half,p[1]+Math.sin(theta)*half]);
+          }
+        }else{
+          const sum=[a[0]+b[0],a[1]+b[1]],m=Math.hypot(sum[0],sum[1]);
+          if(m<1e-9){out.push([p[0]+sign*b[0]*half,p[1]+sign*b[1]*half]);continue;}
+          const n=[sum[0]/m,sum[1]/m],dot=Math.abs(n[0]*b[0]+n[1]*b[1]);
+          const distance=Math.min(half/Math.max(dot,.01),half*3);
+          out.push([p[0]+sign*n[0]*distance,p[1]+sign*n[1]*distance]);
+        }
+      }
+      out.push([pts.at(-1)[0]+sign*normals.at(-1)[0]*half,
+        pts.at(-1)[1]+sign*normals.at(-1)[1]*half]);
+      return out;
+    };
+    const left=sidePoints(1),right=sidePoints(-1);
+    const ring=[...left,...right.reverse(),left[0]].map(p=>projection.toGeo(p[0],p[1]));
     return {type:'Polygon',coordinates:[ring]};
   }
   function planFeatures(plan){

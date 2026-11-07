@@ -156,7 +156,7 @@
     if(window.ForestLanes)for(const plan of trailPlans){
       const features=window.ForestLanes.planFeatures(plan);
       if(features.features.length)L.geoJSON(features,{interactive:false,style:{
-        stroke:false,fillColor:'#f7c76c',fillOpacity:.72
+        stroke:false,fillColor:'#f7c76c',fillOpacity:.42
       }}).addTo(shapes);
     }
     if(draw)paintDraw();
