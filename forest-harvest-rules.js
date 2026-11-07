@@ -53,5 +53,127 @@
       warning:'Nur Ernteprüfung, KEINE Fällfreigabe. Grundflächengewichtetes Alter, Standortsituation, Natur-/Kulturwerte, Rentierhaltung, Verjüngung und ggf. Anmeldung/Genehmigung prüfen.'
     };
   }
-  return {minAgeNorth,harvestReview};
+  // Stand-level screen for possible regeneration/final harvesting (Endnutzung).
+  // The Swedish statutory *minimum* felling age is NOT the economic optimum.
+  // A separate field visit, actual age, nature-value review and profitability
+  // assessment are required before any real harvesting decision.
+  function endUseAssessment(raw={}){
+    const i=raw.inventory||raw,area=Number(raw.area_ha);
+    const num=v=>v==null||v===''||!Number.isFinite(Number(v))?null:Number(v);
+    const age=num(i.age_years),basal=num(i.basal_area_m2_ha),
+      height=num(i.mean_height_m),diameter=num(i.mean_diameter_cm),volume=num(i.volume_m3sk_ha);
+    const result={status:'needs-review',candidate:false,age_years:age,
+      references:[],structure:null,missing:[],warnings:[],legalAgeVerified:false,
+      economicOptimumVerified:false,protectionVerified:false,
+      next:['Alter und Standorttyp vor Ort bestätigen','Natur- und Kulturwerte sowie Rentierhaltung prüfen',
+        'Wertzuwachs, Holzpreise, Erntekosten und Verjüngung gegenüberstellen'],
+      reason:'Eine Endnutzung kann noch nicht ausreichend eingeordnet werden.'};
+    const land=raw.land_type||'forest',hk=raw.hk_class||'';
+    if(land!=='forest'||['NO','NS','E','K','R'].includes(hk)){
+      return {...result,status:'not-applicable',reason:'Schutz-, Jung-, ungleichaltriger oder nicht als Wirtschaftswald bestätigter Bestand: keine automatische Endnutzungsempfehlung.'};
+    }
+    const keys=[['age_years',age],['basal_area_m2_ha',basal],
+      ['mean_height_m',height],['mean_diameter_cm',diameter],['volume_m3sk_ha',volume]];
+    for(const [name,value] of keys){
+      if(value==null||value<=0)result.missing.push(name);
+      else if(area>0&&i.sources?.[name]?.area_ha!=null&&
+          Number(i.sources[name].area_ha)<area*.7)result.missing.push(name+' (Rasterabdeckung <70 %)');
+    }
+    if(i.scan_year!=null)result.warnings.push('Bestandskennzahlen überwiegend historische Laserdaten ('+i.scan_year+'); Eingriffe und Zuwachs danach prüfen.');
+    // Barrdominerat >50%: no legal conifer age classification from unknown,
+    // coarse species-volume percentages alone. All references are conditional.
+    const share=i.species_pct||{},pine=num(share.pine),spruce=num(share.spruce);
+    const coniferShare=pine!=null&&spruce!=null?pine+spruce:null;
+    const otherMajority=coniferShare!=null&&coniferShare<=50;
+    const birchShare=num(share.birch),birchMajority=otherMajority&&birchShare!=null&&birchShare>=50;
+    if(otherMajority&&!birchMajority){
+      return {...result,status:'needs-review',coniferShare,
+        reason:'Die Nadelholz-Alterstabelle passt nicht zur Baumartenverteilung. Für Laubmischwald müssen Birken-/Aspen-/Erlen-Vorratsanteile und der passende gesetzliche Alterswert vor Ort gesondert geprüft werden.'};
+    }
+    if(coniferShare==null)result.warnings.push('Baumartenanteile fehlen: die Nadelholz-Alterstabelle ist nur ein bedingter Orientierungswert.');
+    if(birchMajority){
+      const covered=i.sources?.species_pct?.area_ha;
+      if(area>0&&covered!=null&&Number(covered)<area*.7){
+        return {...result,status:'needs-review',missing:[...result.missing,'species_pct'],
+          reason:'Der Birkenanteil deckt weniger als 70 % der Fläche ab. Die Laubholz-Altersregel darf nicht aus einer kleinen Rasterprobe abgeleitet werden.'};
+      }
+      // Skogsstyrelsen: at least 50% of merchantable standing stock in
+      // birch/aspen/alder can follow the 35-year minimum age. The raster
+      // share is only a preliminary forest-stock classification, not proof.
+      result.references.push({site_index:'Birke',type:'vorläufiger Birken-Vorratsanteil ≥50 %',
+        min_age_years:35,reference_index:'Laubholz ≥50 %',coverage_ok:true,
+        age_gap_years:age==null?null:Math.round((35-age)*10)/10,
+        reached:age==null?null:age>=35});
+      result.warnings.push('Die 35-Jahre-Untergrenze setzt eine vor Ort bestätigte Birken-/Aspen-/Erlen-Vorratsmehrheit voraus. Andere Baumarten unterliegen anderen Regeln.');
+    }
+    const candidates=[];
+    if(!birchMajority&&typeof i.site_index==='string'&&i.site_index.trim()){
+      candidates.push({index:i.site_index.trim().toUpperCase(),type:'erfasst',key:'site_index'});
+    }else if(!birchMajority){
+      for(const [kind,prefix,label] of [['pine','T','Kiefer'],['spruce','G','Fichte']]){
+        const key='site_index_'+kind,value=num(i[key]);
+        if(value==null||value<=0)continue;
+        const covered=i.sources?.[key]?.area_ha;
+        const coverageOk=!(area>0&&covered!=null&&Number(covered)<area*.7);
+        candidates.push({index:prefix+Math.round(value),type:'unbestätigte '+label+'-SIS-Referenz',
+          key,coverageOk});
+      }
+    }
+    for(const candidate of candidates){
+      const ageRule=minAgeNorth(candidate.index);
+      result.references.push({site_index:candidate.index,type:candidate.type,
+        min_age_years:ageRule?.years??null,
+        reference_index:ageRule?.referenceIndex??null,
+        age_gap_years:age!=null&&ageRule?Math.round((ageRule.years-age)*10)/10:null,
+        coverage_ok:candidate.coverageOk!==false,
+        reached:age!=null&&ageRule?age>=ageRule.years:null});
+    }
+    const valid=result.references.filter(r=>r.min_age_years!=null&&r.coverage_ok);
+    const hasReference=valid.length>0;
+    if(!hasReference&&candidates.length){
+      return {...result,status:'needs-review',missing:[...result.missing,'site_index'],
+        reason:'Die vorhandenen Standortindex-Referenzen sind nicht ausreichend abgedeckt oder außerhalb der nordschwedischen Nadelholz-Alterstabelle. Keine automatische Endnutzungsreife ableiten.'};
+    }
+    if(!hasReference){
+      // 100 years is an internal cautious search filter, NEVER a legal-age
+      // judgement. This lets mature stands without a species diagnosis surface
+      // for a site visit instead of vanishing from planning.
+      result.references.push({site_index:null,type:'Lignum-Prüfrichtwert ohne Standortklassifizierung',
+        min_age_years:100,age_gap_years:age==null?null:Math.round((100-age)*10)/10,
+        reached:age==null?null:age>=100,coverage_ok:null,legal_reference:false});
+      result.warnings.push('100 Jahre ist ein vorsichtiger Lignum-Suchwert, keine gesetzliche Altersfreigabe.');
+    }
+    const refs=hasReference?valid:result.references.filter(r=>r.type.startsWith('Lignum-'));
+    const structure={basal:basal!=null&&basal>=16,height:height!=null&&height>=12,
+      diameter:diameter!=null&&diameter>=18,volume:volume!=null&&volume>=120};
+    result.structure=structure;
+    const mature=refs.filter(r=>r.reached===true);
+    const near=refs.some(r=>r.age_gap_years!=null&&r.age_gap_years>0&&r.age_gap_years<=15);
+    const inRange=refs.every(r=>r.reached===true);
+    const goodStructure=Object.values(structure).every(Boolean);
+    if(result.missing.length||age==null){
+      return {...result,status:'needs-review',
+        reason:'Für eine Endnutzungsprüfung fehlen ausreichend abgedeckte Alters-, Vorrats-, Grundflächen-, Höhen- oder Durchmesserwerte. Die Standort-Altersvergleiche sind nur Hinweise.'};
+    }
+    if(mature.length&&goodStructure){
+      return {...result,status:'candidate',candidate:true,
+        reason:hasReference
+          ?(birchMajority
+            ?'Der geschätzte Birkenbestand erreicht unter der nur vorläufigen Baumartenannahme die 35-Jahre-Mindestaltersschwelle. '
+            :(inRange?'Der geschätzte Bestand liegt bei allen betrachteten Standortannahmen mindestens beim tabellarischen Altersrichtwert.':'Der Altersrichtwert ist nur unter einer der unbestätigten Standortannahmen erreicht.')+' ')+
+            ' Der Bestand erfüllt die zusätzlichen vorsichtigen Lignum-Strukturkriterien; Endnutzung gegenüber Weiterwachsen und Durchforstung vor Ort vergleichen.'
+          :'Der Bestand überschreitet den vorsichtigen 100-Jahre-Suchwert und erfüllt die Lignum-Strukturkriterien. Endnutzung vor Ort auf Eignung prüfen; das gesetzliche Mindestalter ist nicht bestätigt.'};
+    }
+    if(near){
+      return {...result,status:'approaching',
+        reason:'Der geschätzte Bestand nähert sich unter mindestens einer Standortannahme dem tabellarischen Mindestalter. Jetzt Endnutzung, Wertezuwachs und weitere Pflege als Alternativen vergleichen; daraus folgt noch kein Erntetermin.'};
+    }
+    if(mature.length){
+      return {...result,status:'structure-review',
+        reason:'Ein tabellarischer Altersorientierungswert ist erreicht, aber mindestens eines der vorsichtigen Strukturkriterien von Lignum ist nicht erfüllt. Weiterwachsen, Baumqualität und Bestockung vor Ort beurteilen.'};
+    }
+    return {...result,status:'not-yet',
+      reason:'Die geschätzte Bestandsalterung liegt unter allen verfügbaren Nadelholz-Altersorientierungswerten. Eine automatische Endnutzungsmaßnahme ist damit nicht begründbar.'};
+  }
+  return {minAgeNorth,harvestReview,endUseAssessment};
 });
