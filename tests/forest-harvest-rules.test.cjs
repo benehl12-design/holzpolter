@@ -94,12 +94,14 @@ test('unknown Standorttyp age 115 is only the non-statutory conservative 100 yea
  assert.equal(a.references[0].legal_reference,false);
  assert.match(a.warnings.join(' '),/keine gesetzliche Altersfreigabe/);
 });
-test('mostly birch is not tested under northern conifer minimum ages',()=>{
+test('birch-majority mature stand is checked with conditional 35-year deciduous rule, not pine T17',()=>{
  const a=H.endUseAssessment({land_type:'forest',inventory:{age_years:85,basal_area_m2_ha:21,
    mean_height_m:17,mean_diameter_cm:19,volume_m3sk_ha:140,
    species_pct:{pine:10,spruce:15,birch:70,other:5},site_index:'T17'}});
- assert.equal(a.status,'needs-review');assert.equal(a.candidate,false);
- assert.match(a.reason,/Nadelholz-Alterstabelle/);
+ assert.equal(a.status,'candidate');assert.equal(a.candidate,true);
+ assert.equal(a.legalAgeVerified,false);
+ assert.deepEqual(a.references.map(r=>[r.site_index,r.min_age_years]),[['Birke',35]]);
+ assert.match(a.warnings.join(' '),/vor Ort bestätigte Birken/);
 });
 
 test('manually selected S2 maturity class cannot bypass unverified end-use age conditions',()=>{
