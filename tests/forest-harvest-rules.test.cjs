@@ -101,3 +101,13 @@ test('mostly birch is not tested under northern conifer minimum ages',()=>{
  assert.equal(a.status,'needs-review');assert.equal(a.candidate,false);
  assert.match(a.reason,/Nadelholz-Alterstabelle/);
 });
+
+test('manually selected S2 maturity class cannot bypass unverified end-use age conditions',()=>{
+ const s={land_type:'forest',hk_class:'S2',area_ha:8,inventory:{
+   age_years:50,basal_area_m2_ha:25,mean_height_m:18,mean_diameter_cm:24,volume_m3sk_ha:180,
+   site_index:'T24',species_pct:{pine:80,spruce:10,birch:10,other:0}}};
+ const r=M.recommend(s);
+ assert.equal(r.action,'none');
+ assert.equal(r.assessment,'uncertain');
+ assert.equal(r.endUse.candidate,false);
+});
