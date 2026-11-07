@@ -213,6 +213,8 @@
     if(age!=null&&age>=20&&height!=null&&height<10)return result('tending','Geringe Bestandshöhe: Pflegebedarf und Altersdaten vor Ort abgleichen.','low',missing);
     return result('none','Aus den vorhandenen Kennzahlen lässt sich noch keine belastbare Maßnahme ableiten. Fehlende Werte und Bestandsstruktur prüfen.','low',missing);
   }
+  // Keep legal/economic maturity distinct from thinning and the saved manual treatment.
+  function endUseAssessment(s){return harvestRules.endUseAssessment(s);}
   function recommendParts(stands){
     const parts=stands.map(s=>({id:s.id??null,name:s.name,area_ha:s.area_ha,...recommend(s)}));
     const actions=[...new Set(parts.map(p=>p.action))];
@@ -265,5 +267,5 @@
     });
   }
   function featureCollection(stands){return {type:'FeatureCollection',lignum_schema:'forest-stands-v1',features:stands.map(s=>({type:'Feature',geometry:s.geometry,properties:{...stand(s),geometry:undefined}}))};}
-  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,dominantHeightFromPlots,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
+  return {LAND,HK,ACTIONS,FIELDS,SPECIES,SOURCE_LINKS,number,round,geometry,area,overlap,inside,inventory,dominantHeightFromPlots,stand,validateLayout,stock,referenceYear,scenario,summary,recommend,endUseAssessment,recommendParts,thinningAdvice:thinning.evaluate,color,wkt,parseGeoJSON,parseCSV,featureCollection};
 });
