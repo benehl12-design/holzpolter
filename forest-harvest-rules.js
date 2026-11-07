@@ -85,15 +85,31 @@
     const share=i.species_pct||{},pine=num(share.pine),spruce=num(share.spruce);
     const coniferShare=pine!=null&&spruce!=null?pine+spruce:null;
     const otherMajority=coniferShare!=null&&coniferShare<=50;
-    if(otherMajority){
+    const birchShare=num(share.birch),birchMajority=otherMajority&&birchShare!=null&&birchShare>=50;
+    if(otherMajority&&!birchMajority){
       return {...result,status:'needs-review',coniferShare,
-        reason:'Weniger als die Hälfte des Vorrats ist laut Baumartenraster Kiefer/Fichte. Die Nadelholz-Alterstabelle ist hier nicht anwendbar. Mindestalter für Laubbestände und tatsächliche Baumartenverteilung gesondert prüfen.'};
+        reason:'Die Nadelholz-Alterstabelle passt nicht zur Baumartenverteilung. Für Laubmischwald müssen Birken-/Aspen-/Erlen-Vorratsanteile und der passende gesetzliche Alterswert vor Ort gesondert geprüft werden.'};
     }
     if(coniferShare==null)result.warnings.push('Baumartenanteile fehlen: die Nadelholz-Alterstabelle ist nur ein bedingter Orientierungswert.');
+    if(birchMajority){
+      const covered=i.sources?.species_pct?.area_ha;
+      if(area>0&&covered!=null&&Number(covered)<area*.7){
+        return {...result,status:'needs-review',missing:[...result.missing,'species_pct'],
+          reason:'Der Birkenanteil deckt weniger als 70 % der Fläche ab. Die Laubholz-Altersregel darf nicht aus einer kleinen Rasterprobe abgeleitet werden.'};
+      }
+      // Skogsstyrelsen: at least 50% of merchantable standing stock in
+      // birch/aspen/alder can follow the 35-year minimum age. The raster
+      // share is only a preliminary forest-stock classification, not proof.
+      result.references.push({site_index:'Birke',type:'vorläufiger Birken-Vorratsanteil ≥50 %',
+        min_age_years:35,reference_index:'Laubholz ≥50 %',coverage_ok:true,
+        age_gap_years:age==null?null:Math.round((35-age)*10)/10,
+        reached:age==null?null:age>=35});
+      result.warnings.push('Die 35-Jahre-Untergrenze setzt eine vor Ort bestätigte Birken-/Aspen-/Erlen-Vorratsmehrheit voraus. Andere Baumarten unterliegen anderen Regeln.');
+    }
     const candidates=[];
-    if(typeof i.site_index==='string'&&i.site_index.trim()){
+    if(!birchMajority&&typeof i.site_index==='string'&&i.site_index.trim()){
       candidates.push({index:i.site_index.trim().toUpperCase(),type:'erfasst',key:'site_index'});
-    }else{
+    }else if(!birchMajority){
       for(const [kind,prefix,label] of [['pine','T','Kiefer'],['spruce','G','Fichte']]){
         const key='site_index_'+kind,value=num(i[key]);
         if(value==null||value<=0)continue;
@@ -142,7 +158,9 @@
     if(mature.length&&goodStructure){
       return {...result,status:'candidate',candidate:true,
         reason:hasReference
-          ?(inRange?'Der geschätzte Bestand liegt unter beiden betrachteten Standortannahmen mindestens beim tabellarischen Altersrichtwert.':'Der Altersrichtwert ist nur unter einer der unbestätigten Standortannahmen erreicht.')+
+          ?(birchMajority
+            ?'Der geschätzte Birkenbestand erreicht unter der nur vorläufigen Baumartenannahme die 35-Jahre-Mindestaltersschwelle. '
+            :(inRange?'Der geschätzte Bestand liegt bei allen betrachteten Standortannahmen mindestens beim tabellarischen Altersrichtwert.':'Der Altersrichtwert ist nur unter einer der unbestätigten Standortannahmen erreicht.')+' ')+
             ' Der Bestand erfüllt die zusätzlichen vorsichtigen Lignum-Strukturkriterien; Endnutzung gegenüber Weiterwachsen und Durchforstung vor Ort vergleichen.'
           :'Der Bestand überschreitet den vorsichtigen 100-Jahre-Suchwert und erfüllt die Lignum-Strukturkriterien. Endnutzung vor Ort auf Eignung prüfen; das gesetzliche Mindestalter ist nicht bestätigt.'};
     }
