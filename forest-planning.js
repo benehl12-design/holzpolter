@@ -367,7 +367,7 @@
       hasStructure?'Die Karte zeigt Vorratsunterschiede. Daraus folgt noch keine Einschlagsempfehlung.':
       spatial?'Die Bestandswerte ergeben aktuell keine räumlich belastbare Maßnahmenempfehlung.':
       'Diese Bewertung nutzt Bestandsmittelwerte. Welche Teilflächen betroffen sind, ist noch nicht räumlich bestätigt.';
-    const thinning=r.assessment==='no-thinning'?'Derzeit keine weitere empfohlen':
+    const thinning=r.assessment==='no-thinning'?'Kein weiterer Bedarf abgeleitet':
       r.assessment==='candidate'&&r.action==='thinning'?'Durchforstung prüfen':
       !i.site_index&&i.site_index_pine!=null?'Standorttyp klären':
       r.assessment==='uncertain'?'Weitere Messungen nötig':'Individuell prüfen';
