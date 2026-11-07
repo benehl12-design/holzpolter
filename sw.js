@@ -6,8 +6,8 @@
 
 // ── CACHE-NAMEN ──────────────────────────────────────────────────────
 // Version muss mit index.html (meta app-version) übereinstimmen
-const APP_VERSION  = '13.69';
-// Offline app shell includes clearer planning assessment cards and collapsible evidence.
+const APP_VERSION  = '13.70';
+// Mutable app files are fetched fresh before the offline copy is considered.
 const APP_CACHE    = 'lignum-app-v'  + APP_VERSION + '-workerfix1';
 const TILE_CACHE   = 'lignum-tiles-v5';
 const SAT_CACHE    = 'lignum-sat-v5';
@@ -39,6 +39,9 @@ const APP_SHELL = [
   'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
   'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
 ];
+// The browser may keep old HTML, CSS and JS in its offline cache. For these
+// mutable same-origin files we must ask the network before using the offline copy.
+const LOCAL_SHELL_PATHS = new Set(APP_SHELL.filter(p=>p.startsWith('/')).map(p=>new URL(p.slice(1),self.registration.scope).pathname));
 const REQUIRED_SHELL = new Set([
   '/index.html', '/offline.js', '/forwarder-icon.png',
   '/forest-planning.css', '/forest-thinning.js', '/forest-model.js', '/forest-raster-data.js', '/forest-raster-worker.js', '/forest-planning.js', '/vendor/proj4-2.11.0.js', '/vendor/polygon-clipping-0.15.7.js',
@@ -170,26 +173,47 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ④ App-Shell + CDN: Cache First → dann Network → dann Fallback
+  // ④ Mutable app shell: network first. Keep working offline when unavailable.
+  // Do not apply this to raster tiles, protected offline maps, or CDN assets.
+  const scope=new URL(self.registration.scope),target=new URL(url);
+  const inApp=target.origin===scope.origin&&target.pathname.startsWith(scope.pathname);
+  const navigation=e.request.mode==='navigate'||!!e.request.headers.get('accept')?.includes('text/html');
+  const mutable=inApp&&(navigation||
+    (LOCAL_SHELL_PATHS.has(target.pathname)&&/\.(?:html|js|css|json)$/.test(target.pathname)));
+  if(mutable){
+    e.respondWith((async()=>{
+      try{
+        const fresh=await fetch(e.request,{cache:'no-store'});
+        if(fresh.ok){
+          try{
+            const cache=await caches.open(APP_CACHE);
+            await cache.put(e.request,fresh.clone());
+          }catch(err){console.warn('[SW] Frische App-Datei nicht offline speicherbar:',err);}
+          return fresh;
+        }
+        return await caches.match(e.request) || (navigation?await caches.match(shellURL('/index.html')):null) || fresh;
+      }catch{
+        return await caches.match(e.request) ||
+          (navigation?await caches.match(shellURL('/index.html')):null) ||
+          new Response('',{status:503});
+      }
+    })());
+    return;
+  }
+
+  // ⑤ Immutable resources and externally hosted libraries remain cache first.
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
-
       return fetch(e.request)
         .then(response => {
-          if (response && response.ok && e.request.method === 'GET') {
-            const clone = response.clone();
-            caches.open(APP_CACHE).then(c => c.put(e.request, clone));
+          if (response && response.ok) {
+            const clone=response.clone();
+            e.waitUntil(caches.open(APP_CACHE).then(c=>c.put(e.request,clone)).catch(()=>{}));
           }
           return response;
         })
-        .catch(() => {
-          // Offline + nicht im Cache
-          if (e.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match(shellURL('/index.html'));
-          }
-          return new Response('', { status: 503 });
-        });
+        .catch(() => new Response('',{status:503}));
     })
   );
 });
